@@ -1,7 +1,5 @@
 import { useEffect } from 'react';
 import Head from 'next/head';
-
-
 const myAPIkeyforMAp = "AIzaSyDrW3GstW2cOFw0MohwScUdXmSmf_0rDMY";
 
 export default function Home() {

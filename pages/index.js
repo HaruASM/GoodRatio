@@ -1,9 +1,14 @@
 import { useEffect } from 'react';
 import Head from 'next/head';
-const myAPIkeyforMAp = "AIzaSyDrW3GstW2cOFw0MohwScUdXmSmf_0rDMY";
+
+
+const myAPIkeyforMAp = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
 export default function Home() {
   useEffect(() => {
+    // 환경 변수 값 출력
+    console.log("Google Maps API Key:", myAPIkeyforMAp);
+
     let map;
     let marker;
 
@@ -21,11 +26,19 @@ export default function Home() {
               zoom: 15,
             });
 
-            marker = new google.maps.Marker({
-              position: positionObj,
-              map,
-              title: '현재 위치',
-            });
+            if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+              marker = new google.maps.marker.AdvancedMarkerElement({
+                position: positionObj,
+                map,
+                title: '현재 위치',
+              });
+            } else {
+              marker = new google.maps.Marker({
+                position: positionObj,
+                map,
+                title: '현재 위치',
+              });
+            }
           } else {
             map.setCenter(positionObj);
             marker.setPosition(positionObj);
@@ -52,10 +65,11 @@ export default function Home() {
           break;
       }
     };
-    
+
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMAp}&callback=loadMap`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMAp}&callback=loadMap&v=beta`;
     script.async = true;
+    script.defer = true;
     window.loadMap = loadMap;
     document.head.appendChild(script);
   }, []);

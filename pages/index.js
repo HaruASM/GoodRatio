@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 import Head from 'next/head';
-
+import Script from 'next/script';
 
 const myAPIkeyforMAp = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
 export default function Home() {
   useEffect(() => {
-    // 환경 변수 값 출력
     console.log("Google Maps API Key:", myAPIkeyforMAp);
 
     let map;
@@ -66,12 +65,7 @@ export default function Home() {
       }
     };
 
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMAp}&callback=loadMap&v=beta`;
-    script.async = true;
-    script.defer = true;
     window.loadMap = loadMap;
-    document.head.appendChild(script);
   }, []);
 
   return (
@@ -84,6 +78,10 @@ export default function Home() {
         <h1>현재 위치 정보</h1>
         <div id="map" style={{ width: '100%', height: '500px' }}></div>
       </main>
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMAp}&callback=loadMap&v=beta`}
+        strategy="afterInteractive"
+      />
     </div>
   );
 } 

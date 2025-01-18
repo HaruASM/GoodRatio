@@ -13,6 +13,9 @@ const firebaseConfig = {
 };
 
 const firebaseapp = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
-const firebasedb = getFirestore(firebaseapp, 'goodrationapp');
+const firebasedb = getFirestore(firebaseapp, 'goodrationapp', {
+    experimentalForceLongPolling: true,
+    useFetchStreams: false,
+  });
 
 export { firebaseapp, firebasedb }; 

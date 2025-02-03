@@ -5,17 +5,45 @@ import { collection, getDocs, onSnapshot, setDoc, doc } from 'firebase/firestore
 import { firebasedb } from '../../firebase';
 import { randomizeLocations } from '../../utils/randomizeLocations';
 
-const myAPIkeyforMAp = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
+
+
+const myAPIkeyforMAp = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
 export default function Driver() {
   const [status, setStatus] = useState('ready');
   const [currentPosition, setCurrentPosition] = useState(null);
-  const [items, setItems] = useState([]);
+  const [DriversLocalDB, setDriversLocalDB] = useState([]);
+  const [DriverMap, setDriverMap] = useState(null);
+  const [DriverMarkers, setDriverMarkers] = useState([]);
+  const [MapIcons, setMapIcons] = useState([]);
+  const [displayDB, setDisplayDB] = useState(false);
+
+  
+
+  useEffect(() => { //아이콘 이미지 배열을 생성하는 객체 
+    // 이미지 객체를 한 번 생성하여 상태에 저장
+    const iconNames = [
+      'driver-bicycle',
+      'driver-car',
+      'driver-person',
+      'driver-van',      
+    ];
+    let MapIcons_ = []
+
+    iconNames.forEach((iconName) => {
+      let carIconImg = document.createElement("img");
+      carIconImg .src = `/icons/${iconName}.svg`; // public 디렉토리에 저장된 이미지 경로
+      carIconImg.style.width = '28px'; // 이미지 크기 설정
+      carIconImg.style.height = '28px';
+      MapIcons_[iconName] = carIconImg;
+    });
+    setMapIcons(MapIcons_);
+  }, []);
 
   useEffect(() => {
-    let map;
-    let marker;
+    // Map과 MAker 생성 
+    let map_, marker_;
     
     const loadMap = () => {
       if (navigator.geolocation) {
@@ -25,17 +53,17 @@ export default function Driver() {
 
           const positionObj = { lat: latitude, lng: longitude };
           
-          if (!map) {
-            map = new google.maps.Map(document.getElementById('map'), {
+          if (!map_) {
+            map_ = new google.maps.Map(document.getElementById('map'), {
               center: positionObj,
               zoom: 15,
               mapId: process.env.NEXT_PUBLIC_MAP_ID
             });
             loadMarker(positionObj);
           } else {
-            map.setCenter(positionObj);
-            if (marker) {
-              marker.position = positionObj; // 위치 업데이트
+            map_.setCenter(positionObj);
+            if (marker_) {
+              marker_.position = positionObj; // 위치 업데이트
             }
           }
         });
@@ -46,18 +74,21 @@ export default function Driver() {
 
     const loadMarker = async (positionObj) => {
       const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
-      marker = new AdvancedMarkerElement({
+      marker_ = new AdvancedMarkerElement({
         position: positionObj,
-        map,
+        map: map_,
         title: '현재 위치',
+        content: MapIcons['driver-person'],
       });
+      
       return Promise.resolve(); // 마커 생성 후 Promise 반환
     };
 
     window.loadMap = loadMap;
-  }, []);
+  }, [MapIcons]);
 
   useEffect(() => {
+    // 현재 위치를 가져와서 currentPosition 상태를 설정합니다.
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
@@ -68,16 +99,17 @@ export default function Driver() {
   }, []);
 
   useEffect(() => {
+    // currentPosition이 설정되면 Firebase에서 차량 데이터를 가져와서 DriversLocalDB 상태를 업데이트합니다.
     if (currentPosition) {
       const collectionRef = collection(firebasedb, 'vehicles');
 
       // Firestore 컬렉션의 실시간 업데이트 수신
       const unsubscribe = onSnapshot(collectionRef, (snapshot) => {
         const fetchedData = snapshot.docs.map(doc => ({
-          id: doc.id, // 문서 ID를 데이터에 포함
+          id: doc.id,
           ...doc.data()
         }));
-        setItems(fetchedData);
+        setDriversLocalDB(fetchedData);
         console.log('데이터받음', fetchedData);
       });
 
@@ -85,6 +117,66 @@ export default function Driver() {
       return () => unsubscribe();
     }
   }, [currentPosition]);
+
+  useEffect(() => {
+    // Google Maps API가 로드되었고 currentPosition이 설정되면 맵을 초기화합니다.
+    const initializeMap = () => {
+      const mapDiv = document.getElementById('map');
+      if (window.google && mapDiv && currentPosition && !DriverMap) {
+        const mapInstance = new window.google.maps.Map(mapDiv, {
+          center: currentPosition,
+          zoom: 14,
+        });
+        setDriverMap(mapInstance);
+        console.log('Map initialized');
+      }
+    };
+
+    if (window.google) {
+      initializeMap();
+    } else {
+      const intervalId = setInterval(() => {
+        if (window.google) {
+          initializeMap();
+          clearInterval(intervalId);
+        }
+      }, 100); // 100ms 간격으로 Google Maps API 로드 확인
+    }
+  }, [currentPosition, DriverMap]);
+
+  useEffect(() => {
+
+    const displayLocationsOnMap = async () => {
+      console.log(DriversLocalDB.length, MapIcons.length);
+      // if (map && DriversLocalDB.length > 0 && MapIcons.length > 0) {
+        
+        if (DriverMap && DriversLocalDB.length > 0 ) {
+        //clearMarkers();
+        const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+        const markers = DriversLocalDB.map(item => {
+          if (item.location) {
+            const icon = MapIcons.find(icon => icon.name === 'person');
+            return new AdvancedMarkerElement({
+              position: item.location,
+              map: DriverMap,
+              title: item.vehicle || 'Vehicle',
+              //content: MapIcons['driver-person'],
+            });
+          }
+          return null;
+        }).filter(marker => marker !== null);
+        setDriverMarkers(markers);
+        console.log('Markers added to map');
+      } else {
+        console.log('No items to display or map not initialized');
+      }
+      
+    };
+
+    if (displayDB) {
+      displayLocationsOnMap();
+    }
+  }, [displayDB, DriverMap, DriversLocalDB]);
 
   const getStatusStyle = () => {
     switch (status) {
@@ -108,20 +200,23 @@ export default function Driver() {
     }
   };
 
+  const clearMarkers = () => {
+    // 기존 마커를 모두 제거합니다.
+    DriverMarkers.forEach(marker => marker.setMap(null));
+    setDriverMarkers([]);
+  };
+
   const handleRandomizeAndWrite = async () => {
     console.log('Button clicked');
-    if (currentPosition && items.length > 0) {
+    if (currentPosition && DriversLocalDB.length > 0) {
       try {
         console.log('Randomizing locations');
-        const updatedData = randomizeLocations(items, currentPosition);
+        const updatedData = randomizeLocations(DriversLocalDB, currentPosition);
+        setDriversLocalDB(updatedData);
         console.log('Randomized data:', updatedData);
 
         // Firestore에 데이터 쓰기
         for (const item of updatedData) {
-          if (!item.id) {
-            console.error('Item ID is undefined:', item);
-            continue; // ID가 없는 항목은 건너뜁니다.
-          }
           const docRef = doc(firebasedb, 'vehicles', item.id);
           await setDoc(docRef, item);
         }
@@ -132,6 +227,11 @@ export default function Driver() {
     } else {
       console.log('No items to update or current position not set');
     }
+  };
+
+  const handleDisplayButtonClick = () => {
+     
+    setDisplayDB( !displayDB );
   };
 
   return (
@@ -173,11 +273,13 @@ export default function Driver() {
         </div>
         <div id="map" style={{ width: '100%', height: '500px' }}></div>
         <button onClick={handleRandomizeAndWrite}>Randomize and Write to Firestore</button>
+        <button onClick={handleDisplayButtonClick}>Display Locations on Map</button>
       </main>
       <Script 
-        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMAp}&callback=loadMap&v=beta&loading=async`}
+        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMAp}&callback=loadMap&v=beta&marker&loading=async`}
         strategy="afterInteractive"
       />
+      
     </div>
   );
 }

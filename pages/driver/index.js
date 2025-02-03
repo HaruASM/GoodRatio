@@ -11,16 +11,16 @@ import { randomizeLocations } from '../../utils/randomizeLocations';
 const myAPIkeyforMAp = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
 export default function Driver() {
-  const [status, setStatus] = useState('ready');
-  const [currentPosition, setCurrentPosition] = useState(null);
-  const [DriversLocalDB, setDriversLocalDB] = useState([]);
-  const [DriverMap, setDriverMap] = useState(null);
-  const [DriverMarkers, setDriverMarkers] = useState([]);
-  const [MapIcons, setMapIcons] = useState([]);
-  const [displayDB, setDisplayDB] = useState(false);
+  const [status, setStatus] = useState('ready'); // 내 운전자 상황 상태 변수
+  const [currentPosition, setCurrentPosition] = useState(null); // 현재 위치
+  const [DriversLocalDB, setDriversLocalDB] = useState([]); // 로컬DB
+  const [DriverMap, setDriverMap] = useState(null); // 구글맵 인스턴스
+  const [DriverMarkers, setDriverMarkers] = useState([]); // 마커 인스턴스
+  const [MapIcons, setMapIcons] = useState([]); // 아이콘 이미지 배열
+  const [displayDB, setDisplayDB] = useState(false); // 로컬DB 표시 여부 true/false
 
   
-
+ 
   useEffect(() => { //아이콘 이미지 배열을 생성하는 객체 
     // 이미지 객체를 한 번 생성하여 상태에 저장
     const iconNames = [
@@ -72,6 +72,7 @@ export default function Driver() {
       }
     };
 
+    
     const loadMarker = async (positionObj) => {
       const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
       marker_ = new AdvancedMarkerElement({

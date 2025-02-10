@@ -8,7 +8,8 @@ const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 export default function Editor() { // 메인 페이지
   const [instMap, setInstMap] = useState(null); //구글맵 인스턴스 
   const [currentPosition, setCurrentPosition] = useState({ lat: 35.8714, lng: 128.6014 }); // 대구의 기본 위치로 저장
-
+  const [editMarker, setEditMarker] = useState(null);
+  const [myLocMarker, setMyLocMarker] = useState(null);
 
   useEffect(() => { // 현재 위치 저장
     if (navigator.geolocation) {
@@ -20,72 +21,84 @@ export default function Editor() { // 메인 페이지
     } else {
       console.log('Geolocation 지원 안되는 중');
     }
+
+
+    initializePage();
   }, []);
 
-  useEffect(() => {
-    const initializeMap = () => {
-      const mapDiv = document.getElementById('mapSection');
-      if (window.google && mapDiv && !instMap) {
-        const mapInstance = new window.google.maps.Map(mapDiv, {
-          center: currentPosition,
-          zoom: 15,
-        });
-        setInstMap(mapInstance);
-        console.log('Map initialized');
-      }
-    };
 
-    const initializeDrawingManager = () => {
-      var drawingManager = new window.google.maps.drawing.DrawingManager({
-        drawingControl: false,
-        drawingControlOptions: {
-          position: google.maps.ControlPosition.TOP_CENTER,
-          drawingModes: [
-            google.maps.drawing.OverlayType.MARKER,
-            google.maps.drawing.OverlayType.POLYGON,
-          ],
+  const initializeMap = () => { //window.google 로드 후 실행
+    const mapDiv = document.getElementById('mapSection');
+    if (window.google && mapDiv && !instMap) {
+      const mapInstance = new window.google.maps.Map(mapDiv, {
+        center: currentPosition,
+        zoom: 15,
+      });
+      setInstMap(mapInstance);
+      console.log('Map initialized');
+    }
+    
+
+  }
+
+  const initializeDrawingManager = () => {
+    var drawingManager = new window.google.maps.drawing.DrawingManager({
+      drawingControl: false,
+      drawingControlOptions: {
+        position: google.maps.ControlPosition.TOP_CENTER,
+        drawingModes: [
+          google.maps.drawing.OverlayType.MARKER,
+          google.maps.drawing.OverlayType.POLYGON,
+        ],
+        
+        polygonOptions: {
+          strokeColor: 'red',
           
-          polygonOptions: {
-            strokeColor: 'red',
-            
-            
-            fillOpacity: 0.9,
-            
-            fillColor: 'red',
-      fillOpacity: 1,
-      strokeWeight: 5,
-      clickable: false,
-      editable: true,
-      zIndex: 1,
-          }
+          
+          fillOpacity: 0.9,
+          
+          fillColor: 'red',
+          fillOpacity: 1,
+          strokeWeight: 5,
+          clickable: false,
+          editable: true,
+          zIndex: 1,
         }
+      }
     });
 
     window.google.maps.event.addListener(drawingManager, 'polygoncomplete', function(event) {
       // if (event.type == 'circle') {
-      
-      console.log( event.getPath() );
-      event.setMap(instMap);
-
-      
+      const vertices = event.getPath();
+      let coordinates = [];
+      // ...
     });
+  }
 
-      drawingManager.setMap(instMap);
-      drawingManager.setOptions({        drawingControl : true,        }); // false라도 드로잉 기능은 유지 just hide
-      //drawingManager.setMap(null); // 드로잉 매니저 자체를 제거 
-    } 
+
+  const initializePage = () => {
+    console.log('initializePage');
 
     if (window.google) {
       initializeMap();
       initializeDrawingManager();
     } else {
-      const intervalId = setInterval(() => {
+      const intervalId = setInterval( () => {
         if (window.google) {
           initializeMap();
+          initializeDrawingManager();
           clearInterval(intervalId);
         }
       }, 100); // 100ms 간격으로 Google Maps API 로드 확인
     }
+  }
+
+
+
+  useEffect(() => {
+
+    
+
   }, [currentPosition, instMap]);
 
   
@@ -164,9 +177,10 @@ export default function Editor() { // 메인 페이지
         {/* 구글 지도가 여기에 표시됩니다 */}
       </div>
       <Script 
-        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=drawing&callback=initializeMap`}
+        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=drawing&loading=async`}
         strategy="afterInteractive"
       />
     </div>
+
   );
 } 

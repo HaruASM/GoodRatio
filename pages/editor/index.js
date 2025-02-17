@@ -5,38 +5,26 @@ import styles from '../shops/styles.module.css'; // CSS 모듈을 동일하게 �
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
+
 export default function Editor() { // 메인 페이지
   const [instMap, setInstMap] = useState(null); //구글맵 인스턴스 
   const [currentPosition, setCurrentPosition] = useState({ lat: 35.8714, lng: 128.6014 }); // 대구의 기본 위치로 저장
   const [editMarker, setEditMarker] = useState(null);
   const [myLocMarker, setMyLocMarker] = useState(null);
 
-  useEffect(() => { // 현재 위치 저장
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        const { latitude, longitude } = position.coords;
-        setCurrentPosition({ lat: latitude, lng: longitude });
-        
-      });
-    } else {
-      console.log('Geolocation 지원 안되는 중');
-    }
-
-
-    initializePage();
-  }, []);
-
+  
 
   const initializeMap = () => { //window.google 로드 후 실행
-    const mapDiv = document.getElementById('mapSection');
-    if (window.google && mapDiv && !instMap) {
+    let mapDiv = document.getElementById('mapSection');
+    // 여기서 interval을 줘야할지? 
+    //if (window.google && mapDiv && !instMap) {
       const mapInstance = new window.google.maps.Map(mapDiv, {
-        center: currentPosition,
+        center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
         zoom: 15,
       });
       setInstMap(mapInstance);
       console.log('Map initialized');
-    }
+    //}
     
 
   }
@@ -79,25 +67,45 @@ export default function Editor() { // 메인 페이지
   const initializePage = () => {
     console.log('initializePage');
 
-    if (window.google) {
-      initializeMap();
-      initializeDrawingManager();
-    } else {
-      const intervalId = setInterval( () => {
-        if (window.google) {
-          initializeMap();
-          initializeDrawingManager();
-          clearInterval(intervalId);
-        }
-      }, 100); // 100ms 간격으로 Google Maps API 로드 확인
-    }
+    initializeMap();
+
+      //     window.google.maps.event.addListenerOnce(map, 'idle', function(){
+      //       console.log("idle");  
+      // });
   }
 
+  
+
+  useEffect(() => { // 현재 위치 저장
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        setCurrentPosition({ lat: latitude, lng: longitude });
+      }, 
+    (error) => {
+      console.log('에러 : ',error);
+    });
+    } else {
+      console.log('Geolocation 지원 안되는 중');
+    }
+
+    const intervalId = setInterval( () => {
+      console.log("set interval");
+      
+      if(window.google) {
+        initializePage();
+        clearInterval(intervalId);
+      }
+    }, 100);  
+
+    // 컴포넌트 언마운트시
+    return () => clearInterval(intervalId);
+  }, []);
 
 
   useEffect(() => {
-
-    
+ 
+    console.log("use effect 2");
 
   }, [currentPosition, instMap]);
 

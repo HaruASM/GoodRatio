@@ -11,40 +11,21 @@ export default function Editor() { // 메인 페이지
   const [currentPosition, setCurrentPosition] = useState({ lat: 35.8714, lng: 128.6014 }); // 대구의 기본 위치로 저장
   const [editMarker, setEditMarker] = useState(null);
   const [myLocMarker, setMyLocMarker] = useState(null);
+  const [drawingManager, setDrawingManager] = useState(null);
 
   
-
-  const initializeMap = () => { //window.google 로드 후 실행
-    let mapDiv = document.getElementById('mapSection');
-    // 여기서 interval을 줘야할지? 
-    //if (window.google && mapDiv && !instMap) {
-      const mapInstance = new window.google.maps.Map(mapDiv, {
-        center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
-        zoom: 15,
-      });
-      setInstMap(mapInstance);
-      console.log('Map initialized');
-    //}
-    
-
-  }
-
-  const initializeDrawingManager = () => {
-    var drawingManager = new window.google.maps.drawing.DrawingManager({
-      drawingControl: false,
+  const initializeDrawingManager = ( _mapInstance ) => {
+    var _drawingManager = new window.google.maps.drawing.DrawingManager({
+      drawingControl: true,
       drawingControlOptions: {
         position: google.maps.ControlPosition.TOP_CENTER,
         drawingModes: [
           google.maps.drawing.OverlayType.MARKER,
           google.maps.drawing.OverlayType.POLYGON,
         ],
-        
         polygonOptions: {
           strokeColor: 'red',
-          
-          
           fillOpacity: 0.9,
-          
           fillColor: 'red',
           fillOpacity: 1,
           strokeWeight: 5,
@@ -55,62 +36,71 @@ export default function Editor() { // 메인 페이지
       }
     });
 
-    window.google.maps.event.addListener(drawingManager, 'polygoncomplete', function(event) {
+    window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', function(event) {
       // if (event.type == 'circle') {
       const vertices = event.getPath();
       let coordinates = [];
       // ...
     });
+    _drawingManager.setMap(_mapInstance);
+    setDrawingManager(_drawingManager); // 비동기 이므로 최후반
   }
 
 
   const initializePage = () => {
-    console.log('initializePage');
+    console.log('initPage');
 
-    initializeMap();
+    // g맵 인스턴스 생성
+    let mapDiv = document.getElementById('mapSection');
+    // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
+    const _mapInstance = new window.google.maps.Map(mapDiv, {
+      center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
+      zoom: 15,
+    });
+    
+    // g맵용 이벤트 핸들러 
+    window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
+      // useEffect [instMap] or 'idle' 이벤트 
+      console.log("idle Map");  
+      initializeDrawingManager(_mapInstance);
 
-      //     window.google.maps.event.addListenerOnce(map, 'idle', function(){
-      //       console.log("idle");  
-      // });
+
+    });
+    
+    setInstMap(_mapInstance); //비동기 이므로 최후반
   }
 
   
 
-  useEffect(() => { // 현재 위치 저장
+  useEffect(() => { // 1회 실행 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
         setCurrentPosition({ lat: latitude, lng: longitude });
       }, 
     (error) => {
-      console.log('에러 : ',error);
+      console.log('geolocation 에러 : ',error);
     });
     } else {
-      console.log('Geolocation 지원 안되는 중');
+      console.log('geolocation 지원 안되는 중');
     }
 
     const intervalId = setInterval( () => {
       console.log("set interval");
-      
       if(window.google) {
         initializePage();
-        clearInterval(intervalId);
-      }
+        clearInterval(intervalId);    }
     }, 100);  
 
-    // 컴포넌트 언마운트시
-    return () => clearInterval(intervalId);
+    return () => clearInterval(intervalId); // 컴포넌트 언마운트시
   }, []);
 
 
   useEffect(() => {
  
-    console.log("use effect 2");
+    console.log("use effect 0");
 
-  }, [currentPosition, instMap]);
-
-  
-
+  }, [currentPosition]);
 
   return (
     <div className={styles.container}>

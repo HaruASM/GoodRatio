@@ -4,6 +4,15 @@ import Script from 'next/script';
 import styles from '../shops/styles.module.css'; // CSS 모듈을 동일하게 사용
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
+const OVERLAY_COLOR = {
+  IDLE : '#FF0000', // 빨간색
+  MOUSEOVER : '#00FF00', // 초록색
+};
+
+const OVERLAY_ICON = {
+  MARKER_MOUSEOVER : "http://maps.google.com/mapfiles/ms/icons/blue-dot.png", // 파란색
+  MARKER : "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // 초록색
+};
 
 
 export default function Editor() { // 메인 페이지
@@ -12,36 +21,111 @@ export default function Editor() { // 메인 페이지
   const [editMarker, setEditMarker] = useState(null);
   const [myLocMarker, setMyLocMarker] = useState(null);
   const [drawingManager, setDrawingManager] = useState(null);
-
+  const [overlayEditing, setOverlayEditing] = useState(null); // 에디터에서 작업중인 오버레이. 1개만 운용
   
-  const initializeDrawingManager = ( _mapInstance ) => {
+  const initializeDrawingManager = ( _mapInstance ) => { // 
     var _drawingManager = new window.google.maps.drawing.DrawingManager({
-      drawingControl: true,
+      drawingControl: false,
       drawingControlOptions: {
         position: google.maps.ControlPosition.TOP_CENTER,
         drawingModes: [
           google.maps.drawing.OverlayType.MARKER,
           google.maps.drawing.OverlayType.POLYGON,
         ],
-        polygonOptions: {
-          strokeColor: 'red',
-          fillOpacity: 0.9,
-          fillColor: 'red',
-          fillOpacity: 1,
-          strokeWeight: 5,
-          clickable: false,
-          editable: true,
-          zIndex: 1,
-        }
       }
     });
+    
+    _drawingManager.setOptions({
+      drawingControl: true,
+      markerOptions: {
+        icon: { url: OVERLAY_ICON.MARKER }, // cf. 문 모양으로 
+        clickable: true,
+        editable: true,
+        draggable: true,
+        zIndex: 1,
+        fillOpacity: 0.35,
+        },
+      polygonOptions: {
+        strokeColor: OVERLAY_COLOR.IDLE, // 빨간색
+        fillColor: OVERLAY_COLOR.IDLE,
+        fillOpacity: 0.25,
+        strokeWeight: 2,
+        clickable: true,
+        editable: true,
+        zIndex: 1,
+      },
 
-    window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', function(event) {
-      // if (event.type == 'circle') {
-      const vertices = event.getPath();
-      let coordinates = [];
-      // ...
     });
+
+
+    // 오버레이 생성시 
+    window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (event)=>{
+      
+      const handleOverlayClick = () => {
+        console.log('오버레이가 클릭 ', event.type );
+      };
+     
+      const handleOverlayMouseOver = () => {
+      
+        if (event.type === 'polygon') {
+          event.overlay.setOptions({
+            fillColor: OVERLAY_COLOR.MOUSEOVER, // 초록색
+          });
+        } else if (event.type === 'marker') {
+          event.overlay.setIcon({
+            url: OVERLAY_ICON.MARKER_MOUSEOVER // 파란색
+          });
+        }
+      }
+      const handleOverlayMouseOut = () => {
+        if (event.type === 'polygon') {
+          event.overlay.setOptions({
+            fillColor: OVERLAY_COLOR.IDLE, // 초록색
+          });
+        } else if (event.type === 'marker') {
+          event.overlay.setIcon({
+            url: OVERLAY_ICON.MARKER, // 파란색
+          });
+        }
+      }
+
+      // 오버레이에 이벤트 바인딩 
+      window.google.maps.event.addListener(event.overlay, 'click', handleOverlayClick);
+      window.google.maps.event.addListener(event.overlay, 'mouseover', handleOverlayMouseOver);
+      window.google.maps.event.addListener(event.overlay, 'mouseout', handleOverlayMouseOut);
+
+      setOverlayEditing((prev) => { // 기존 오버레이 삭제하고 새 오버레이 event 객체 저장   
+        if (prev) prev.overlay.setMap(null);
+        return event; });
+      
+      _drawingManager.setDrawingMode(null); // 그리기 모드 초기화
+    });
+    
+    // window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', function(event) {
+    //   // if (event.type == 'circle') {
+    //   const vertices = event.getPath();
+    //   let coordinates = [];
+    //   // ...
+
+    //   window.google.maps.event.addListener(event, 'click', function() {
+    //     console.log('오버레이가 클릭되었습니다!');
+    //   });
+    //   console.log("polygoncomplete", );
+
+    //   //마우스오버시 색깔 변환 'mouseover' // mouseout 이벤트 추가
+    //   window.google.maps.event.addListener(event, 'mouseover', function() {
+    //     console.log('마우스오버');
+    //   });
+
+    //   window.google.maps.event.addListener(event, 'mouseout', function() {
+    //     console.log('마우스아웃');
+    //   });
+
+    // _drawingManager.setDrawingMode(null);
+    // });
+
+
+
     _drawingManager.setMap(_mapInstance);
     setDrawingManager(_drawingManager); // 비동기 이므로 최후반
   }

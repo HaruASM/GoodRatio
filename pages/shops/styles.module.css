@@ -127,3 +127,18 @@
   justify-content: center;
   align-items: center;
 } 
+
+.editor {
+  padding : 10px;
+  
+}
+
+
+.editor .menuButton {
+  margin-bottom: 10px; /* 버튼 요소들 사이에 마진 추가 */
+}
+
+/* 마지막 버튼 아래에 불필요한 마진이 생기지 않도록 */
+.editor .menuButton:last-child {
+  margin-bottom: 0;
+}

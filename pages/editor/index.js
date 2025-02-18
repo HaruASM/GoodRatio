@@ -14,7 +14,6 @@ const OVERLAY_ICON = {
   MARKER : "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // 초록색
 };
 
-
 export default function Editor() { // 메인 페이지
   const [instMap, setInstMap] = useState(null); //구글맵 인스턴스 
   const [currentPosition, setCurrentPosition] = useState({ lat: 35.8714, lng: 128.6014 }); // 대구의 기본 위치로 저장
@@ -55,80 +54,76 @@ export default function Editor() { // 메인 페이지
         zIndex: 1,
       },
 
-    });
-
+    }); // _drawingManager.setOptions
 
     // 오버레이 생성시 
-    window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (event)=>{
+    window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj)=>{
       
       const handleOverlayClick = () => {
-        console.log('오버레이가 클릭 ', event.type );
+        console.log('오버레이가 클릭 ', eventObj.type );
+
+        // InfoWindow 생성 및 설정
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `<div><strong>오버레이 정보</strong><br>타입: ${eventObj.type}</div>`,
+        });
+
+        
+        // InfoWindow를 오버레이의 위치에 표시
+        if (eventObj.type === 'marker') {
+          infoWindow.open(instMap, eventObj.overlay);
+        } else if (eventObj.type === 'polygon') {
+          // 폴리곤 타입의 오버레이인 경우
+          const path = eventObj.overlay.getPath(); // 폴리곤의 경로를 가져옴
+          const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
+          path.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
+          infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
+          //infoWindow.setPosition(currentPosition);
+          
+          infoWindow.open(instMap, eventObj.overlay); // InfoWindow를 지도에 표시
+          
+        }
       };
      
       const handleOverlayMouseOver = () => {
       
-        if (event.type === 'polygon') {
-          event.overlay.setOptions({
+        if (eventObj.type === 'polygon') {
+          eventObj.overlay.setOptions({
             fillColor: OVERLAY_COLOR.MOUSEOVER, // 초록색
           });
-        } else if (event.type === 'marker') {
-          event.overlay.setIcon({
+        } else if (eventObj.type === 'marker') {
+          eventObj.overlay.setIcon({
             url: OVERLAY_ICON.MARKER_MOUSEOVER // 파란색
           });
         }
       }
       const handleOverlayMouseOut = () => {
-        if (event.type === 'polygon') {
-          event.overlay.setOptions({
+        if (eventObj.type === 'polygon') {
+          eventObj.overlay.setOptions({
             fillColor: OVERLAY_COLOR.IDLE, // 초록색
           });
-        } else if (event.type === 'marker') {
-          event.overlay.setIcon({
+        } else if (eventObj.type === 'marker') {
+          eventObj.overlay.setIcon({
             url: OVERLAY_ICON.MARKER, // 파란색
           });
         }
       }
 
       // 오버레이에 이벤트 바인딩 
-      window.google.maps.event.addListener(event.overlay, 'click', handleOverlayClick);
-      window.google.maps.event.addListener(event.overlay, 'mouseover', handleOverlayMouseOver);
-      window.google.maps.event.addListener(event.overlay, 'mouseout', handleOverlayMouseOut);
+      window.google.maps.event.addListener(eventObj.overlay, 'click', handleOverlayClick);
+      window.google.maps.event.addListener(eventObj.overlay, 'mouseover', handleOverlayMouseOver);
+      window.google.maps.event.addListener(eventObj.overlay, 'mouseout', handleOverlayMouseOut);
 
       setOverlayEditing((prev) => { // 기존 오버레이 삭제하고 새 오버레이 event 객체 저장   
         if (prev) prev.overlay.setMap(null);
-        return event; });
+        return eventObj; });
       
       _drawingManager.setDrawingMode(null); // 그리기 모드 초기화
     });
     
-    // window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', function(event) {
-    //   // if (event.type == 'circle') {
-    //   const vertices = event.getPath();
-    //   let coordinates = [];
-    //   // ...
-
-    //   window.google.maps.event.addListener(event, 'click', function() {
-    //     console.log('오버레이가 클릭되었습니다!');
-    //   });
-    //   console.log("polygoncomplete", );
-
-    //   //마우스오버시 색깔 변환 'mouseover' // mouseout 이벤트 추가
-    //   window.google.maps.event.addListener(event, 'mouseover', function() {
-    //     console.log('마우스오버');
-    //   });
-
-    //   window.google.maps.event.addListener(event, 'mouseout', function() {
-    //     console.log('마우스아웃');
-    //   });
-
-    // _drawingManager.setDrawingMode(null);
-    // });
-
-
-
+    
     _drawingManager.setMap(_mapInstance);
     setDrawingManager(_drawingManager); // 비동기 이므로 최후반
-  }
+  } // initializeDrawingManager  
 
 
   const initializePage = () => {
@@ -139,28 +134,34 @@ export default function Editor() { // 메인 페이지
     // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
     const _mapInstance = new window.google.maps.Map(mapDiv, {
       center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
-      zoom: 15,
+      zoom: 16,
     });
     
-    // g맵용 이벤트 핸들러 
+    // g맵용 로드 완료시 동작 
     window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
       // useEffect [instMap] or 'idle' 이벤트 
       console.log("idle Map");  
       initializeDrawingManager(_mapInstance);
 
-
-    });
+      // -- 현재 내위치 마커 
+    });  // idle 이벤트 
     
     setInstMap(_mapInstance); //비동기 이므로 최후반
-  }
+  } // initializePage 마침
 
-  
+  const moveToCurrentLocation = () => {
+    if (instMap && currentPosition) {
+      instMap.setCenter(currentPosition);
+      console.log('Moved to current location:', currentPosition);
+    }
+  };
 
-  useEffect(() => { // 1회 실행 
+  useEffect(() => { // 1회 실행 but 2회 실행중
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
         setCurrentPosition({ lat: latitude, lng: longitude });
+        console.log('현재 위치 : ', latitude, longitude);
       }, 
     (error) => {
       console.log('geolocation 에러 : ',error);
@@ -177,7 +178,7 @@ export default function Editor() { // 메인 페이지
     }, 100);  
 
     return () => clearInterval(intervalId); // 컴포넌트 언마운트시
-  }, []);
+  }, []);     
 
 
   useEffect(() => {
@@ -202,6 +203,17 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton}>맛집</button>
           <button className={styles.menuButton}>관광</button>
         </div>
+        <div className={styles.editor}>
+          <button className={styles.menuButton}>거리지도</button>
+          <button className={styles.menuButton} onClick={moveToCurrentLocation}>현재위치</button>
+          <button className={styles.menuButton}>추가</button>
+          <button className={styles.menuButton}>수정</button>
+          <button className={styles.menuButton}>삭제</button>
+          <button className={styles.menuButton}>리셋</button>
+          <button className={styles.menuButton}>기능1</button>
+          <button className={styles.menuButton}>기능2</button>
+          <button className={styles.menuButton}>기능3</button>
+        </div>
         <ul className={styles.itemList}>
           <li className={styles.item}>
             <a href="https://example.com">
@@ -216,42 +228,6 @@ export default function Editor() { // 메인 페이지
                 className={styles.itemImage}
               />
             </a>
-          </li>
-          <li className={styles.item}>
-            <div className={styles.itemDetails}>
-              <span className={styles.itemTitle}>남산에2 <small>일식당</small></span>
-              <p>영업 중 · 20:30에 라스트오더</p>
-              <p><strong>380m</strong> · 대구 중구 남산동</p>
-            </div>
-            <img
-              src="https://example.com/image.jpg"
-              alt="남산에2 일식당"
-              className={styles.itemImage}
-            />
-          </li>
-          <li className={styles.item}>
-            <div className={styles.itemDetails}>
-              <span className={styles.itemTitle}>남산에3 <small>일식당</small></span>
-              <p>영업 중 · 20:30에 라스트오더</p>
-              <p><strong>380m</strong> · 대구 중구 남산동</p>
-            </div>
-            <img
-              src="https://example.com/image.jpg"
-              alt="남산에3 일식당"
-              className={styles.itemImage}
-            />
-          </li>
-          <li className={styles.item}>
-            <div className={styles.itemDetails}>
-              <span className={styles.itemTitle}>남산에4 <small>일식당</small></span>
-              <p>영업 중 · 20:30에 라스트오더</p>
-              <p><strong>380m</strong> · 대구 중구 남산동</p>
-            </div>
-            <img
-              src="https://example.com/image.jpg"
-              alt="남산에4 일식당"
-              className={styles.itemImage}
-            />
           </li>
         </ul>
       </div>

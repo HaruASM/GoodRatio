@@ -142,3 +142,35 @@
 .editor .menuButton:last-child {
   margin-bottom: 0;
 }
+
+.searchInput {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  width: 250px; /* 너비 조정 */
+  padding: 10px 40px 10px 15px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  background-color: #fff;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>');
+  background-size: 20px;
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  cursor: pointer; /* 포인터 변경 */
+}
+
+.searchButton {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  transform: translateY(-50%);
+  z-index: 11;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: #666;
+}

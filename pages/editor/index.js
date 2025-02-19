@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
@@ -22,7 +22,41 @@ export default function Editor() { // 메인 페이지
   const [myLocMarker, setMyLocMarker] = useState(null);
   const [drawingManager, setDrawingManager] = useState(null);
   const [overlayEditing, setOverlayEditing] = useState(null); // 에디터에서 작업중인 오버레이. 1개만 운용
+  const searchInputDomRef = useRef(null); // 검색창 참조
   
+   // 검색창 추가
+  const initializeSearchInput = (_mapInstance) => {
+    
+    const inputDom = searchInputDomRef.current;
+    const autocomplete = new window.google.maps.places.Autocomplete(inputDom);
+    
+    // Autocomplete 검색 범위를 현재 지도 안으로 제한 
+    autocomplete.bindTo('bounds', _mapInstance);  
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry || !place.geometry.location) {
+        console.log("No details available for input: '" + place.name + "'");
+        return;
+      }
+
+      if (place.geometry.viewport) {
+        _mapInstance.fitBounds(place.geometry.viewport);
+      } else {
+        _mapInstance.setCenter(place.geometry.location);
+        _mapInstance.setZoom(15);
+      }
+
+    });
+
+    
+    _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(inputDom);
+    console.log('search input');
+    
+    // 검색창
+    
+  }
+
   const initializeDrawingManager = ( _mapInstance ) => { // 
     var _drawingManager = new window.google.maps.drawing.DrawingManager({
       drawingControl: false,
@@ -78,10 +112,7 @@ export default function Editor() { // 메인 페이지
           const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
           path.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
           infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
-          //infoWindow.setPosition(currentPosition);
-          
           infoWindow.open(instMap, eventObj.overlay); // InfoWindow를 지도에 표시
-          
         }
       };
      
@@ -126,9 +157,6 @@ export default function Editor() { // 메인 페이지
     setDrawingManager(_drawingManager); // 비동기 이므로 최후반
   } // initializeDrawingManager  
 
-
-  
-
   const moveToCurrentLocation = () => {
     if (instMap && currentPosition) {
       instMap.setCenter(currentPosition);
@@ -140,25 +168,28 @@ export default function Editor() { // 메인 페이지
     const initializePage = () => {
       console.log('initPage');
   
-      // g맵 인스턴스 생성
-      let mapDiv = document.getElementById('mapSection');
+      //-- g맵 인스턴스 생성
+      let mapDiv = document.getElementById('mapSection'); 
       // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
       const _mapInstance = new window.google.maps.Map(mapDiv, {
         center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
         zoom: 16,
+        mapTypeControl : false,
       });
+      //-- g맵 인스턴스 생성 끝끝
       
       // g맵용 로드 완료시 동작 
       window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
         // useEffect [instMap] or 'idle' 이벤트 
         console.log("idle Map");  
         initializeDrawingManager(_mapInstance);
-  
+        initializeSearchInput(_mapInstance);
         // -- 현재 내위치 마커 
       });  // idle 이벤트 
       
-      setInstMap(_mapInstance); //비동기 이므로 최후반
+      setInstMap(_mapInstance); //비동기 이므로 init의 최후반
     } // initializePage 마침
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
@@ -168,12 +199,9 @@ export default function Editor() { // 메인 페이지
     (error) => {
       console.log('geolocation 에러 : ',error);
     });
-    } else {
-      console.log('geolocation 지원 안되는 중');
-    }
+    } else {       console.log('geolocation 지원 안되는 중');     }
 
     const intervalId = setInterval( () => {
-      console.log("set interval");
       if(window.google) {
         initializePage();
         clearInterval(intervalId);    }
@@ -182,12 +210,6 @@ export default function Editor() { // 메인 페이지
     return () => clearInterval(intervalId); // 컴포넌트 언마운트시
   }, []);     
 
-
-  useEffect(() => {
- 
-    console.log("use effect 0");
-
-  }, [currentPosition]);
 
   return (
     <div className={styles.container}>
@@ -230,16 +252,24 @@ export default function Editor() { // 메인 페이지
                 className={styles.itemImage}
                 width={100}
                 height={100}
+                priority
               />
             </a>
           </li>
         </ul>
       </div>
-      <div className={styles.map} id="mapSection" style={{ width: '100%', height: '400px' }}>
-        {/* 구글 지도가 여기에 표시됩니다 */}
+      <div className={styles.map} id="mapSection" style={{ width: '100%', height: '400px', position: 'relative' }}>
+        <input
+          ref={searchInputDomRef}
+          id="searchInput"
+          type="text"
+          placeholder="Search for places"
+          className={styles.searchInput}
+          onClick={() => searchInputDomRef.current.focus()} // 클릭 시 포커스
+        />
       </div>
       <Script 
-        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=drawing&loading=async`}
+        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing&loading=async`}
         strategy="afterInteractive"
       />
     </div>

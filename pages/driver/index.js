@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Script from 'next/script';
-import { collection, getDocs, onSnapshot, setDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, setDoc, doc } from 'firebase/firestore';
 import { firebasedb } from '../../firebase';
 import { randomizeLocations } from '../../utils/randomizeLocations';
 
@@ -39,7 +39,7 @@ export default function Driver() {
       MapIcons_[iconName] = carIconImg;
     });
     setMapIcons(MapIcons_);
-  }, []);
+  }, [MapIcons]);
 
   useEffect(() => {
     // Map과 MAker 생성 
@@ -161,7 +161,7 @@ export default function Driver() {
               position: item.location,
               map: DriverMap,
               title: item.vehicle || 'Vehicle',
-              //content: MapIcons['driver-person'],
+              content : icon //content: MapIcons['driver-person'],
             });
           }
           return null;
@@ -204,7 +204,7 @@ export default function Driver() {
   const clearMarkers = () => {
     // 기존 마커를 모두 제거합니다.
     DriverMarkers.forEach(marker => marker.setMap(null));
-    setDriverMarkers([]);
+    //setDriverMarkers([]);
   };
 
   const handleRandomizeAndWrite = async () => {

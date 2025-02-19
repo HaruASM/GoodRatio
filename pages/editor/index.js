@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Script from 'next/script';
+import Image from 'next/image';
 import styles from '../shops/styles.module.css'; // CSS 모듈을 동일하게 사용
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
@@ -126,28 +127,7 @@ export default function Editor() { // 메인 페이지
   } // initializeDrawingManager  
 
 
-  const initializePage = () => {
-    console.log('initPage');
-
-    // g맵 인스턴스 생성
-    let mapDiv = document.getElementById('mapSection');
-    // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
-    const _mapInstance = new window.google.maps.Map(mapDiv, {
-      center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
-      zoom: 16,
-    });
-    
-    // g맵용 로드 완료시 동작 
-    window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
-      // useEffect [instMap] or 'idle' 이벤트 
-      console.log("idle Map");  
-      initializeDrawingManager(_mapInstance);
-
-      // -- 현재 내위치 마커 
-    });  // idle 이벤트 
-    
-    setInstMap(_mapInstance); //비동기 이므로 최후반
-  } // initializePage 마침
+  
 
   const moveToCurrentLocation = () => {
     if (instMap && currentPosition) {
@@ -157,6 +137,28 @@ export default function Editor() { // 메인 페이지
   };
 
   useEffect(() => { // 1회 실행 but 2회 실행중
+    const initializePage = () => {
+      console.log('initPage');
+  
+      // g맵 인스턴스 생성
+      let mapDiv = document.getElementById('mapSection');
+      // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
+      const _mapInstance = new window.google.maps.Map(mapDiv, {
+        center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
+        zoom: 16,
+      });
+      
+      // g맵용 로드 완료시 동작 
+      window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
+        // useEffect [instMap] or 'idle' 이벤트 
+        console.log("idle Map");  
+        initializeDrawingManager(_mapInstance);
+  
+        // -- 현재 내위치 마커 
+      });  // idle 이벤트 
+      
+      setInstMap(_mapInstance); //비동기 이므로 최후반
+    } // initializePage 마침
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
@@ -216,16 +218,18 @@ export default function Editor() { // 메인 페이지
         </div>
         <ul className={styles.itemList}>
           <li className={styles.item}>
-            <a href="https://example.com">
+            <a href="#">
               <div className={styles.itemDetails}>
                 <span className={styles.itemTitle}>남산에 <small>일식당</small></span>
                 <p>영업 중 · 20:30에 라스트오더</p>
                 <p><strong>380m</strong> · 대구 중구 남산동</p>
               </div>
-              <img
-                src="https://example.com/image.jpg"
+              <Image
+                src="https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400"
                 alt="남산에 일식당"
                 className={styles.itemImage}
+                width={100}
+                height={100}
               />
             </a>
           </li>

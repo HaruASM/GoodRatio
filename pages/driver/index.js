@@ -201,11 +201,11 @@ export default function Driver() {
     }
   };
 
-  const clearMarkers = () => {
-    // 기존 마커를 모두 제거합니다.
-    DriverMarkers.forEach(marker => marker.setMap(null));
-    //setDriverMarkers([]);
-  };
+  // const clearMarkers = () => {
+  //   // 기존 마커를 모두 제거합니다.
+  //   DriverMarkers.forEach(marker => marker.setMap(null));
+  //   //setDriverMarkers([]);
+  // };
 
   const handleRandomizeAndWrite = async () => {
     console.log('Button clicked');

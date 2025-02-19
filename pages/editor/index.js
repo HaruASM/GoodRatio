@@ -9,22 +9,23 @@ const OVERLAY_COLOR = {
   IDLE : '#FF0000', // 빨간색
   MOUSEOVER : '#00FF00', // 초록색
 };
-
 const OVERLAY_ICON = {
   MARKER_MOUSEOVER : "http://maps.google.com/mapfiles/ms/icons/blue-dot.png", // 파란색
   MARKER : "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // 초록색
 };
 
 export default function Editor() { // 메인 페이지
-  const [instMap, setInstMap] = useState(null); //구글맵 인스턴스 
+  //const [instMap, setInstMap] = useState(null); //구글맵 인스턴스 
+  const instMap = useRef(null);
   const [currentPosition, setCurrentPosition] = useState({ lat: 35.8714, lng: 128.6014 }); // 대구의 기본 위치로 저장
-  const [editMarker, setEditMarker] = useState(null);
-  const [myLocMarker, setMyLocMarker] = useState(null);
-  const [drawingManager, setDrawingManager] = useState(null);
+  // const [editMarker, setEditMarker] = useState(null);
+  // const [myLocMarker, setMyLocMarker] = useState(null);
+  //const [drawingManager, setDrawingManager] = useState(null);
+  const drawingManagerRef = useRef(null);
   const [overlayEditing, setOverlayEditing] = useState(null); // 에디터에서 작업중인 오버레이. 1개만 운용
   const searchInputDomRef = useRef(null); // 검색창 참조
   
-   // 검색창 추가
+   // 검색창 
   const initializeSearchInput = (_mapInstance) => {
     
     const inputDom = searchInputDomRef.current;
@@ -105,14 +106,14 @@ export default function Editor() { // 메인 페이지
         
         // InfoWindow를 오버레이의 위치에 표시
         if (eventObj.type === 'marker') {
-          infoWindow.open(instMap, eventObj.overlay);
+          infoWindow.open(instMap.current, eventObj.overlay);
         } else if (eventObj.type === 'polygon') {
           // 폴리곤 타입의 오버레이인 경우
           const path = eventObj.overlay.getPath(); // 폴리곤의 경로를 가져옴
           const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
           path.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
           infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
-          infoWindow.open(instMap, eventObj.overlay); // InfoWindow를 지도에 표시
+          infoWindow.open(instMap.current, eventObj.overlay); // InfoWindow를 지도에 표시
         }
       };
      
@@ -154,41 +155,19 @@ export default function Editor() { // 메인 페이지
     
     
     _drawingManager.setMap(_mapInstance);
-    setDrawingManager(_drawingManager); // 비동기 이므로 최후반
+    drawingManagerRef.current = _drawingManager;
+    //setDrawingManager(_drawingManager); // 비동기 이므로 최후반
   } // initializeDrawingManager  
 
   const moveToCurrentLocation = () => {
-    if (instMap && currentPosition) {
-      instMap.setCenter(currentPosition);
+    if (instMap.current && currentPosition) {
+      instMap.current.setCenter(currentPosition);
       console.log('Moved to current location:', currentPosition);
     }
   };
 
-  useEffect(() => { // 1회 실행 but 2회 실행중
-    const initializePage = () => {
-      console.log('initPage');
-  
-      //-- g맵 인스턴스 생성
-      let mapDiv = document.getElementById('mapSection'); 
-      // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
-      const _mapInstance = new window.google.maps.Map(mapDiv, {
-        center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
-        zoom: 16,
-        mapTypeControl : false,
-      });
-      //-- g맵 인스턴스 생성 끝끝
-      
-      // g맵용 로드 완료시 동작 
-      window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
-        // useEffect [instMap] or 'idle' 이벤트 
-        console.log("idle Map");  
-        initializeDrawingManager(_mapInstance);
-        initializeSearchInput(_mapInstance);
-        // -- 현재 내위치 마커 
-      });  // idle 이벤트 
-      
-      setInstMap(_mapInstance); //비동기 이므로 init의 최후반
-    } // initializePage 마침
+  const initializePage = () => {
+    console.log('initPage');
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
@@ -201,14 +180,47 @@ export default function Editor() { // 메인 페이지
     });
     } else {       console.log('geolocation 지원 안되는 중');     }
 
-    const intervalId = setInterval( () => {
-      if(window.google) {
-        initializePage();
-        clearInterval(intervalId);    }
-    }, 100);  
+    //-- g맵 인스턴스 생성
+    let mapDiv = document.getElementById('mapSection'); 
+    // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
+    const _mapInstance = new window.google.maps.Map(mapDiv, {
+      center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
+      zoom: 16,
+      mapTypeControl : false,
+    });
+    //-- g맵 인스턴스 생성 끝끝
+    
+    // g맵용 로드 완료시 동작 
+    window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
+      // useEffect [instMap] or 'idle' 이벤트 
+      console.log("idle Map");  
+      initializeDrawingManager(_mapInstance);
+      initializeSearchInput(_mapInstance);
+      // -- 현재 내위치 마커 
+    });  // idle 이벤트 
+    
+    instMap.current = _mapInstance;
+    //setInstMap(_mapInstance); //비동기 이므로 init의 최후반
+  } // initializePage 마침
 
-    return () => clearInterval(intervalId); // 컴포넌트 언마운트시
-  }, []);     
+//  useEffect(() => { // 1회 실행 but 2회 실행중
+    useEffect(() => {
+    
+      const intervalId = setInterval( () => {
+        if(window.google) {
+          initializePage();
+          clearInterval(intervalId);    }
+      }, 100);  
+             
+    }, []);
+    
+    useEffect(() => {
+      console.log('overlayEditing');
+    },[overlayEditing]);
+    
+
+    //return () => clearInterval(intervalId); // 컴포넌트 언마운트시
+  //}, []);     
 
 
   return (

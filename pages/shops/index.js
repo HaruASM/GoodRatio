@@ -27,11 +27,7 @@ export default function Shops() {
                 <p>영업 중 · 20:30에 라스트오더</p>
                 <p><strong>380m</strong> · 대구 중구 남산동</p>
               </div>
-              <img
-                src="https://example.com/image.jpg"
-                alt="남산에 일식당"
-                className={styles.itemImage}
-              />
+              
             </a>
           </li>
           <li className={styles.item}>
@@ -40,11 +36,7 @@ export default function Shops() {
               <p>영업 중 · 20:30에 라스트오더</p>
               <p><strong>380m</strong> · 대구 중구 남산동</p>
             </div>
-            <img
-              src="https://example.com/image.jpg"
-              alt="남산에2 일식당"
-              className={styles.itemImage}
-            />
+            
           </li>
           <li className={styles.item}>
             <div className={styles.itemDetails}>
@@ -52,11 +44,7 @@ export default function Shops() {
               <p>영업 중 · 20:30에 라스트오더</p>
               <p><strong>380m</strong> · 대구 중구 남산동</p>
             </div>
-            <img
-              src="https://example.com/image.jpg"
-              alt="남산에3 일식당"
-              className={styles.itemImage}
-            />
+            
           </li>
           <li className={styles.item}>
             <div className={styles.itemDetails}>
@@ -64,11 +52,7 @@ export default function Shops() {
               <p>영업 중 · 20:30에 라스트오더</p>
               <p><strong>380m</strong> · 대구 중구 남산동</p>
             </div>
-            <img
-              src="https://example.com/image.jpg"
-              alt="남산에4 일식당"
-              className={styles.itemImage}
-            />
+            
           </li>
         </ul>
       </div>

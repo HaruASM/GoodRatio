@@ -146,9 +146,9 @@
 .searchForm {
   display: flex;
   align-items: center;
-  margin-top: 20px;
+  margin-top: 10px;
   margin-left: 10px;
-  padding: 10px;
+  
   background-color: #fff;
   border-radius: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -165,24 +165,27 @@
 }
 
 .searchButton {
-  width: 24px;
-  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* width: 24px;
+  height: 24px; */
   border: none;
   cursor: pointer;
-  margin-left: 10px;
-  transition: background-color 0.3s; /* 부드러운 전환 효과 */
-  background: #fff; /* 배경색을 흰색으로 설정 */
-  background-size: 20px;
-  background-repeat: no-repeat;
-  background-position: center;
+  padding: 12px;
+  background-color: #fff;
+}
+
+.searchButton:hover {
+  background-color: #f0f0f0;
 }
 
 .searchIcon {
-  width: 20px;
-  height: 20px;
-  transition: stroke 0.3s; /* 부드러운 전환 효과 */
+  font-size: 24px; /* 아이콘 크기 조정 */
+  transition: color 0.3s; /* 부드러운 전환 효과 */
 }
 
-.searchButton:hover .searchIcon {
-  stroke: #007bff; /* 마우스 오버 시 파란색으로 변경 */
+.searchButton:hover {
+  font-size: 32px;
+  color: #007bff;
 }

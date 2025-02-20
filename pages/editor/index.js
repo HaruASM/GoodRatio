@@ -269,7 +269,7 @@ export default function Editor() { // 메인 페이지
       <div className={styles.map} id="mapSection" style={{ width: '100%', height: '600px', position: 'relative' }}>
         {/* 구글 맵이 표시되는 영역 */}
       </div>
-      <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm} style={{ display: 'flex', alignItems: 'center', marginTop: '10px', padding: '10px', backgroundColor: '#fff', borderRadius: '5px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+      <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm}>
         <input
           ref={searchInputDomRef}
           id="searchInput"
@@ -277,22 +277,9 @@ export default function Editor() { // 메인 페이지
           placeholder="가게 검색"
           className={styles.searchInput}
           onClick={() => searchInputDomRef.current.focus()}
-          style={{ flex: 1, paddingRight: '40px' }}
         />
         <button type="submit" className={styles.searchButton}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={styles.searchIcon}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
+          <span className="material-icons searchIcon">search</span>
         </button>
       </form>
       <Script 

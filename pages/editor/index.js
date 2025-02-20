@@ -24,10 +24,10 @@ export default function Editor() { // 메인 페이지
   const drawingManagerRef = useRef(null);
   const [overlayEditing, setOverlayEditing] = useState(null); // 에디터에서 작업중인 오버레이. 1개만 운용
   const searchInputDomRef = useRef(null); // 검색창 참조
+  const searchformRef = useRef(null); // form 요소를 위한 ref 추가
   
    // 검색창 
   const initializeSearchInput = (_mapInstance) => {
-    
     const inputDom = searchInputDomRef.current;
     const autocomplete = new window.google.maps.places.Autocomplete(inputDom);
     
@@ -47,15 +47,11 @@ export default function Editor() { // 메인 페이지
         _mapInstance.setCenter(place.geometry.location);
         _mapInstance.setZoom(15);
       }
-
     });
 
-    
-    _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(inputDom);
+    // 폼을 맵의 컨트롤로 추가
+    _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
     console.log('search input');
-    
-    // 검색창
-    
   }
 
   const initializeDrawingManager = ( _mapInstance ) => { // 
@@ -270,7 +266,10 @@ export default function Editor() { // 메인 페이지
           </li>
         </ul>
       </div>
-      <div className={styles.map} id="mapSection" style={{ width: '100%', height: '400px', position: 'relative' }}>
+      <div className={styles.map} id="mapSection" style={{ width: '100%', height: '600px', position: 'relative' }}>
+        {/* 구글 맵이 표시되는 영역 */}
+      </div>
+      <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', alignItems: 'center', marginTop: '10px', padding: '10px', backgroundColor: '#fff', borderRadius: '5px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <input
           ref={searchInputDomRef}
           id="searchInput"
@@ -278,8 +277,12 @@ export default function Editor() { // 메인 페이지
           placeholder="Search for places"
           className={styles.searchInput}
           onClick={() => searchInputDomRef.current.focus()} // 클릭 시 포커스
+          style={{ flex: 1, paddingRight: '40px' }} // input이 가능한 공간을 차지하도록 설정하고 오른쪽 여백 추가
         />
-      </div>
+        <button type="submit" className={styles.searchButton} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+          <span className="google-symbols" style={{ fontSize: '24px' }}>🔍</span>
+        </button>
+      </form>
       <Script 
         src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing&loading=async`}
         strategy="afterInteractive"

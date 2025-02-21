@@ -34,6 +34,22 @@ export default function Editor() { // 메인 페이지
     // }
   };
 
+
+  const handlerfunc1 = () => {
+    const position = currentPosition;
+    const map = instMap.current;
+    const imageUrl = './icons/fastfood.webp';
+    new window.google.maps.Marker({
+      position: position,
+      map: map,
+      icon: {
+        url: imageUrl,
+        scaledSize: new window.google.maps.Size(70, 70), // 이미지 크기 조정
+      },
+    });
+    
+  } 
+
   // 검색창 
   const initializeSearchInput = (_mapInstance) => {
     const inputDom = searchInputDomRef.current;
@@ -256,7 +272,7 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton}>수정</button>
           <button className={styles.menuButton}>삭제</button>
           <button className={styles.menuButton}>리셋</button>
-          <button className={styles.menuButton}>기능1</button>
+          <button className={styles.menuButton} onClick={handlerfunc1}>2.5D</button>
           <button className={styles.menuButton}>기능2</button>
           <button className={styles.menuButton}>기능3</button>
         </div>
@@ -279,8 +295,40 @@ export default function Editor() { // 메인 페이지
             </a>
           </li>
         </ul>
+        <div className={styles.card}>
+          <h3>My Shops Data</h3>
+          <form className={styles.form}>
+            <div className={styles.formRow}>
+              <span>가게명</span> | <input type="text" name="storeName" />
+            </div>
+            <div className={styles.formRow}>
+              <span>영업시간</span> | <input type="text" name="businessHours" />
+            </div>
+            <div className={styles.formRow}>
+              <span>거리</span> | <input type="text" name="distance" />
+            </div>
+            <div className={styles.formRow}>
+              <span>주소</span> | <input type="text" name="address" />
+            </div>
+            <div className={styles.formRow}>
+              <span>대표이미지</span> | <input type="text" name="mainImage" />
+            </div>
+            <div className={styles.formRow}>
+              <span>pin좌표</span> | <input type="text" name="pinCoordinates" />
+            </div>
+            <div className={styles.formRow}>
+              <span>가게지적도형</span> | <input type="text" name="storeShape" />
+            </div>
+            <div className={styles.formRow}>
+              <span>분류아이콘</span> | <input type="text" name="categoryIcon" />
+            </div>
+            <div className={styles.formRow}>
+              <span>구글 데이터 ID</span> | <input type="text" name="googleDataId" />
+            </div>
+          </form>
+        </div>
       </div>
-      <div className={styles.map} id="mapSection" >
+      <div className={styles.map} id="mapSection">
         {/* 구글 맵이 표시되는 영역 */}
       </div>
       <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm}>

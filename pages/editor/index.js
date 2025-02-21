@@ -25,14 +25,25 @@ export default function Editor() { // 메인 페이지
   const [overlayEditing, setOverlayEditing] = useState(null); // 에디터에서 작업중인 오버레이. 1개만 운용
   const searchInputDomRef = useRef(null); // 검색창 참조
   const searchformRef = useRef(null); // form 요소를 위한 ref 추가
+  const [selectedButton, setSelectedButton] = useState('인근');
   
-   // 검색창 
+  const toggleDropdown = () => {
+    // if (searchDropdownRef.current) {
+    //   const isDisplayed = searchDropdownRef.current.style.display === 'block';
+    //   searchDropdownRef.current.style.display = isDisplayed ? 'none' : 'block';
+    // }
+  };
+
+  // 검색창 
   const initializeSearchInput = (_mapInstance) => {
     const inputDom = searchInputDomRef.current;
+    if (!inputDom) {
+      console.error("Search input DOM element not found");
+      return;
+    }
+
     const autocomplete = new window.google.maps.places.Autocomplete(inputDom);
-    
-    // Autocomplete 검색 범위를 현재 지도 안으로 제한 
-    autocomplete.bindTo('bounds', _mapInstance);  
+    autocomplete.bindTo('bounds', _mapInstance);
 
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
@@ -49,9 +60,8 @@ export default function Editor() { // 메인 페이지
       }
     });
 
-    // 폼을 맵의 컨트롤로 추가
     _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
-    console.log('search input');
+    console.log('search input initialized');
   }
 
   const initializeDrawingManager = ( _mapInstance ) => { // 
@@ -218,6 +228,9 @@ export default function Editor() { // 메인 페이지
     //return () => clearInterval(intervalId); // 컴포넌트 언마운트시
   //}, []);     
 
+  const handleButtonClick = (buttonName) => {
+    setSelectedButton(buttonName);
+  };
 
   return (
     <div className={styles.container}>
@@ -234,6 +247,7 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton}>숙소</button>
           <button className={styles.menuButton}>맛집</button>
           <button className={styles.menuButton}>관광</button>
+          <button className={styles.menuButton}>환전</button>
         </div>
         <div className={styles.editor}>
           <button className={styles.menuButton}>거리지도</button>
@@ -266,21 +280,42 @@ export default function Editor() { // 메인 페이지
           </li>
         </ul>
       </div>
-      <div className={styles.map} id="mapSection" style={{ width: '100%', height: '600px', position: 'relative' }}>
+      <div className={styles.map} id="mapSection" >
         {/* 구글 맵이 표시되는 영역 */}
       </div>
       <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm}>
-        <input
-          ref={searchInputDomRef}
-          id="searchInput"
-          type="text"
-          placeholder="가게 검색"
-          className={styles.searchInput}
-          onClick={() => searchInputDomRef.current.focus()}
-        />
-        <button type="submit" className={styles.searchButton}>
-          <span className="material-icons searchIcon">search</span>
-        </button>
+        <div className={styles.searchButtonsContainer}>
+          <button
+            className={`${styles.menuButton} ${selectedButton === '국가' ? styles.selected : ''}`}
+            onClick={() => handleButtonClick('국가')}
+          >
+            국가
+          </button>
+          <button
+            className={`${styles.menuButton} ${selectedButton === '인근' ? styles.selected : ''}`}
+            onClick={() => handleButtonClick('인근')}
+          >
+            인근
+          </button>
+          <button
+            className={`${styles.menuButton} ${selectedButton === '지도내' ? styles.selected : ''}`}
+            onClick={() => handleButtonClick('지도내')}
+          >
+            지도내
+          </button>
+        </div>
+        <div className={styles.searchInputContainer}>
+          <input
+            ref={searchInputDomRef}
+            id="searchInput"
+            type="text"
+            placeholder="가게 검색"
+            className={styles.searchInput}
+          />
+          <button type="submit" className={styles.searchButton}>
+            <span className="material-icons searchIcon">search</span>
+          </button>
+        </div>
       </form>
       <Script 
         src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing&loading=async`}

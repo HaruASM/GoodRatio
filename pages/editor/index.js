@@ -265,17 +265,7 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton}>관광</button>
           <button className={styles.menuButton}>환전</button>
         </div>
-        <div className={styles.editor}>
-          <button className={styles.menuButton}>거리지도</button>
-          <button className={styles.menuButton} onClick={moveToCurrentLocation}>현재위치</button>
-          <button className={styles.menuButton}>추가</button>
-          <button className={styles.menuButton}>수정</button>
-          <button className={styles.menuButton}>삭제</button>
-          <button className={styles.menuButton}>리셋</button>
-          <button className={styles.menuButton} onClick={handlerfunc1}>2.5D</button>
-          <button className={styles.menuButton}>기능2</button>
-          <button className={styles.menuButton}>기능3</button>
-        </div>
+        
         <ul className={styles.itemList}>
           <li className={styles.item}>
             <a href="#">
@@ -295,6 +285,14 @@ export default function Editor() { // 메인 페이지
             </a>
           </li>
         </ul>
+        <div className={styles.editor}>
+          <button className={styles.menuButton}>거리지도</button>
+          <button className={styles.menuButton} onClick={moveToCurrentLocation}>현재위치</button><br></br>
+          <button className={styles.menuButton}>추가</button>
+          <button className={styles.menuButton}>수정</button>
+          <button className={styles.menuButton}>삭제</button>
+          <button className={styles.menuButton} onClick={handlerfunc1}>2.5D</button>
+        </div>
         <div className={styles.card}>
           <h3>My Shops Data</h3>
           <form className={styles.form}>
@@ -302,7 +300,16 @@ export default function Editor() { // 메인 페이지
               <span>가게명</span> | <input type="text" name="storeName" />
             </div>
             <div className={styles.formRow}>
+              <span>별칭</span> | <input type="text" name="storeName" />
+            </div>
+            <div className={styles.formRow}>
               <span>영업시간</span> | <input type="text" name="businessHours" />
+            </div>
+            <div className={styles.formRow}>
+              <span>hot한 시간대</span> | <input type="text" name="hotHours" />
+            </div>
+            <div className={styles.formRow}>
+              <span>할인 시간</span> | <input type="text" name="hotHours" />
             </div>
             <div className={styles.formRow}>
               <span>거리</span> | <input type="text" name="distance" />

@@ -27,6 +27,41 @@ export default function Editor() { // 메인 페이지
   const searchformRef = useRef(null); // form 요소를 위한 ref 추가
   const [selectedButton, setSelectedButton] = useState('인근');
   
+  // 브라우저 뒷단에서 데이터 저장 및 관리 
+  const [editMyShopDataSet, setEditMyShopDataSet] = useState({
+    locationMap: "",
+    storeName: "",
+    alias: "",
+    businessHours: [],
+    hotHours: "",
+    discountHours: "",
+    distance: "",
+    address: "",
+    mainImage: "",
+    pinCoordinates: "",
+    storeShape: "",
+    categoryIcon: "",
+    googleDataId: "",
+  });
+
+  const locationMapRef = useRef(null); // 반월당역 관광지도 영역에 대한 참조 레퍼런스
+
+  const inputRefs = {
+    storeName: useRef(null),
+    alias: useRef(null),
+    locationMap: useRef(null),
+    businessHours: useRef(null),
+    hotHours: useRef(null),
+    discountHours: useRef(null),
+    distance: useRef(null),
+    address: useRef(null),
+    mainImage: useRef(null),
+    pinCoordinates: useRef(null),
+    storeShape: useRef(null),
+    categoryIcon: useRef(null),
+    googleDataId: useRef(null),
+  };
+
   const toggleDropdown = () => {
     // if (searchDropdownRef.current) {
     //   const isDisplayed = searchDropdownRef.current.style.display === 'block';
@@ -39,7 +74,7 @@ export default function Editor() { // 메인 페이지
     const position = currentPosition;
     const map = instMap.current;
     const imageUrl = './icons/fastfood.webp';
-    new window.google.maps.Marker({
+    const marker = new window.google.maps.Marker({
       position: position,
       map: map,
       icon: {
@@ -47,8 +82,9 @@ export default function Editor() { // 메인 페이지
         scaledSize: new window.google.maps.Size(70, 70), // 이미지 크기 조정
       },
     });
+
     
-  } 
+  };
 
   // 검색창 
   const initializeSearchInput = (_mapInstance) => {
@@ -62,22 +98,36 @@ export default function Editor() { // 메인 페이지
     autocomplete.bindTo('bounds', _mapInstance);
 
     autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (!place.geometry || !place.geometry.location) {
-        console.log("No details available for input: '" + place.name + "'");
+      console.log('place_changed');
+      const detailPlace = autocomplete.getPlace();
+      if (!detailPlace.geometry || !detailPlace.geometry.location) {
+        console.log("No details available for input: '" + detailPlace.name + "'");
         return;
       }
 
-      if (place.geometry.viewport) {
-        _mapInstance.fitBounds(place.geometry.viewport);
+      const _newData = {
+        locationMapRef: locationMapRef.current,
+        storeName: detailPlace.name || '',
+        address: detailPlace.formatted_address || '',
+        googleDataId: detailPlace.place_id || '',
+      };
+      
+      setEditMyShopDataSet((prev) => ({
+        ...prev,
+        ..._newData,
+      }));
+
+      if (detailPlace.geometry.viewport) {
+        _mapInstance.fitBounds(detailPlace.geometry.viewport);
       } else {
-        _mapInstance.setCenter(place.geometry.location);
+        _mapInstance.setCenter(detailPlace.geometry.location);
         _mapInstance.setZoom(15);
       }
     });
 
     _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
-    console.log('search input initialized');
+    
+    // console.log('search input initialized');
   }
 
   const initializeDrawingManager = ( _mapInstance ) => { // 
@@ -118,14 +168,19 @@ export default function Editor() { // 메인 페이지
     window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj)=>{
       
       const handleOverlayClick = () => {
-        console.log('오버레이가 클릭 ', eventObj.type );
+        // console.log('오버레이가 클릭 ', eventObj.type );
 
         // InfoWindow 생성 및 설정
         const infoWindow = new window.google.maps.InfoWindow({
-          content: `<div><strong>오버레이 정보</strong><br>타입: ${eventObj.type}</div>`,
+          content: `
+            <div>
+              <strong>오버레이 정보</strong><br>
+              타입: ${eventObj.type}<br>
+              <button id="customButton">내가 원하는 버튼</button>
+            </div>
+          `,
         });
 
-        
         // InfoWindow를 오버레이의 위치에 표시
         if (eventObj.type === 'marker') {
           infoWindow.open(instMap.current, eventObj.overlay);
@@ -137,6 +192,16 @@ export default function Editor() { // 메인 페이지
           infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
           infoWindow.open(instMap.current, eventObj.overlay); // InfoWindow를 지도에 표시
         }
+
+        // 버튼 클릭 이벤트 리스너 추가
+        window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+          const customButton = document.getElementById('customButton');
+          if (customButton) {
+            customButton.addEventListener('click', () => {
+              alert('버튼이 클릭되었습니다!');
+            });
+          }
+        });
       };
      
       const handleOverlayMouseOver = () => {
@@ -184,23 +249,33 @@ export default function Editor() { // 메인 페이지
   const moveToCurrentLocation = () => {
     if (instMap.current && currentPosition) {
       instMap.current.setCenter(currentPosition);
-      console.log('Moved to current location:', currentPosition);
+      // console.log('Moved to current location:', currentPosition);
     }
   };
 
+  const initializePlaceInfo = (_mapInstance) => { // 이부분은 구글 search 부분 하위에 넣어야 할듯듯
+    //const service = new window.google.maps.places.PlacesService(_mapInstance);
+
+    window.google.maps.event.addListener(_mapInstance, 'click', (clickevent) => {
+      console.log('click event');
+    });
+  }
+  
   const initializePage = () => {
-    console.log('initPage');
+    // console.log('initPage');
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
         setCurrentPosition({ lat: latitude, lng: longitude });
-        console.log('현재 위치 : ', latitude, longitude);
+        // console.log('현재 위치 : ', latitude, longitude);
       }, 
     (error) => {
-      console.log('geolocation 에러 : ',error);
+      // console.log('geolocation 에러 : ',error);
     });
-    } else {       console.log('geolocation 지원 안되는 중');     }
+    } else {       
+       console.log('geolocation 지원 안되는 중');     
+    }
 
     //-- g맵 인스턴스 생성
     let mapDiv = document.getElementById('mapSection'); 
@@ -214,15 +289,16 @@ export default function Editor() { // 메인 페이지
     
     // g맵용 로드 완료시 동작 
     window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
-      // useEffect [instMap] or 'idle' 이벤트 
-      console.log("idle Map");  
+       
       initializeDrawingManager(_mapInstance);
       initializeSearchInput(_mapInstance);
+      initializePlaceInfo(_mapInstance);
+      
+      
       // -- 현재 내위치 마커 
     });  // idle 이벤트 
     
-    instMap.current = _mapInstance;
-    //setInstMap(_mapInstance); //비동기 이므로 init의 최후반
+    instMap.current = _mapInstance;    
   } // initializePage 마침
 
 //  useEffect(() => { // 1회 실행 but 2회 실행중
@@ -237,15 +313,66 @@ export default function Editor() { // 메인 페이지
     }, []);
     
     useEffect(() => {
-      console.log('overlayEditing');
+      // console.log('overlayEditing');
     },[overlayEditing]);
     
+    useEffect(() => {
+      Object.keys(inputRefs).forEach((field) => {
+        const input = inputRefs[field].current;
+        if (input) {
+          if (field === 'businessHours' && Array.isArray(editMyShopDataSet[field])) {
+            input.value = editMyShopDataSet[field].join(', ');
+          } else {
+            input.value = editMyShopDataSet[field] || '';
+          }
+        }
+      });
+    }, [editMyShopDataSet]);
 
     //return () => clearInterval(intervalId); // 컴포넌트 언마운트시
   //}, []);     
 
   const handleButtonClick = (buttonName) => {
     setSelectedButton(buttonName);
+  };
+
+  
+  const handleDetailLoadingClick = () => {
+    const placeId = editMyShopDataSet.googleDataId;
+
+    if (placeId) {
+      const service = new window.google.maps.places.PlacesService(instMap.current);
+      service.getDetails({ placeId }, (result, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+          if (result.opening_hours) {
+            // 영업시간 정보를 상태에 설정
+            updateDataSet('businessHours', result.opening_hours.weekday_text);
+          } else {
+            console.log('No opening hours information available.');
+          }
+
+          // 위경도 정보를 상태에 설정
+          if (result.geometry && result.geometry.location) {
+            const lat = result.geometry.location.lat();
+            const lng = result.geometry.location.lng();
+            updateDataSet('pinCoordinates', `${lat}, ${lng}`);
+          } else {
+            console.log('No location information available.');
+          }
+        } else {
+          console.error('Failed to get place details:', status);
+        }
+      });
+    } else {
+      console.error('Place ID is not available.');
+    }
+  };
+
+  const updateDataSet = (field, value) => {
+    setEditMyShopDataSet((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   return (
@@ -256,7 +383,7 @@ export default function Editor() { // 메인 페이지
       <div className={styles.sidebar}>
         <div className={styles.header}>
           <button className={styles.backButton}>←</button>
-          <h1>반월당역 관광지도</h1>
+          <h1>반월당역</h1>
           <button className={styles.iconButton}>⚙️</button>
         </div>
         <div className={styles.menu}>
@@ -292,45 +419,68 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton}>수정</button>
           <button className={styles.menuButton}>삭제</button>
           <button className={styles.menuButton} onClick={handlerfunc1}>2.5D</button>
+          <button
+            className={styles.menuButton}
+            onClick={handleDetailLoadingClick}
+            title="구글에서 가게 디테일 정보 가져옴"
+          >
+            디테일 로딩
+          </button>
         </div>
         <div className={styles.card}>
           <h3>My Shops Data</h3>
           <form className={styles.form}>
             <div className={styles.formRow}>
-              <span>가게명</span> | <input type="text" name="storeName" />
+              <span>가게명</span> | 
+              <input type="text" name="storeName" ref={inputRefs.storeName} value={editMyShopDataSet.storeName} />
             </div>
             <div className={styles.formRow}>
-              <span>별칭</span> | <input type="text" name="storeName" />
+              <span>별칭</span> | 
+              <input type="text" name="alias" ref={inputRefs.alias} value={editMyShopDataSet.alias} />
             </div>
             <div className={styles.formRow}>
-              <span>영업시간</span> | <input type="text" name="businessHours" />
+              <span>지역분류</span> | 
+              <input type="text" name="locationMap" ref={inputRefs.locationMap} value={editMyShopDataSet.locationMap} />
             </div>
             <div className={styles.formRow}>
-              <span>hot한 시간대</span> | <input type="text" name="hotHours" />
+              <span>영업시간</span> | 
+              <input type="text" name="businessHours" ref={inputRefs.businessHours} value={editMyShopDataSet.businessHours} />
             </div>
             <div className={styles.formRow}>
-              <span>할인 시간</span> | <input type="text" name="hotHours" />
+              <span>hot한 시간대</span> | 
+              <input type="text" name="hotHours" ref={inputRefs.hotHours} value={editMyShopDataSet.hotHours} />
             </div>
             <div className={styles.formRow}>
-              <span>거리</span> | <input type="text" name="distance" />
+              <span>할인 시간</span> | 
+              <input type="text" name="discountHours" ref={inputRefs.discountHours} value={editMyShopDataSet.discountHours} />
             </div>
             <div className={styles.formRow}>
-              <span>주소</span> | <input type="text" name="address" />
+              <span>거리</span> | 
+              <input type="text" name="distance" ref={inputRefs.distance} value={editMyShopDataSet.distance} />
             </div>
             <div className={styles.formRow}>
-              <span>대표이미지</span> | <input type="text" name="mainImage" />
+              <span>주소</span> | 
+              <input type="text" name="address" ref={inputRefs.address} value={editMyShopDataSet.address} />
             </div>
             <div className={styles.formRow}>
-              <span>pin좌표</span> | <input type="text" name="pinCoordinates" />
+              <span>대표이미지</span> | 
+              <input type="text" name="mainImage" ref={inputRefs.mainImage} value={editMyShopDataSet.mainImage} />
             </div>
             <div className={styles.formRow}>
-              <span>가게지적도형</span> | <input type="text" name="storeShape" />
+              <span>pin좌표</span> | 
+              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} value={editMyShopDataSet.pinCoordinates} />
             </div>
             <div className={styles.formRow}>
-              <span>분류아이콘</span> | <input type="text" name="categoryIcon" />
+              <span>가게지적도형</span> | 
+              <input type="text" name="storeShape" ref={inputRefs.storeShape} value={editMyShopDataSet.storeShape} />
             </div>
             <div className={styles.formRow}>
-              <span>구글 데이터 ID</span> | <input type="text" name="googleDataId" />
+              <span>분류아이콘</span> | 
+              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} value={editMyShopDataSet.categoryIcon} />
+            </div>
+            <div className={styles.formRow}>
+              <span>구글 데이터 ID</span> | 
+              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} value={editMyShopDataSet.googleDataId} />
             </div>
           </form>
         </div>

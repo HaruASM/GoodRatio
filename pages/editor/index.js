@@ -62,12 +62,6 @@ export default function Editor() { // 메인 페이지
     googleDataId: useRef(null),
   };
 
-  const toggleDropdown = () => {
-    // if (searchDropdownRef.current) {
-    //   const isDisplayed = searchDropdownRef.current.style.display === 'block';
-    //   searchDropdownRef.current.style.display = isDisplayed ? 'none' : 'block';
-    // }
-  };
 
 
   const handlerfunc1 = () => {
@@ -316,15 +310,21 @@ export default function Editor() { // 메인 페이지
       // console.log('overlayEditing');
     },[overlayEditing]);
     
-    useEffect(() => {
+    useEffect(() => { // 브라우저 백단에 있는 샵데이터 객체 업데이트시 => form 입력 필드 업데이트 해줌
       Object.keys(inputRefs).forEach((field) => {
         const input = inputRefs[field].current;
+
         if (input) {
-          if (field === 'businessHours' && Array.isArray(editMyShopDataSet[field])) {
-            input.value = editMyShopDataSet[field].join(', ');
+          const value = editMyShopDataSet[field];
+          if (Array.isArray(value)) {
+            input.value = value.length > 0 ? value.join(', ') : '';
+            input.readOnly = value.length > 0;
           } else {
-            input.value = editMyShopDataSet[field] || '';
+            input.value = value || '';
+            input.readOnly = Boolean(value);
           }
+        } else {
+          console.log('input 요소가 없습니다. DOM 미스매치');
         }
       });
     }, [editMyShopDataSet]);
@@ -392,7 +392,6 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton}>관광</button>
           <button className={styles.menuButton}>환전</button>
         </div>
-        
         <ul className={styles.itemList}>
           <li className={styles.item}>
             <a href="#">
@@ -412,9 +411,15 @@ export default function Editor() { // 메인 페이지
             </a>
           </li>
         </ul>
+      </div>
+      <div className={styles.map} id="mapSection">
+        {/* 구글 맵이 표시되는 영역 */}
+      </div>
+      <div className={styles.rightSidebar}>
         <div className={styles.editor}>
           <button className={styles.menuButton}>거리지도</button>
-          <button className={styles.menuButton} onClick={moveToCurrentLocation}>현재위치</button><br></br>
+          <button className={styles.menuButton} onClick={moveToCurrentLocation}>현재위치</button>
+          <div className={styles.divider}></div>
           <button className={styles.menuButton}>추가</button>
           <button className={styles.menuButton}>수정</button>
           <button className={styles.menuButton}>삭제</button>
@@ -426,13 +431,19 @@ export default function Editor() { // 메인 페이지
           >
             디테일 로딩
           </button>
+          <button
+            className={styles.menuButton}
+            onClick={() => console.log(editMyShopDataSet)}
+          >
+            체크1
+          </button>
         </div>
         <div className={styles.card}>
           <h3>My Shops Data</h3>
           <form className={styles.form}>
             <div className={styles.formRow}>
               <span>가게명</span> | 
-              <input type="text" name="storeName" ref={inputRefs.storeName} value={editMyShopDataSet.storeName} />
+              <input type="text" name="storeName" ref={inputRefs.storeName} value={editMyShopDataSet.storeName}    />
             </div>
             <div className={styles.formRow}>
               <span>별칭</span> | 
@@ -444,49 +455,46 @@ export default function Editor() { // 메인 페이지
             </div>
             <div className={styles.formRow}>
               <span>영업시간</span> | 
-              <input type="text" name="businessHours" ref={inputRefs.businessHours} value={editMyShopDataSet.businessHours} />
+              <input type="text" name="businessHours" ref={inputRefs.businessHours} value={editMyShopDataSet.businessHours}  />
             </div>
             <div className={styles.formRow}>
-              <span>hot한 시간대</span> | 
-              <input type="text" name="hotHours" ref={inputRefs.hotHours} value={editMyShopDataSet.hotHours} />
+              <span>hot시간대</span> | 
+              <input type="text" name="hotHours" ref={inputRefs.hotHours} value={editMyShopDataSet.hotHours}  />
             </div>
             <div className={styles.formRow}>
-              <span>할인 시간</span> | 
-              <input type="text" name="discountHours" ref={inputRefs.discountHours} value={editMyShopDataSet.discountHours} />
+              <span>할인시간</span> | 
+              <input type="text" name="discountHours" ref={inputRefs.discountHours} value={editMyShopDataSet.discountHours}  />
             </div>
             <div className={styles.formRow}>
               <span>거리</span> | 
-              <input type="text" name="distance" ref={inputRefs.distance} value={editMyShopDataSet.distance} />
+              <input type="text" name="distance" ref={inputRefs.distance} value={editMyShopDataSet.distance}  />
             </div>
             <div className={styles.formRow}>
               <span>주소</span> | 
-              <input type="text" name="address" ref={inputRefs.address} value={editMyShopDataSet.address} />
+              <input type="text" name="address" ref={inputRefs.address} value={editMyShopDataSet.address}  />
             </div>
             <div className={styles.formRow}>
               <span>대표이미지</span> | 
-              <input type="text" name="mainImage" ref={inputRefs.mainImage} value={editMyShopDataSet.mainImage} />
+              <input type="text" name="mainImage" ref={inputRefs.mainImage} value={editMyShopDataSet.mainImage}  />
             </div>
             <div className={styles.formRow}>
               <span>pin좌표</span> | 
-              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} value={editMyShopDataSet.pinCoordinates} />
+              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} value={editMyShopDataSet.pinCoordinates}  />
             </div>
             <div className={styles.formRow}>
-              <span>가게지적도형</span> | 
-              <input type="text" name="storeShape" ref={inputRefs.storeShape} value={editMyShopDataSet.storeShape} />
+              <span>지적도 도형</span> | 
+              <input type="text" name="storeShape" ref={inputRefs.storeShape} value={editMyShopDataSet.storeShape}  />
             </div>
             <div className={styles.formRow}>
               <span>분류아이콘</span> | 
-              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} value={editMyShopDataSet.categoryIcon} />
+              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} value={editMyShopDataSet.categoryIcon}  />
             </div>
             <div className={styles.formRow}>
-              <span>구글 데이터 ID</span> | 
-              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} value={editMyShopDataSet.googleDataId} />
+              <span>구글 데이터ID</span> | 
+              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} value={editMyShopDataSet.googleDataId}  />
             </div>
           </form>
         </div>
-      </div>
-      <div className={styles.map} id="mapSection">
-        {/* 구글 맵이 표시되는 영역 */}
       </div>
       <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm}>
         <div className={styles.searchButtonsContainer}>

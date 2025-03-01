@@ -246,12 +246,13 @@
 .formRow {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 5px;
+  margin-bottom: 2px;
   align-items: center;
+  position: relative;
 }
 
 .formRow span {
-  flex: 2;
+  flex: 1.7;
   font-size: 16px;
   white-space: nowrap;
   overflow: hidden;
@@ -263,9 +264,11 @@
 .formRow input {
   flex: 3;
   padding: 5px;
-  border: 1px solid #ccc;
+  border: 1px solid #f9f9f9;
   border-radius: 5px;
   min-width: 0;
+  /* background-color: #f9f9f9; */
+  pointer-events: none;
 }
 
 
@@ -277,4 +280,31 @@
 .divider {
   border-bottom: 1px solid #ddd;
   margin: 10px 0;
+}
+
+.disabledButton {
+  text-decoration: line-through; /* 텍스트에 줄 긋기 */
+  cursor: not-allowed; /* 비활성화된 상태의 커서 */
+  opacity: 0.6; /* 비활성화된 상태의 투명도 */
+}
+
+
+
+
+
+.inputOverlayButton {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: black;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.inputOverlayButton:hover {
+  background-color: #0056b3;
 }

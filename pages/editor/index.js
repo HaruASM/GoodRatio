@@ -23,12 +23,19 @@ export default function Editor() { // 메인 페이지
   //const [drawingManager, setDrawingManager] = useState(null);
   const drawingManagerRef = useRef(null);
   const [overlayEditing, setOverlayEditing] = useState(null); // 에디터에서 작업중인 오버레이. 1개만 운용
+  const [overlayMarkerFoamCard, setOverlayMarkerFoamCard] = useState(null); 
+  const [overlayPolygonFoamCard, setOverlayPolygonFoamCard] = useState(null); 
+  
   const searchInputDomRef = useRef(null); // 검색창 참조
   const searchformRef = useRef(null); // form 요소를 위한 ref 추가
   const [selectedButton, setSelectedButton] = useState('인근');
-  
-  // 브라우저 뒷단에서 데이터 저장 및 관리 
-  const [editMyShopDataSet, setEditMyShopDataSet] = useState({
+
+  let sectionsDB = [];
+  let curLocalItemlist = [];
+  let curSectionName  = "지역명";
+  const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
+
+  const protoShopDataSet = {
     locationMap: "",
     storeName: "",
     alias: "",
@@ -39,11 +46,16 @@ export default function Editor() { // 메인 페이지
     address: "",
     mainImage: "",
     pinCoordinates: "",
-    storeShape: "",
     categoryIcon: "",
     googleDataId: "",
-  });
+    path: "",
+  };
 
+  
+  
+  // 브라우저 뒷단에서 데이터 저장 및 관리 
+  const [editNewShopDataSet, setEditNewShopDataSet] = useState(protoShopDataSet); 
+  
   const locationMapRef = useRef(null); // 반월당역 관광지도 영역에 대한 참조 레퍼런스
 
   const inputRefs = {
@@ -57,14 +69,178 @@ export default function Editor() { // 메인 페이지
     address: useRef(null),
     mainImage: useRef(null),
     pinCoordinates: useRef(null),
-    storeShape: useRef(null),
+    path: useRef(null),
     categoryIcon: useRef(null),
     googleDataId: useRef(null),
   };
 
+  const handleButtonClick = (buttonName) => {
+    setSelectedButton(buttonName);
+  };
+
+  
+  const handleDetailLoadingClick = () => {
+    const placeId = editNewShopDataSet.googleDataId;
+
+    if (placeId) {
+      const service = new window.google.maps.places.PlacesService(instMap.current);
+      service.getDetails({ placeId }, (result, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+          if (result.opening_hours) {
+            // 영업시간 정보를 상태에 설정
+            updateDataSet('businessHours', result.opening_hours.weekday_text);
+          } else {
+            console.log('No opening hours information available.');
+          }
+
+          // 위경도 정보를 상태에 설정
+          if (result.geometry && result.geometry.location) {
+            const lat = result.geometry.location.lat();
+            const lng = result.geometry.location.lng();
+            updateDataSet('pinCoordinates', `${lat}, ${lng}`);
+          } else {
+            console.log('No location information available.');
+          }
+        } else {
+          console.error('Failed to get place details:', status);
+        }
+      });
+    } else {
+      console.error('Place ID is not available.');
+    }
+  };
+
+  const updateDataSet = (field, value) => {
+    setEditNewShopDataSet((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleEditFoamCardButton = () => {
+    console.log('수정 버튼 클릭');
+  };
+
+  // 폼데이터내 지적도 도형 버튼 클릭시 동작. 다각형에 대한 처리를 위해 사용 
+  // 드로잉매니저에 대한 실질적인 이벤트 처리부
+  // // 수정버튼 클릭 -> 핸들러 -> DrawManager 동작 
+  // // -> 객체 생성 이벤트 발생 ( overlaycomplete, polygoncomplete 2개 cb 동작작 )
+  // // -> DataSet에 저장 -> 폼데이터내 Path 필드에 저장 -> 필드 활성화되어있으면 -> 해당 마커 생성 
+  // 0 Marker Overlay 객체 생성 삭제를 관리 
+  // 1.드로잉매니저 컨트롤러 보여주고, 
+  // 2. 이벤트 처리 결과 pin과 다각형을 기존 객체 변수에 저장. 
+  // 3. 기존은 삭제 
+  // 4. 생선된 다각형 pin 객체는 editMyShopDataSet에 저장
+  const handlePathButtonClick = (event) => {
+    event.preventDefault(); 
+    const _drawingManager = drawingManagerRef.current;  
+    _drawingManager.setOptions({ drawingControl: true }); 
+    
+    if (_drawingManager) {
+        _drawingManager.setOptions({          drawingControl: true,        });
+        _drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.POLYGON);
+
+        // 다각형 이벤츠 처리부 
+        window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', (eventObjOverlay)=>{
+          
+        
+        // const coordinates = [];
+        // path.forEach((point) => {
+        //   coordinates.push({ lat: point.lat(), lng: point.lng() });
+        // });
+          const coordinates = [];
+          eventObjOverlay.getPath().forEach((point) => {
+            coordinates.push({ lat: point.lat(), lng: point.lng() });
+          });
+          console.log('다각형 좌표들:', coordinates);
 
 
-  const handlerfunc1 = () => {
+
+          updateDataSet('path', eventObjOverlay.getPath()); 
+          setOverlayPolygonFoamCard(prev => {
+            if (prev) prev.setMap(null);
+            return eventObjOverlay;
+          });
+          const handlePolygonPathChange = () => {
+            console.log('다각형 경로 변경');
+          };
+      
+          const path = eventObjOverlay.getPath();
+          window.google.maps.event.addListener(path, 'set_at', handlePolygonPathChange);
+          window.google.maps.event.addListener(path, 'insert_at', handlePolygonPathChange);
+          window.google.maps.event.addListener(path, 'remove_at', handlePolygonPathChange);
+          
+
+          // 초기화 
+          _drawingManager.setOptions({ drawingControl: false });
+        });
+
+  
+
+    } else  console.error('드로잉 매니저 생성 안됨')
+    
+  }; 
+
+  // FB와 연동 
+  const initShopList = () => {
+    
+
+    sectionsDB = [ {name:'Clark', list: []}, {name:'Cebu', list: []}];
+
+    // FB 세팅 
+    // 섹션 세팅
+    // 데이터 수신 완료시 호출한 cb에 처리하는 부분
+
+    const _localItemlist = [];
+    const _newShopData = Object.create(protoShopDataSet);
+    _newShopData.address = "대한민국 대구광역시 중구 중앙대로66길 20 효성해링턴플레이스 상가 1층 남산에";
+    _newShopData.storeName = "남산에";
+    _newShopData.businessHours = ['월요일: 오전 12:00~8:00', '화요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '수요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '목요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '금요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '토요일: 오후 12:00~4:00, 오후 5:00 ~ 오전 12:00', '일요일: 오전 12:00~8:00, 오후 12:00~4:00, 오후 5:00 ~ 오전 12:00'];
+    _newShopData.googleDataId = "ChIJtWSlZ4rjZTUR7qRzJJ3jSnA";
+    _newShopData.pinCoordinates = {lat: 35.8611117, lng: 128.5941372};
+    _newShopData.path = [{lat: 35.86099311405982, lng: 128.593923871688}, {lat: 35.861147451666795, lng: 128.59399092691336}, {lat: 35.86122353347513, lng: 128.59420013921653}, {lat: 35.86108223863008, lng: 128.59428060548697}, {lat: 35.86089094674624, lng: 128.59418404596244}];
+    _localItemlist.push(_newShopData);
+
+    // 섹션에 생성된 부분 추가
+    sectionsDB.push({name:'반월당', list: _localItemlist});
+    curLocalItemlist = _localItemlist;
+    curSectionName = '반월당';
+
+    // 마커 객체를 생성하는 팩토리 추가 
+    presentMakers.push({
+      id: _newShopData.googleDataId,
+      marker: new window.google.maps.Marker({
+        position: _newShopData.pinCoordinates,
+        map: instMap.current,
+        title: _newShopData.storeName,
+      }),
+      polygon: new window.google.maps.Polygon({
+        paths: _newShopData.path,
+        strokeColor: OVERLAY_COLOR.IDLE,
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: OVERLAY_COLOR.IDLE,
+        fillOpacity: 0.35,
+        map: instMap.current,
+      }),
+    });
+
+
+
+  }
+
+
+  
+
+
+  // pin 좌표 수정 버튼 클릭시 동작
+  const handlePinCoordinatesButtonClick = (event) => {
+    event.preventDefault();
+    console.log('pin 좌표 수정 버튼 클릭');
+  };
+
+
+  const handlerfunc25 = () => {
     const position = currentPosition;
     const map = instMap.current;
     const imageUrl = './icons/fastfood.webp';
@@ -81,7 +257,7 @@ export default function Editor() { // 메인 페이지
   };
 
   // 검색창 
-  const initializeSearchInput = (_mapInstance) => {
+  const initSearchInput = (_mapInstance) => {
     const inputDom = searchInputDomRef.current;
     if (!inputDom) {
       console.error("Search input DOM element not found");
@@ -106,7 +282,7 @@ export default function Editor() { // 메인 페이지
         googleDataId: detailPlace.place_id || '',
       };
       
-      setEditMyShopDataSet((prev) => ({
+      setEditNewShopDataSet((prev) => ({
         ...prev,
         ..._newData,
       }));
@@ -124,7 +300,12 @@ export default function Editor() { // 메인 페이지
     // console.log('search input initialized');
   }
 
-  const initializeDrawingManager = ( _mapInstance ) => { // 
+
+  // 드로잉 매니저의 생성이유와 용도는 MyshopData의 pin과 다각형 도형 수정과 출력을 그리기용용
+  // 드로잉매니저 초기화 단계에서는 마커의 디자인과 기본 동일한 동작만 세팅 
+  // 객체 관리 이벤트 처리는 핸들러에서 처리함. 
+  // 이벤트 처리 순서는 overlaycomplete 공통-> polygoncomplete, markercomplete 
+  const initDrawingManager = ( _mapInstance ) => { // 
     var _drawingManager = new window.google.maps.drawing.DrawingManager({
       drawingControl: false,
       drawingControlOptions: {
@@ -158,6 +339,7 @@ export default function Editor() { // 메인 페이지
 
     }); // _drawingManager.setOptions
 
+    
     // 오버레이 생성시 
     window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj)=>{
       
@@ -227,17 +409,15 @@ export default function Editor() { // 메인 페이지
       window.google.maps.event.addListener(eventObj.overlay, 'mouseover', handleOverlayMouseOver);
       window.google.maps.event.addListener(eventObj.overlay, 'mouseout', handleOverlayMouseOut);
 
-      setOverlayEditing((prev) => { // 기존 오버레이 삭제하고 새 오버레이 event 객체 저장   
-        if (prev) prev.overlay.setMap(null);
-        return eventObj; });
       
       _drawingManager.setDrawingMode(null); // 그리기 모드 초기화
     });
     
-    
+    _drawingManager.setOptions({ drawingControl: false });
     _drawingManager.setMap(_mapInstance);
     drawingManagerRef.current = _drawingManager;
     //setDrawingManager(_drawingManager); // 비동기 이므로 최후반
+    
   } // initializeDrawingManager  
 
   const moveToCurrentLocation = () => {
@@ -247,7 +427,7 @@ export default function Editor() { // 메인 페이지
     }
   };
 
-  const initializePlaceInfo = (_mapInstance) => { // 이부분은 구글 search 부분 하위에 넣어야 할듯듯
+  const initPlaceInfo = (_mapInstance) => { // 이부분은 구글 search 부분 하위에 넣어야 할듯듯
     //const service = new window.google.maps.places.PlacesService(_mapInstance);
 
     window.google.maps.event.addListener(_mapInstance, 'click', (clickevent) => {
@@ -255,7 +435,7 @@ export default function Editor() { // 메인 페이지
     });
   }
   
-  const initializePage = () => {
+  const initGoogleMapPage = () => {
     // console.log('initPage');
 
     if (navigator.geolocation) {
@@ -273,7 +453,7 @@ export default function Editor() { // 메인 페이지
 
     //-- g맵 인스턴스 생성
     let mapDiv = document.getElementById('mapSection'); 
-    // 여기서 interval을 줘야할지? if (window.google && mapDiv && !instMap) {
+    
     const _mapInstance = new window.google.maps.Map(mapDiv, {
       center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
       zoom: 16,
@@ -284,96 +464,79 @@ export default function Editor() { // 메인 페이지
     // g맵용 로드 완료시 동작 
     window.google.maps.event.addListenerOnce(_mapInstance, 'idle', ()=>{ 
        
-      initializeDrawingManager(_mapInstance);
-      initializeSearchInput(_mapInstance);
-      initializePlaceInfo(_mapInstance);
-      
+      initDrawingManager(_mapInstance);
+      initSearchInput(_mapInstance);
+      initPlaceInfo(_mapInstance);
+      initShopList();
       
       // -- 현재 내위치 마커 
     });  // idle 이벤트 
     
     instMap.current = _mapInstance;    
-  } // initializePage 마침
+  } // initializeGoogleMapPage 마침
 
 //  useEffect(() => { // 1회 실행 but 2회 실행중
     useEffect(() => {
-    
-      const intervalId = setInterval( () => {
-        if(window.google) {
-          initializePage();
-          clearInterval(intervalId);    }
-      }, 100);  
+      let _cnt = 0;
+      let _intervalId = setInterval(() => {
+        if (window.google) {
+          _cnt = 0;
+          clearInterval(_intervalId); 
+          _intervalId = setInterval(() => {
+            if (window.google.maps.Map) {
+              initGoogleMapPage();
+              clearInterval(_intervalId);            
+            } else {
+              if (_cnt++ > 10) {           clearInterval(_intervalId);           console.error('구글맵 로딩 오류');        }
+              console.log('구글맵 로딩 중', _cnt);
+            }
+            
+            
+          }, 100);
+        } else {
+          if (_cnt++ > 10) {           clearInterval(_intervalId);           console.error('구글서비스 로딩 오류');        }
+          console.log('구글서비스 로딩 중', _cnt);
+        }
+      }, 100);
              
     }, []);
     
-    useEffect(() => {
-      // console.log('overlayEditing');
-    },[overlayEditing]);
+   
     
     useEffect(() => { // 브라우저 백단에 있는 샵데이터 객체 업데이트시 => form 입력 필드 업데이트 해줌
       Object.keys(inputRefs).forEach((field) => {
         const input = inputRefs[field].current;
 
         if (input) {
-          const value = editMyShopDataSet[field];
-          if (Array.isArray(value)) {
-            input.value = value.length > 0 ? value.join(', ') : '';
-            input.readOnly = value.length > 0;
+          const _value = editNewShopDataSet[field];
+          if (Array.isArray(_value)) {
+            input.value = _value.length > 0 ? _value.join(', ') : '';
+            input.readOnly = _value.length > 0;
           } else {
-            input.value = value || '';
-            input.readOnly = Boolean(value);
+            input.value = _value || '';
+            input.readOnly = Boolean(_value);
           }
         } else {
           console.log('input 요소가 없습니다. DOM 미스매치');
         }
+
+        if (field === 'path' && editNewShopDataSet[field]) {
+          console.log('editMyShopDataSet[field] - 폼데이터내 path 업데이트 되었음');
+          //const _value = editMyShopDataSet[field];
+          //const _map = instMap.current;
+          //const _drawingManager = drawingManagerRef.current;
+
+          
+
+        }
+
       });
-    }, [editMyShopDataSet]);
+    }, [editNewShopDataSet]);
 
     //return () => clearInterval(intervalId); // 컴포넌트 언마운트시
   //}, []);     
 
-  const handleButtonClick = (buttonName) => {
-    setSelectedButton(buttonName);
-  };
-
-  
-  const handleDetailLoadingClick = () => {
-    const placeId = editMyShopDataSet.googleDataId;
-
-    if (placeId) {
-      const service = new window.google.maps.places.PlacesService(instMap.current);
-      service.getDetails({ placeId }, (result, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-          if (result.opening_hours) {
-            // 영업시간 정보를 상태에 설정
-            updateDataSet('businessHours', result.opening_hours.weekday_text);
-          } else {
-            console.log('No opening hours information available.');
-          }
-
-          // 위경도 정보를 상태에 설정
-          if (result.geometry && result.geometry.location) {
-            const lat = result.geometry.location.lat();
-            const lng = result.geometry.location.lng();
-            updateDataSet('pinCoordinates', `${lat}, ${lng}`);
-          } else {
-            console.log('No location information available.');
-          }
-        } else {
-          console.error('Failed to get place details:', status);
-        }
-      });
-    } else {
-      console.error('Place ID is not available.');
-    }
-  };
-
-  const updateDataSet = (field, value) => {
-    setEditMyShopDataSet((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+ 
 
   return (
     <div className={styles.container}>
@@ -421,9 +584,8 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton} onClick={moveToCurrentLocation}>현재위치</button>
           <div className={styles.divider}></div>
           <button className={styles.menuButton}>추가</button>
-          <button className={styles.menuButton}>수정</button>
           <button className={styles.menuButton}>삭제</button>
-          <button className={styles.menuButton} onClick={handlerfunc1}>2.5D</button>
+          <button className={styles.menuButton} onClick={handlerfunc25}>2.5D</button>
           <button
             className={styles.menuButton}
             onClick={handleDetailLoadingClick}
@@ -433,65 +595,76 @@ export default function Editor() { // 메인 페이지
           </button>
           <button
             className={styles.menuButton}
-            onClick={() => console.log(editMyShopDataSet)}
+            onClick={() => console.log(editNewShopDataSet)}
           >
             체크1
           </button>
         </div>
         <div className={styles.card}>
-          <h3>My Shops Data</h3>
+          <h3>My Shops Data
+          <button onClick={handleEditFoamCardButton} className={`${styles.menuButton} ${styles.disabledButton}`}>
+          수정
+      </button>
+
+          </h3>
           <form className={styles.form}>
             <div className={styles.formRow}>
               <span>가게명</span> | 
-              <input type="text" name="storeName" ref={inputRefs.storeName} value={editMyShopDataSet.storeName}    />
+              <input type="text" name="storeName" ref={inputRefs.storeName} value={editNewShopDataSet.storeName}    />
             </div>
             <div className={styles.formRow}>
               <span>별칭</span> | 
-              <input type="text" name="alias" ref={inputRefs.alias} value={editMyShopDataSet.alias} />
+              <input type="text" name="alias" ref={inputRefs.alias} value={editNewShopDataSet.alias} />
             </div>
             <div className={styles.formRow}>
               <span>지역분류</span> | 
-              <input type="text" name="locationMap" ref={inputRefs.locationMap} value={editMyShopDataSet.locationMap} />
+              <input type="text" name="locationMap" ref={inputRefs.locationMap} value={editNewShopDataSet.locationMap} />
             </div>
             <div className={styles.formRow}>
               <span>영업시간</span> | 
-              <input type="text" name="businessHours" ref={inputRefs.businessHours} value={editMyShopDataSet.businessHours}  />
+              <input type="text" name="businessHours" ref={inputRefs.businessHours} value={editNewShopDataSet.businessHours}  />
             </div>
             <div className={styles.formRow}>
               <span>hot시간대</span> | 
-              <input type="text" name="hotHours" ref={inputRefs.hotHours} value={editMyShopDataSet.hotHours}  />
+              <input type="text" name="hotHours" ref={inputRefs.hotHours} value={editNewShopDataSet.hotHours}  />
             </div>
             <div className={styles.formRow}>
               <span>할인시간</span> | 
-              <input type="text" name="discountHours" ref={inputRefs.discountHours} value={editMyShopDataSet.discountHours}  />
+              <input type="text" name="discountHours" ref={inputRefs.discountHours} value={editNewShopDataSet.discountHours}  />
             </div>
             <div className={styles.formRow}>
               <span>거리</span> | 
-              <input type="text" name="distance" ref={inputRefs.distance} value={editMyShopDataSet.distance}  />
+              <input type="text" name="distance" ref={inputRefs.distance} value={editNewShopDataSet.distance}  />
             </div>
             <div className={styles.formRow}>
               <span>주소</span> | 
-              <input type="text" name="address" ref={inputRefs.address} value={editMyShopDataSet.address}  />
+              <input type="text" name="address" ref={inputRefs.address} value={editNewShopDataSet.address}  />
             </div>
             <div className={styles.formRow}>
               <span>대표이미지</span> | 
-              <input type="text" name="mainImage" ref={inputRefs.mainImage} value={editMyShopDataSet.mainImage}  />
+              <input type="text" name="mainImage" ref={inputRefs.mainImage} value={editNewShopDataSet.mainImage}  />
             </div>
             <div className={styles.formRow}>
               <span>pin좌표</span> | 
-              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} value={editMyShopDataSet.pinCoordinates}  />
+              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} value={editNewShopDataSet.pinCoordinates}  />
+              <button onClick={(event) => handlePinCoordinatesButtonClick(event)} className={styles.inputOverlayButton}>
+                수정
+              </button>
             </div>
             <div className={styles.formRow}>
               <span>지적도 도형</span> | 
-              <input type="text" name="storeShape" ref={inputRefs.storeShape} value={editMyShopDataSet.storeShape}  />
+              <input type="text" name="path" ref={inputRefs.path} value={editNewShopDataSet.path} readOnly />
+              <button onClick={(event) => handlePathButtonClick(event)} className={styles.inputOverlayButton}>
+                수정
+              </button>
             </div>
             <div className={styles.formRow}>
               <span>분류아이콘</span> | 
-              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} value={editMyShopDataSet.categoryIcon}  />
+              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} value={editNewShopDataSet.categoryIcon}  />
             </div>
             <div className={styles.formRow}>
-              <span>구글 데이터ID</span> | 
-              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} value={editMyShopDataSet.googleDataId}  />
+              <span>구글데이터ID</span> | 
+              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} value={editNewShopDataSet.googleDataId}  />
             </div>
           </form>
         </div>

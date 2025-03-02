@@ -9,72 +9,87 @@
 					"label": "함수 선언"
 				},
 				{
-					"line": 81,
+					"line": 88,
 					"column": 32,
 					"label": "handleDetailLoadingClick 구글PlaceID로 디테일 가져오는 함수"
 				},
 				{
-					"line": 133,
+					"line": 140,
 					"column": 35,
 					"label": "handleStoreShapeButtonClick 수정 버튼 클릭시 cb"
 				},
 				{
-					"line": 143,
+					"line": 150,
 					"column": 58,
 					"label": "'polygoncomplete' 다각형 생성시 이벤트 처리부. 수정버튼 cb에서 호출"
 				},
 				{
-					"line": 184,
-					"column": 0,
-					"label": "initShopList FB연동. local아이템리스트 생성"
+					"line": 197,
+					"column": 14,
+					"label": "오버레이 프로토타입 선언부"
 				},
 				{
-					"line": 258,
+					"line": 341,
+					"column": 0,
+					"label": "FB연동. local아이템리스트 생성"
+				},
+				{
+					"line": 391,
+					"column": 25,
+					"label": "마커, 폴리곤 객체 생성 팩토리"
+				},
+				{
+					"line": 461,
 					"column": 29,
 					"label": "initSearchInput 검색창 초기화"
 				},
 				{
-					"line": 306,
-					"column": 20,
-					"label": "initDrawingManager 드로잉 매니저 초기화"
+					"line": 513,
+					"column": 7,
+					"label": "드로잉 매니저 초기화, 팩토리용 객체 세팅"
 				},
 				{
-					"line": 342,
+					"line": 545,
 					"column": 75,
 					"label": "'overlaycomplete' 이벤트 리스너"
 				},
 				{
-					"line": 428,
+					"line": 549,
+					"column": 19,
+					"label": "그리기 매니저에서 오버레이 세팅 부분"
+				},
+				{
+					"line": 631,
 					"column": 11,
 					"label": "initPlaceInfo 구글place검색용 세팅"
 				},
 				{
-					"line": 436,
+					"line": 639,
 					"column": 31,
 					"label": "initGoogleMapPage 구글map 생성 및 초기화"
 				},
 				{
-					"line": 463,
-					"column": 28,
-					"label": "_mapInstance, 'idle', 이벤트 리스너, 맵 생성후 드로잉매니저, 검색창, 구글관련 기능들 세팅하는 위치"
+					"line": 670,
+					"column": 44,
+					"label": "'Idle ' 맵 생성후 로드 시점"
 				},
 				{
-					"line": 544,
+					"line": 747,
 					"column": 29,
 					"label": "Html 사이드바"
 				},
 				{
-					"line": 579,
+					"line": 782,
 					"column": 38,
 					"label": "Html 우측사이드바"
 				},
 				{
-					"line": 608,
+					"line": 811,
 					"column": 34,
 					"label": "Html폼데이터"
 				},
 				{
-					"line": 670,
+					"line": 873,
 					"column": 40,
 					"label": "Html 검색창"
 				}

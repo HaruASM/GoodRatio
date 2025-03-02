@@ -29,15 +29,20 @@ export default function Editor() { // 메인 페이지
   const searchInputDomRef = useRef(null); // 검색창 참조
   const searchformRef = useRef(null); // form 요소를 위한 ref 추가
   const [selectedButton, setSelectedButton] = useState('인근');
+  
+  
 
   let sectionsDB = [];
   let curLocalItemlist = [];
   let curSectionName  = "지역명";
   const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
 
+  let protoMarker, protoPolygon;
+
   const protoShopDataSet = {
     locationMap: "",
     storeName: "",
+    storeStyle: "",
     alias: "",
     businessHours: [],
     hotHours: "",
@@ -48,7 +53,9 @@ export default function Editor() { // 메인 페이지
     pinCoordinates: "",
     categoryIcon: "",
     googleDataId: "",
-    path: "",
+    path: [],
+    itemMarker: null,
+    itemPolygon: null,
   };
 
   
@@ -110,12 +117,12 @@ export default function Editor() { // 메인 페이지
     }
   };
 
-  const updateDataSet = (field, value) => {
-    setEditNewShopDataSet((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  // const updateDataSet = (field, value) => {
+  //   setEditNewShopDataSet((prev) => ({
+  //     ...prev,
+  //     [field]: value,
+  //   }));
+  // };
 
   const handleEditFoamCardButton = () => {
     console.log('수정 버튼 클릭');
@@ -143,32 +150,36 @@ export default function Editor() { // 메인 페이지
         // 다각형 이벤츠 처리부 
         window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', (eventObjOverlay)=>{
           
-        
+        console.log('handlePathButtonClick');
         // const coordinates = [];
         // path.forEach((point) => {
         //   coordinates.push({ lat: point.lat(), lng: point.lng() });
         // });
-          const coordinates = [];
-          eventObjOverlay.getPath().forEach((point) => {
-            coordinates.push({ lat: point.lat(), lng: point.lng() });
-          });
-          console.log('다각형 좌표들:', coordinates);
+          // const coordinates = [];
+          // eventObjOverlay.getPath().forEach((point) => {
+          //   coordinates.push({ lat: point.lat(), lng: point.lng() });
+          // });
+          // console.log('다각형 좌표들:', coordinates);
 
 
 
-          updateDataSet('path', eventObjOverlay.getPath()); 
-          setOverlayPolygonFoamCard(prev => {
-            if (prev) prev.setMap(null);
-            return eventObjOverlay;
-          });
-          const handlePolygonPathChange = () => {
-            console.log('다각형 경로 변경');
-          };
+          //updateDataSet('path', eventObjOverlay.getPath()); 
+          // setEditNewShopDataSet((prev) => ({
+          //   ...prev,
+          //   ['path']: eventObjOverlay.getPath(),
+          // }));
+          // setOverlayPolygonFoamCard(prev => {
+          //   if (prev) prev.setMap(null);
+          //   return eventObjOverlay;
+          // });
+          // const handlePolygonPathChange = () => {
+          //   console.log('다각형 경로 변경');
+          // };
       
-          const path = eventObjOverlay.getPath();
-          window.google.maps.event.addListener(path, 'set_at', handlePolygonPathChange);
-          window.google.maps.event.addListener(path, 'insert_at', handlePolygonPathChange);
-          window.google.maps.event.addListener(path, 'remove_at', handlePolygonPathChange);
+          // const path = eventObjOverlay.getPath();
+          // window.google.maps.event.addListener(path, 'set_at', handlePolygonPathChange);
+          // window.google.maps.event.addListener(path, 'insert_at', handlePolygonPathChange);
+          // window.google.maps.event.addListener(path, 'remove_at', handlePolygonPathChange);
           
 
           // 초기화 
@@ -181,8 +192,153 @@ export default function Editor() { // 메인 페이지
     
   }; 
 
+
+
+  const setProtoMarker = (  ) => {
+    const _protoMarker = new window.google.maps.Marker({
+      position: null,
+      map: null,
+      title: null,
+    });
+
+    const _protoPolygon = new window.google.maps.Polygon({
+      paths: [],
+      strokeColor: OVERLAY_COLOR.IDLE,
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      map: null,
+    });
+
+    return { protoMarker: _protoMarker, protoPolygon: _protoPolygon };
+  }
+  
+  
+  const initMarker = () => {
+
+  ({ protoMarker, protoPolygon } = setProtoMarker());
+
+  }
+
+
+  const factoryMakers = ( coordinates, mapInst ) => {
+    const _marker = Object.create(protoMarker);
+    _marker.setPosition(coordinates);
+    _marker.setMap(mapInst);
+    
+    const handleOverlayClick = () => {
+      // InfoWindow 생성 및 설정
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div>
+            <strong>아이템 리스트의 정보보</strong><br>
+            타입: ${_marker.type}<br>
+            <button id="customButton">내가 원하는 버튼</button>
+          </div>
+        `,
+      });
+
+      // InfoWindow를 오버레이의 위치에 표시
+        infoWindow.open(mapInst, _marker);
+      
+
+      // 버튼 클릭 이벤트 리스너 추가
+      window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+        const customButton = document.getElementById('customButton');
+        if (customButton) {
+          customButton.addEventListener('click', () => {
+            alert('버튼이 클릭되었습니다!');
+          });
+        }
+      });
+    };
+   
+    const handleOverlayMouseOver = () => {
+    
+      
+        _marker.setIcon({
+          url: OVERLAY_ICON.MARKER_MOUSEOVER // 파란색
+    });
+
+    }
+    const handleOverlayMouseOut = () => {
+     
+        _marker.setIcon({
+          url: OVERLAY_ICON.MARKER, // 파란색
+        });
+      }
+
+    // 오버레이에 이벤트 바인딩 
+    window.google.maps.event.addListener(_marker, 'click', handleOverlayClick);
+    window.google.maps.event.addListener(_marker, 'mouseover', handleOverlayMouseOver);
+    window.google.maps.event.addListener(_marker, 'mouseout', handleOverlayMouseOut);
+    
+    return _marker;
+  }
+
+
+  const factoryPolygon = ( paths, mapInst ) => {
+    const _polygon = Object.create(protoPolygon);
+    _polygon.setPaths(paths);
+    _polygon.setMap(mapInst);
+    
+    const handleOverlayClick = () => {
+      // infoWindow 생성 및 설정
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div>
+            <strong>아이템 리스트의 정보보</strong><br>
+          </div>
+        `,
+      });
+
+      
+      const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
+      paths.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
+      infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
+      infoWindow.open(mapInst, paths); // InfoWindow를 지도에 표시
+
+    }
+
+    
+      const handleOverlayMouseOver = () => {
+    
+    
+          _polygon.setOptions({
+            fillColor: OVERLAY_COLOR.MOUSEOVER, // 초록색
+          });
+      }
+
+      const handleOverlayMouseOut = () => {
+        
+          _polygon.setOptions({
+            fillColor: OVERLAY_COLOR.IDLE, // 초록색
+          });
+        
+      }
+
+
+
+      
+    // 오버레이에 이벤트 바인딩 
+    window.google.maps.event.addListener(_polygon, 'click', handleOverlayClick);
+    window.google.maps.event.addListener(_polygon, 'mouseover', handleOverlayMouseOver);
+    window.google.maps.event.addListener(_polygon, 'mouseout', handleOverlayMouseOut);
+
+
+    
+    return _polygon;
+  }
+
+
+
+
+
+
+
+
+
   // FB와 연동 
-  const initShopList = () => {
+  const initShopList = (_mapInstance) => {
     
 
     sectionsDB = [ {name:'Clark', list: []}, {name:'Cebu', list: []}];
@@ -193,42 +349,91 @@ export default function Editor() { // 메인 페이지
 
     const _localItemlist = [];
     const _newShopData = Object.create(protoShopDataSet);
-    _newShopData.address = "대한민국 대구광역시 중구 중앙대로66길 20 효성해링턴플레이스 상가 1층 남산에";
+    _newShopData.address = "대한민국 대구광역시 중구 중앙대로66길 20 효성해링턴플레이스 상가 1층";
     _newShopData.storeName = "남산에";
+    _newShopData.storeStyle = "일식당";
     _newShopData.businessHours = ['월요일: 오전 12:00~8:00', '화요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '수요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '목요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '금요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '토요일: 오후 12:00~4:00, 오후 5:00 ~ 오전 12:00', '일요일: 오전 12:00~8:00, 오후 12:00~4:00, 오후 5:00 ~ 오전 12:00'];
     _newShopData.googleDataId = "ChIJtWSlZ4rjZTUR7qRzJJ3jSnA";
-    _newShopData.pinCoordinates = {lat: 35.8611117, lng: 128.5941372};
-    _newShopData.path = [{lat: 35.86099311405982, lng: 128.593923871688}, {lat: 35.861147451666795, lng: 128.59399092691336}, {lat: 35.86122353347513, lng: 128.59420013921653}, {lat: 35.86108223863008, lng: 128.59428060548697}, {lat: 35.86089094674624, lng: 128.59418404596244}];
+    _newShopData.pinCoordinates = { lat: 35.8611117, lng: 128.5941372 };
+    _newShopData.path = [
+      { lat: 35.86099311405982, lng: 128.593923871688 },
+      { lat: 35.861147451666795, lng: 128.59399092691336 },
+      { lat: 35.86122353347513, lng: 128.59420013921653 },
+      { lat: 35.86108223863008, lng: 128.59428060548697 },
+      { lat: 35.86089094674624, lng: 128.59418404596244 }
+    ];
     _localItemlist.push(_newShopData);
 
-    // 섹션에 생성된 부분 추가
+    const _newShopData2 = Object.create(protoShopDataSet);
+    _newShopData2.address = "대한민국 대구광역시 중구 중앙대로66길";
+    _newShopData2.storeName = "탑마트 대구점";
+    _newShopData2.googleDataId = "ChIJwQyzSL_jZTURceWdkWAOOJo";
+    _newShopData2.pinCoordinates = {lat: 35.86125608523786, lng: 128.59337340622102};
+    _localItemlist.push(_newShopData2);
+
+    // const aa = new window.google.maps.Marker({
+    //   position: {lat: 35.86125608523786, lng: 128.59337340622102},
+    //   map: _mapInstance,
+    // });
+       
+    
+    // const b1 = new window.google.maps.Marker({
+    //   position: _newShopData.pinCoordinates,
+    //   map: _mapInstance,
+    // });
+
+    // const b2 = new window.google.maps.Polygon({
+    //   paths: _newShopData.path,
+    //   map: _mapInstance,
+    // });
+
+    // 해당 site의 아이템리스트 수신 후 
+    // ittem list 객체에 마커 객체를 생성
+    // 팩토리 패턴
+    _localItemlist.forEach((item) => {
+
+      if (item.pinCoordinates) {
+
+          item.marker = factoryMakers(item.pinCoordinates, _mapInstance);
+          item.marker.setTitle(item.storeName);
+          presentMakers.push(item.marker);
+
+          // console.log('item.marker.title', item.marker.getPosition().lat());
+          // console.log('item.marker.title', item.marker.getPosition().lng());
+          //console.log('item.marker.title', item.storeName);
+          
+          // const aa = new window.google.maps.Marker({
+          //   position: item.pinCoordinates,
+          //   map: _mapInstance,
+          // });
+      }
+      
+      // if (item.path) {
+          
+      //     item.polygon = factoryPolygon(item.path, _mapInstance);
+      //     presentMakers.push(item.polygon);
+          
+      // }
+    });
+  
+     //임시 테스트용 객체 도형 생성부
+     presentMakers.forEach((item) => {
+      item.setMap(_mapInstance);
+
+       console.log('item.storeName', item.getTitle(), item.getPosition().lat(), item.getPosition().lng()); 
+     });
+
+    
+
+    
+
+
     sectionsDB.push({name:'반월당', list: _localItemlist});
     curLocalItemlist = _localItemlist;
     curSectionName = '반월당';
+  };
 
-    // 마커 객체를 생성하는 팩토리 추가 
-    presentMakers.push({
-      id: _newShopData.googleDataId,
-      marker: new window.google.maps.Marker({
-        position: _newShopData.pinCoordinates,
-        map: instMap.current,
-        title: _newShopData.storeName,
-      }),
-      polygon: new window.google.maps.Polygon({
-        paths: _newShopData.path,
-        strokeColor: OVERLAY_COLOR.IDLE,
-        strokeOpacity: 0.8,
-        strokeWeight: 2,
-        fillColor: OVERLAY_COLOR.IDLE,
-        fillOpacity: 0.35,
-        map: instMap.current,
-      }),
-    });
-
-
-
-  }
-
+  
 
   
 
@@ -268,7 +473,7 @@ export default function Editor() { // 메인 페이지
     autocomplete.bindTo('bounds', _mapInstance);
 
     autocomplete.addListener('place_changed', () => {
-      console.log('place_changed');
+       console.log('place_changed');
       const detailPlace = autocomplete.getPlace();
       if (!detailPlace.geometry || !detailPlace.geometry.location) {
         console.log("No details available for input: '" + detailPlace.name + "'");
@@ -339,75 +544,75 @@ export default function Editor() { // 메인 페이지
 
     }); // _drawingManager.setOptions
 
-    
+
     // 오버레이 생성시 
     window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj)=>{
       
-      const handleOverlayClick = () => {
-        // console.log('오버레이가 클릭 ', eventObj.type );
+      // const handleOverlayClick = () => {
+      //   // console.log('오버레이가 클릭 ', eventObj.type );
 
-        // InfoWindow 생성 및 설정
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div>
-              <strong>오버레이 정보</strong><br>
-              타입: ${eventObj.type}<br>
-              <button id="customButton">내가 원하는 버튼</button>
-            </div>
-          `,
-        });
+      //   // InfoWindow 생성 및 설정
+      //   const infoWindow = new window.google.maps.InfoWindow({
+      //     content: `
+      //       <div>
+      //         <strong>오버레이 정보</strong><br>
+      //         타입: ${eventObj.type}<br>
+      //         <button id="customButton">내가 원하는 버튼</button>
+      //       </div>
+      //     `,
+      //   });
 
-        // InfoWindow를 오버레이의 위치에 표시
-        if (eventObj.type === 'marker') {
-          infoWindow.open(instMap.current, eventObj.overlay);
-        } else if (eventObj.type === 'polygon') {
-          // 폴리곤 타입의 오버레이인 경우
-          const path = eventObj.overlay.getPath(); // 폴리곤의 경로를 가져옴
-          const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
-          path.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
-          infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
-          infoWindow.open(instMap.current, eventObj.overlay); // InfoWindow를 지도에 표시
-        }
+      //   // InfoWindow를 오버레이의 위치에 표시
+      //   if (eventObj.type === 'marker') {
+      //     infoWindow.open(instMap.current, eventObj.overlay);
+      //   } else if (eventObj.type === 'polygon') {
+      //     // 폴리곤 타입의 오버레이인 경우
+      //     const path = eventObj.overlay.getPath(); // 폴리곤의 경로를 가져옴
+      //     const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
+      //     path.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
+      //     infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
+      //     infoWindow.open(instMap.current, eventObj.overlay); // InfoWindow를 지도에 표시
+      //   }
 
-        // 버튼 클릭 이벤트 리스너 추가
-        window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
-          const customButton = document.getElementById('customButton');
-          if (customButton) {
-            customButton.addEventListener('click', () => {
-              alert('버튼이 클릭되었습니다!');
-            });
-          }
-        });
-      };
+      //   // 버튼 클릭 이벤트 리스너 추가
+      //   window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+      //     const customButton = document.getElementById('customButton');
+      //     if (customButton) {
+      //       customButton.addEventListener('click', () => {
+      //         alert('버튼이 클릭되었습니다!');
+      //       });
+      //     }
+      //   });
+      // };
      
-      const handleOverlayMouseOver = () => {
+      // const handleOverlayMouseOver = () => {
       
-        if (eventObj.type === 'polygon') {
-          eventObj.overlay.setOptions({
-            fillColor: OVERLAY_COLOR.MOUSEOVER, // 초록색
-          });
-        } else if (eventObj.type === 'marker') {
-          eventObj.overlay.setIcon({
-            url: OVERLAY_ICON.MARKER_MOUSEOVER // 파란색
-          });
-        }
-      }
-      const handleOverlayMouseOut = () => {
-        if (eventObj.type === 'polygon') {
-          eventObj.overlay.setOptions({
-            fillColor: OVERLAY_COLOR.IDLE, // 초록색
-          });
-        } else if (eventObj.type === 'marker') {
-          eventObj.overlay.setIcon({
-            url: OVERLAY_ICON.MARKER, // 파란색
-          });
-        }
-      }
+      //   if (eventObj.type === 'polygon') {
+      //     eventObj.overlay.setOptions({
+      //       fillColor: OVERLAY_COLOR.MOUSEOVER, // 초록색
+      //     });
+      //   } else if (eventObj.type === 'marker') {
+      //     eventObj.overlay.setIcon({
+      //       url: OVERLAY_ICON.MARKER_MOUSEOVER // 파란색
+      //     });
+      //   }
+      // }
+      // const handleOverlayMouseOut = () => {
+      //   if (eventObj.type === 'polygon') {
+      //     eventObj.overlay.setOptions({
+      //       fillColor: OVERLAY_COLOR.IDLE, // 초록색
+      //     });
+      //   } else if (eventObj.type === 'marker') {
+      //     eventObj.overlay.setIcon({
+      //       url: OVERLAY_ICON.MARKER, // 파란색
+      //     });
+      //   }
+      // }
 
-      // 오버레이에 이벤트 바인딩 
-      window.google.maps.event.addListener(eventObj.overlay, 'click', handleOverlayClick);
-      window.google.maps.event.addListener(eventObj.overlay, 'mouseover', handleOverlayMouseOver);
-      window.google.maps.event.addListener(eventObj.overlay, 'mouseout', handleOverlayMouseOut);
+      // // 오버레이에 이벤트 바인딩 
+      // window.google.maps.event.addListener(eventObj.overlay, 'click', handleOverlayClick);
+      // window.google.maps.event.addListener(eventObj.overlay, 'mouseover', handleOverlayMouseOver);
+      // window.google.maps.event.addListener(eventObj.overlay, 'mouseout', handleOverlayMouseOut);
 
       
       _drawingManager.setDrawingMode(null); // 그리기 모드 초기화
@@ -467,8 +672,10 @@ export default function Editor() { // 메인 페이지
       initDrawingManager(_mapInstance);
       initSearchInput(_mapInstance);
       initPlaceInfo(_mapInstance);
-      initShopList();
+      initMarker();
+      initShopList(_mapInstance);
       
+
       // -- 현재 내위치 마커 
     });  // idle 이벤트 
     
@@ -483,7 +690,7 @@ export default function Editor() { // 메인 페이지
           _cnt = 0;
           clearInterval(_intervalId); 
           _intervalId = setInterval(() => {
-            if (window.google.maps.Map) {
+            if (window.google.maps.Map ) {
               initGoogleMapPage();
               clearInterval(_intervalId);            
             } else {
@@ -497,7 +704,7 @@ export default function Editor() { // 메인 페이지
           if (_cnt++ > 10) {           clearInterval(_intervalId);           console.error('구글서비스 로딩 오류');        }
           console.log('구글서비스 로딩 중', _cnt);
         }
-      }, 100);
+      }, 100);  
              
     }, []);
     
@@ -525,8 +732,6 @@ export default function Editor() { // 메인 페이지
           //const _value = editMyShopDataSet[field];
           //const _map = instMap.current;
           //const _drawingManager = drawingManagerRef.current;
-
-          
 
         }
 

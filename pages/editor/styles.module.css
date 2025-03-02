@@ -308,3 +308,7 @@
 .inputOverlayButton:hover {
   background-color: #0056b3;
 }
+
+.menuButton.strikethrough {
+  text-decoration: line-through;
+}

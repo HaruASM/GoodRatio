@@ -37,7 +37,7 @@ export default function Editor() { // 메인 페이지
   let curSectionName  = "지역명";
   const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
 
-  let protoMarker, protoPolygon;
+  
 
   const protoShopDataSet = {
     locationMap: "",
@@ -193,37 +193,50 @@ export default function Editor() { // 메인 페이지
   }; 
 
 
-
-  const setProtoMarker = (  ) => {
-    const _protoMarker = new window.google.maps.Marker({
+  let optionsMarker, optionsPolygon;
+  
+  const setProtoOverlays = (  ) => {
+    const _optionsMarker = {
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: '#FF0000',
+        fillOpacity: 1,
+        strokeWeight: 2,
+        strokeColor: '#FFFFFF',
+      },
+      label: {
+        text: 'S',
+        color: '#FFFFFF',
+        fontSize: '12px',
+        fontWeight: 'bold',
+      },
       position: null,
       map: null,
       title: null,
-    });
+    };
 
-    const _protoPolygon = new window.google.maps.Polygon({
+    const _optionsPolygon = {
       paths: [],
       strokeColor: OVERLAY_COLOR.IDLE,
       strokeOpacity: 0.8,
       strokeWeight: 2,
       map: null,
-    });
-
-    return { protoMarker: _protoMarker, protoPolygon: _protoPolygon };
+    };
+    return { optionsMarker: _optionsMarker, optionsPolygon: _optionsPolygon };
   }
   
   
   const initMarker = () => {
 
-  ({ protoMarker, protoPolygon } = setProtoMarker());
-
+    // 이단계에서 마커와 폴리곤들 이벤트 바인딩을 해야할듯
+  ({ optionsMarker, optionsPolygon } = setProtoOverlays());  //전역 위치의 포로토타입 마커에 세팅 
   }
 
 
-  const factoryMakers = ( coordinates, mapInst ) => {
-    const _marker = Object.create(protoMarker);
-    _marker.setPosition(coordinates);
-    _marker.setMap(mapInst);
+  const factoryMakers = ( coordinates, mapInst, shopItem ) => {
+    const _markerOptions = Object.assign({}, optionsMarker, {  position: coordinates });
+    const _marker = new window.google.maps.Marker(_markerOptions);
     
     const handleOverlayClick = () => {
       // InfoWindow 생성 및 설정
@@ -253,19 +266,11 @@ export default function Editor() { // 메인 페이지
     };
    
     const handleOverlayMouseOver = () => {
-    
-      
-        _marker.setIcon({
-          url: OVERLAY_ICON.MARKER_MOUSEOVER // 파란색
-    });
-
+       _marker.setIcon({          url: OVERLAY_ICON.MARKER_MOUSEOVER       });
     }
     const handleOverlayMouseOut = () => {
-     
-        _marker.setIcon({
-          url: OVERLAY_ICON.MARKER, // 파란색
-        });
-      }
+        _marker.setIcon(  optionsMarker.icon );
+    }
 
     // 오버레이에 이벤트 바인딩 
     window.google.maps.event.addListener(_marker, 'click', handleOverlayClick);
@@ -276,10 +281,9 @@ export default function Editor() { // 메인 페이지
   }
 
 
-  const factoryPolygon = ( paths, mapInst ) => {
-    const _polygon = Object.create(protoPolygon);
-    _polygon.setPaths(paths);
-    _polygon.setMap(mapInst);
+  const factoryPolygon = ( paths, mapInst, shopItem ) => {
+    const _polygonOptions = Object.assign({}, optionsPolygon, { paths: paths });
+    const _polygon = new window.google.maps.Polygon(_polygonOptions);
     
     const handleOverlayClick = () => {
       // infoWindow 생성 및 설정
@@ -297,58 +301,36 @@ export default function Editor() { // 메인 페이지
       infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
       infoWindow.open(mapInst, paths); // InfoWindow를 지도에 표시
 
-    }
+    } // handleOverlayClick
 
     
       const handleOverlayMouseOver = () => {
-    
-    
-          _polygon.setOptions({
-            fillColor: OVERLAY_COLOR.MOUSEOVER, // 초록색
-          });
-      }
+         _polygon.setOptions({ fillColor: OVERLAY_COLOR.MOUSEOVER,});
+      } //handleOverlayMouseOver
 
       const handleOverlayMouseOut = () => {
-        
-          _polygon.setOptions({
-            fillColor: OVERLAY_COLOR.IDLE, // 초록색
-          });
-        
-      }
-
-
-
+          _polygon.setOptions({ fillColor: OVERLAY_COLOR.IDLE,});
+      } //handleOverlayMouseOut
       
     // 오버레이에 이벤트 바인딩 
     window.google.maps.event.addListener(_polygon, 'click', handleOverlayClick);
     window.google.maps.event.addListener(_polygon, 'mouseover', handleOverlayMouseOver);
     window.google.maps.event.addListener(_polygon, 'mouseout', handleOverlayMouseOut);
-
-
-    
     return _polygon;
   }
-
-
-
-
-
-
 
 
 
   // FB와 연동 
   const initShopList = (_mapInstance) => {
     
-
     sectionsDB = [ {name:'Clark', list: []}, {name:'Cebu', list: []}];
 
     // FB 세팅 
     // 섹션 세팅
     // 데이터 수신 완료시 호출한 cb에 처리하는 부분
-
     const _localItemlist = [];
-    const _newShopData = Object.create(protoShopDataSet);
+    const _newShopData = Object.assign({}, protoShopDataSet);
     _newShopData.address = "대한민국 대구광역시 중구 중앙대로66길 20 효성해링턴플레이스 상가 1층";
     _newShopData.storeName = "남산에";
     _newShopData.storeStyle = "일식당";
@@ -364,70 +346,36 @@ export default function Editor() { // 메인 페이지
     ];
     _localItemlist.push(_newShopData);
 
-    const _newShopData2 = Object.create(protoShopDataSet);
+    const _newShopData2 = Object.assign({}, protoShopDataSet);
     _newShopData2.address = "대한민국 대구광역시 중구 중앙대로66길";
     _newShopData2.storeName = "탑마트 대구점";
     _newShopData2.googleDataId = "ChIJwQyzSL_jZTURceWdkWAOOJo";
     _newShopData2.pinCoordinates = {lat: 35.86125608523786, lng: 128.59337340622102};
     _localItemlist.push(_newShopData2);
 
-    // const aa = new window.google.maps.Marker({
-    //   position: {lat: 35.86125608523786, lng: 128.59337340622102},
-    //   map: _mapInstance,
-    // });
-       
-    
-    // const b1 = new window.google.maps.Marker({
-    //   position: _newShopData.pinCoordinates,
-    //   map: _mapInstance,
-    // });
-
-    // const b2 = new window.google.maps.Polygon({
-    //   paths: _newShopData.path,
-    //   map: _mapInstance,
-    // });
 
     // 해당 site의 아이템리스트 수신 후 
     // ittem list 객체에 마커 객체를 생성
     // 팩토리 패턴
     _localItemlist.forEach((item) => {
-
       if (item.pinCoordinates) {
-
-          item.marker = factoryMakers(item.pinCoordinates, _mapInstance);
+          item.marker = factoryMakers(item.pinCoordinates, _mapInstance, item);
           item.marker.setTitle(item.storeName);
           presentMakers.push(item.marker);
-
-          // console.log('item.marker.title', item.marker.getPosition().lat());
-          // console.log('item.marker.title', item.marker.getPosition().lng());
-          //console.log('item.marker.title', item.storeName);
-          
-          // const aa = new window.google.maps.Marker({
-          //   position: item.pinCoordinates,
-          //   map: _mapInstance,
-          // });
       }
       
-      // if (item.path) {
-          
-      //     item.polygon = factoryPolygon(item.path, _mapInstance);
-      //     presentMakers.push(item.polygon);
-          
-      // }
+      if (item.path) {
+          item.polygon = factoryPolygon(item.path, _mapInstance, item);
+          presentMakers.push(item.polygon);
+      }
     });
   
      //임시 테스트용 객체 도형 생성부
      presentMakers.forEach((item) => {
       item.setMap(_mapInstance);
-
-       console.log('item.storeName', item.getTitle(), item.getPosition().lat(), item.getPosition().lng()); 
      });
 
     
-
-    
-
-
     sectionsDB.push({name:'반월당', list: _localItemlist});
     curLocalItemlist = _localItemlist;
     curSectionName = '반월당';
@@ -690,7 +638,7 @@ export default function Editor() { // 메인 페이지
           _cnt = 0;
           clearInterval(_intervalId); 
           _intervalId = setInterval(() => {
-            if (window.google.maps.Map ) {
+            if (window.google.maps.Map ) { // window.google.maps.Marker도 체크 해줘야 하나.. 
               initGoogleMapPage();
               clearInterval(_intervalId);            
             } else {

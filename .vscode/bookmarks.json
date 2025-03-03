@@ -26,70 +26,75 @@
 				{
 					"line": 197,
 					"column": 14,
-					"label": "오버레이 프로토타입 선언부"
+					"label": "오버레이 프로토타입 선언부-팩토리용"
 				},
 				{
-					"line": 341,
+					"line": 236,
+					"column": 20,
+					"label": "오버레이 생성시키는 팩토리 객체"
+				},
+				{
+					"line": 324,
 					"column": 0,
 					"label": "FB연동. local아이템리스트 생성"
 				},
 				{
-					"line": 391,
+					"line": 357,
 					"column": 25,
 					"label": "마커, 폴리곤 객체 생성 팩토리"
 				},
 				{
-					"line": 461,
+					"line": 408,
 					"column": 29,
 					"label": "initSearchInput 검색창 초기화"
 				},
 				{
-					"line": 513,
+					"line": 460,
 					"column": 7,
 					"label": "드로잉 매니저 초기화, 팩토리용 객체 세팅"
 				},
 				{
-					"line": 545,
+					"line": 492,
 					"column": 75,
 					"label": "'overlaycomplete' 이벤트 리스너"
 				},
 				{
-					"line": 549,
+					"line": 496,
 					"column": 19,
 					"label": "그리기 매니저에서 오버레이 세팅 부분"
 				},
 				{
-					"line": 631,
+					"line": 578,
 					"column": 11,
 					"label": "initPlaceInfo 구글place검색용 세팅"
 				},
 				{
-					"line": 639,
+					"line": 586,
 					"column": 31,
 					"label": "initGoogleMapPage 구글map 생성 및 초기화"
 				},
 				{
-					"line": 670,
+					"line": 617,
 					"column": 44,
 					"label": "'Idle ' 맵 생성후 로드 시점"
 				},
 				{
-					"line": 747,
+					"line": 694,
 					"column": 29,
 					"label": "Html 사이드바"
 				},
 				{
-					"line": 782,
+					"line": 729,
 					"column": 38,
 					"label": "Html 우측사이드바"
 				},
 				{
-					"line": 811,
+					"line": 758,
 					"column": 34,
 					"label": "Html폼데이터"
 				},
 				{
-					"line": 873,
+					"line": 820,
 					"column": 40,
 					"label": "Html 검색창"
 				}

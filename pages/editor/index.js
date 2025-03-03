@@ -33,7 +33,8 @@ export default function Editor() { // 메인 페이지
   
 
   let sectionsDB = [];
-  let curLocalItemlist = [];
+  
+  const [curLocalItemlist, setCurLocalItemlist] = useState([]);
   let curSectionName  = "지역명";
   const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
 
@@ -329,6 +330,7 @@ export default function Editor() { // 메인 페이지
     // FB 세팅 
     // 섹션 세팅
     // 데이터 수신 완료시 호출한 cb에 처리하는 부분
+    const _sectionName = '반월당';
     const _localItemlist = [];
     const _newShopData = Object.assign({}, protoShopDataSet);
     _newShopData.address = "대한민국 대구광역시 중구 중앙대로66길 20 효성해링턴플레이스 상가 1층";
@@ -376,11 +378,15 @@ export default function Editor() { // 메인 페이지
      });
 
     
-    sectionsDB.push({name:'반월당', list: _localItemlist});
-    curLocalItemlist = _localItemlist;
-    curSectionName = '반월당';
+    curSectionName = _sectionName;
+    sectionsDB.push({name: _sectionName, list: _localItemlist});
+    
+     const _temp =  sectionsDB.find(section => section.name === _sectionName);
+    setCurLocalItemlist(_temp ? _temp.list : []);
+    
   };
 
+  
   
 
   
@@ -492,75 +498,10 @@ export default function Editor() { // 메인 페이지
 
     }); // _drawingManager.setOptions
 
-
     // 오버레이 생성시 
     window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj)=>{
       
-      // const handleOverlayClick = () => {
-      //   // console.log('오버레이가 클릭 ', eventObj.type );
-
-      //   // InfoWindow 생성 및 설정
-      //   const infoWindow = new window.google.maps.InfoWindow({
-      //     content: `
-      //       <div>
-      //         <strong>오버레이 정보</strong><br>
-      //         타입: ${eventObj.type}<br>
-      //         <button id="customButton">내가 원하는 버튼</button>
-      //       </div>
-      //     `,
-      //   });
-
-      //   // InfoWindow를 오버레이의 위치에 표시
-      //   if (eventObj.type === 'marker') {
-      //     infoWindow.open(instMap.current, eventObj.overlay);
-      //   } else if (eventObj.type === 'polygon') {
-      //     // 폴리곤 타입의 오버레이인 경우
-      //     const path = eventObj.overlay.getPath(); // 폴리곤의 경로를 가져옴
-      //     const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
-      //     path.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
-      //     infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
-      //     infoWindow.open(instMap.current, eventObj.overlay); // InfoWindow를 지도에 표시
-      //   }
-
-      //   // 버튼 클릭 이벤트 리스너 추가
-      //   window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
-      //     const customButton = document.getElementById('customButton');
-      //     if (customButton) {
-      //       customButton.addEventListener('click', () => {
-      //         alert('버튼이 클릭되었습니다!');
-      //       });
-      //     }
-      //   });
-      // };
-     
-      // const handleOverlayMouseOver = () => {
-      
-      //   if (eventObj.type === 'polygon') {
-      //     eventObj.overlay.setOptions({
-      //       fillColor: OVERLAY_COLOR.MOUSEOVER, // 초록색
-      //     });
-      //   } else if (eventObj.type === 'marker') {
-      //     eventObj.overlay.setIcon({
-      //       url: OVERLAY_ICON.MARKER_MOUSEOVER // 파란색
-      //     });
-      //   }
-      // }
-      // const handleOverlayMouseOut = () => {
-      //   if (eventObj.type === 'polygon') {
-      //     eventObj.overlay.setOptions({
-      //       fillColor: OVERLAY_COLOR.IDLE, // 초록색
-      //     });
-      //   } else if (eventObj.type === 'marker') {
-      //     eventObj.overlay.setIcon({
-      //       url: OVERLAY_ICON.MARKER, // 파란색
-      //     });
-      //   }
-      // }
-
-      // // 오버레이에 이벤트 바인딩 
-      // window.google.maps.event.addListener(eventObj.overlay, 'click', handleOverlayClick);
-      // window.google.maps.event.addListener(eventObj.overlay, 'mouseover', handleOverlayMouseOver);
-      // window.google.maps.event.addListener(eventObj.overlay, 'mouseout', handleOverlayMouseOut);
+      console.log('overlaycomplete', '드로잉 매니저');
 
       
       _drawingManager.setDrawingMode(null); // 그리기 모드 초기화
@@ -685,6 +626,63 @@ export default function Editor() { // 메인 페이지
 
       });
     }, [editNewShopDataSet]);
+
+    useEffect(() => {
+      const itemListContainer = document.querySelector(`.${styles.itemList}`);
+      if (!itemListContainer) {
+        console.error('Item list container not found');
+        return;
+      }
+
+      // 기존 아이템 제거
+      itemListContainer.innerHTML = '';
+
+      // curLocalItemlist의 아이템을 순회하여 사이드바에 추가
+      curLocalItemlist.forEach((item) => {
+        const listItem = document.createElement('li');
+        listItem.className = styles.item;
+
+        const link = document.createElement('a');
+        link.href = '#';
+
+        const itemDetails = document.createElement('div');
+        itemDetails.className = styles.itemDetails;
+
+        const itemTitle = document.createElement('span');
+        itemTitle.className = styles.itemTitle;
+        itemTitle.innerHTML = `${item.storeName} <small>${item.storeStyle}</small>`;
+
+        const businessHours = document.createElement('p');
+        businessHours.textContent = `영업 중 · ${item.businessHours[0] || '정보 없음'}`;
+
+        const address = document.createElement('p');
+        address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.address}`;
+
+        const itemImage = document.createElement('img');
+        itemImage.src = "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
+        itemImage.alt = `${item.storeName} ${item.storeStyle}`;
+        itemImage.className = styles.itemImage;
+        itemImage.width = 100;
+        itemImage.height = 100;
+
+        // 아이템 클릭 시 해당 마커로 이동
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (item.marker && instMap.current) {
+            instMap.current.setCenter(item.marker.getPosition());
+            instMap.current.setZoom(18); // 필요에 따라 줌 레벨 조정
+          }
+        });
+
+        itemDetails.appendChild(itemTitle);
+        itemDetails.appendChild(businessHours);
+        itemDetails.appendChild(address);
+        link.appendChild(itemDetails);
+        link.appendChild(itemImage);
+        listItem.appendChild(link);
+        itemListContainer.appendChild(listItem);
+      });
+    }, [curLocalItemlist]);
 
     //return () => clearInterval(intervalId); // 컴포넌트 언마운트시
   //}, []);     

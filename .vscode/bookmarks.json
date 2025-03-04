@@ -4,27 +4,27 @@
 			"path": "pages/editor/index.js",
 			"bookmarks": [
 				{
-					"line": 260,
+					"line": 261,
 					"column": 35,
 					"label": "handleStoreShapeButtonClick 수정 버튼 클릭시 cb"
 				},
 				{
-					"line": 270,
+					"line": 271,
 					"column": 58,
 					"label": "'polygoncomplete' 다각형 생성시 이벤트 처리부. 수정버튼 cb에서 호출"
 				},
 				{
-					"line": 281,
+					"line": 282,
 					"column": 14,
 					"label": "오버레이 프로토타입 선언부-팩토리용"
 				},
 				{
-					"line": 337,
+					"line": 338,
 					"column": 0,
 					"label": "FB연동. local아이템리스트 생성"
 				},
 				{
-					"line": 426,
+					"line": 427,
 					"column": 7,
 					"label": "드로잉 매니저 초기화, 팩토리용 객체 세팅"
 				}

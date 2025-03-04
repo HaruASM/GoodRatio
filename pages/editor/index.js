@@ -30,7 +30,8 @@ export default function Editor() { // 메인 페이지
   const searchformRef = useRef(null); // form 요소를 위한 ref 추가
   const [selectedButton, setSelectedButton] = useState('인근');
 
-
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true); // 사이드바 가시성 상태 추가
+  const [isSearchFocused, setIsSearchFocused] = useState(false); // 검색창 포커스 상태 추가
 
   let sectionsDB = [];
 
@@ -701,16 +702,26 @@ export default function Editor() { // 메인 페이지
   //return () => clearInterval(intervalId); // 컴포넌트 언마운트시
   //}, []);     
 
+  const toggleSidebar = () => {
+    setIsSidebarVisible(!isSidebarVisible); // 사이드바 가시성 토글
+  };
 
+  const handleSearchFocus = () => {
+    setIsSearchFocused(true);
+  };
+
+  const handleSearchBlur = () => {
+    setIsSearchFocused(false);
+  };
 
   return (
     <div className={styles.container}>
       <Head>
         <title>Editor</title>
       </Head>
-      <div className={styles.sidebar}>
+      <div className={`${styles.sidebar} ${isSidebarVisible ? '' : styles.hidden}`}>
         <div className={styles.header}>
-          <button className={styles.backButton}>←</button>
+          <button className={styles.backButton} onClick={toggleSidebar}>←</button>
           <h1>반월당역</h1>
           <button className={styles.iconButton}>⚙️</button>
         </div>
@@ -835,26 +846,33 @@ export default function Editor() { // 메인 페이지
         </div>
       </div>
       <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm}>
-        <div className={styles.searchButtonsContainer}>
-          <button
-            className={`${styles.menuButton} ${selectedButton === '국가' ? styles.selected : ''}`}
-            onClick={() => handleButtonClick('국가')}
-          >
-            국가
+        {!isSidebarVisible && (
+          <button className={styles.headerButton} onClick={toggleSidebar}>
+            반월당역
           </button>
-          <button
-            className={`${styles.menuButton} ${selectedButton === '인근' ? styles.selected : ''}`}
-            onClick={() => handleButtonClick('인근')}
-          >
-            인근
-          </button>
-          <button
-            className={`${styles.menuButton} ${selectedButton === '지도내' ? styles.selected : ''}`}
-            onClick={() => handleButtonClick('지도내')}
-          >
-            지도내
-          </button>
-        </div>
+        )}
+        {isSearchFocused && (
+          <div className={styles.searchButtonsContainer}>
+            <button
+              className={`${styles.menuButton} ${selectedButton === '국가' ? styles.selected : ''}`}
+              onClick={() => handleButtonClick('국가')}
+            >
+              국가
+            </button>
+            <button
+              className={`${styles.menuButton} ${selectedButton === '인근' ? styles.selected : ''}`}
+              onClick={() => handleButtonClick('인근')}
+            >
+              인근
+            </button>
+            <button
+              className={`${styles.menuButton} ${selectedButton === '지도내' ? styles.selected : ''}`}
+              onClick={() => handleButtonClick('지도내')}
+            >
+              지도내
+            </button>
+          </div>
+        )}
         <div className={styles.searchInputContainer}>
           <input
             ref={searchInputDomRef}
@@ -862,6 +880,8 @@ export default function Editor() { // 메인 페이지
             type="text"
             placeholder="가게 검색"
             className={styles.searchInput}
+            onFocus={handleSearchFocus}
+            onBlur={handleSearchBlur}
           />
           <button type="submit" className={styles.searchButton}>
             <span className="material-icons searchIcon">search</span>

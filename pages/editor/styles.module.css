@@ -4,7 +4,7 @@
 }
 
 .sidebar {
-  width: 500px;
+  flex: 0 0 380px;
   background-color: #fff;
   overflow-y: auto;
   box-shadow: 2px 0 5px rgba(0,0,0,0.1);

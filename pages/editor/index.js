@@ -3,6 +3,8 @@ import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
+import { collection, doc, getDoc, setDoc, getDocs, serverTimestamp as firestoreTimestamp } from 'firebase/firestore';
+import { firebasedb } from '../../firebase'; // 상대 경로 주의
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 const OVERLAY_COLOR = {
@@ -36,10 +38,8 @@ export default function Editor() { // 메인 페이지
   let sectionsDB = [];
 
   const [curLocalItemlist, setCurLocalItemlist] = useState([]);
-  let curSectionName = "지역명";
+  let curSectionName = "반월당";
   const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
-
-
 
   const protoShopDataSet = {
     locationMap: "",
@@ -61,7 +61,6 @@ export default function Editor() { // 메인 페이지
   };
 
 
-
   // 브라우저 뒷단에서 데이터 저장 및 관리 
   const [editNewShopDataSet, setEditNewShopDataSet] = useState(protoShopDataSet);
 
@@ -70,6 +69,7 @@ export default function Editor() { // 메인 페이지
   const inputRefs = {
     storeName: useRef(null),
     alias: useRef(null),
+    comment: useRef(null),
     locationMap: useRef(null),
     businessHours: useRef(null),
     hotHours: useRef(null),
@@ -77,6 +77,7 @@ export default function Editor() { // 메인 페이지
     distance: useRef(null),
     address: useRef(null),
     mainImage: useRef(null),
+    subImages: useRef(null),
     pinCoordinates: useRef(null),
     path: useRef(null),
     categoryIcon: useRef(null),
@@ -87,50 +88,76 @@ export default function Editor() { // 메인 페이지
     setSelectedButton(buttonName);
   };
 
+  // 로딩 상태 관리를 위한 상태 추가
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  // 비동기 작업을 위한 래퍼 함수
+  const asyncHandler = async (asyncFunction, successMessage = null) => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    
+    try {
+      const result = await asyncFunction();
+      if (successMessage) {
+        alert(successMessage);
+      }
+      return result;
+    } catch (error) {
+      console.error("작업 실패:", error);
+      setErrorMessage(`작업 실패: ${error.message}`);
+      alert(`작업 실패: ${error.message}`);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDetailLoadingClick = () => {
-    const placeId = editNewShopDataSet.googleDataId;
+    asyncHandler(async () => {
+      const placeId = editNewShopDataSet.googleDataId;
 
-    if (placeId) {
-      const service = new window.google.maps.places.PlacesService(instMap.current);
-      service.getDetails({ placeId }, (result, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-          const _updates = {};
+      if (!placeId) {
+        throw new Error('Place ID가 없습니다.');
+      }
 
-          if (result.opening_hours) {
-            // 영업시간 정보를 상태에 설정
-            _updates.businessHours = result.opening_hours.weekday_text;
+      return new Promise((resolve, reject) => {
+        const service = new window.google.maps.places.PlacesService(instMap.current);
+        service.getDetails({ placeId }, (result, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+            const _updates = {};
+
+            if (result.opening_hours) {
+              // 영업시간 정보를 상태에 설정
+              _updates.businessHours = result.opening_hours.weekday_text;
+            }
+
+            // 위경도 정보를 상태에 설정
+            if (result.geometry && result.geometry.location) {
+              const lat = result.geometry.location.lat();
+              const lng = result.geometry.location.lng();
+              _updates.pinCoordinates = `${lat}, ${lng}`;
+            }
+
+            // 사진 정보를 상태에 설정
+            if (result.photos && result.photos.length > 0) {
+              // 최대 10장의 사진 URL을 배열로 저장
+              const photoUrls = result.photos.slice(0, 10).map(photo => 
+                photo.getUrl({ maxWidth: 400, maxHeight: 400 })
+              );
+              _updates.subImages = photoUrls; // 여러 장의 사진을 저장할 배열 필드
+              _updates.mainImage = photoUrls[0]; // 첫 번째 사진은 기존 필드에도 저장
+            }
+
+            // 데이터셋 업데이트
+            updateDataSet(_updates);
+            resolve(true);
           } else {
-            console.log('No opening hours information available.');
+            reject(new Error(`장소 상세 정보를 가져오지 못했습니다: ${status}`));
           }
-
-          // 위경도 정보를 상태에 설정
-          if (result.geometry && result.geometry.location) {
-            const lat = result.geometry.location.lat();
-            const lng = result.geometry.location.lng();
-            _updates.pinCoordinates = `${lat}, ${lng}`;
-          } else {
-            console.log('No location information available.');
-          }
-
-          // 사진 정보를 상태에 설정
-          if (result.photos && result.photos.length > 0) {
-            const photoUrl = result.photos[0].getUrl({ maxWidth: 400, maxHeight: 400 });
-            _updates.mainImage = photoUrl;
-          } else {
-            console.log('No photos available.');
-          }
-
-          // 여기서 데이터셋 한번에 업데이트
-          updateDataSet(_updates);
-
-        } else {
-          console.error('Failed to get place details:', status);
-        }
+        });
       });
-    } else {
-      console.error('Place ID is not available.');
-    }
+    }, '구글에서 가게 상세 정보를 가져왔습니다.');
   };
 
   const updateDataSet = (updates) => {
@@ -311,14 +338,12 @@ export default function Editor() { // 메인 페이지
         `,
       });
 
-
       const bounds = new window.google.maps.LatLngBounds(); // 경계 객체 생성
       paths.forEach((point) => bounds.extend(point)); // 경로의 각 점을 경계에 추가
       infoWindow.setPosition(bounds.getCenter()); // 경계의 중심에 InfoWindow 위치 설정
       infoWindow.open(mapInst, paths); // InfoWindow를 지도에 표시
 
     } // handleOverlayClick
-
 
     const handleOverlayMouseOver = () => {
       _polygon.setOptions({ fillColor: OVERLAY_COLOR.MOUSEOVER, });
@@ -337,75 +362,284 @@ export default function Editor() { // 메인 페이지
 
 
 
-  // FB와 연동 
-  const initShopList = (_mapInstance) => {
-
-    sectionsDB = [{ name: 'Clark', list: [] }, { name: 'Cebu', list: [] }];
-
-    // FB 세팅 
-    // 섹션 세팅
-    // 데이터 수신 완료시 호출한 cb에 처리하는 부분
-    const _sectionName = '반월당';
-    const _localItemlist = [];
-    const _newShopData = Object.assign({}, protoShopDataSet);
-    _newShopData.address = "대한민국 대구광역시 중구 중앙대로66길 20 효성해링턴플레이스 상가 1층";
-    _newShopData.storeName = "남산에";
-    _newShopData.storeStyle = "일식당";
-    _newShopData.businessHours = ['월요일: 오전 12:00~8:00', '화요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '수요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '목요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '금요일: 오전 11:30 ~ 오후 3:00, 오후 5:00~9:00', '토요일: 오후 12:00~4:00, 오후 5:00 ~ 오전 12:00', '일요일: 오전 12:00~8:00, 오후 12:00~4:00, 오후 5:00 ~ 오전 12:00'];
-    _newShopData.googleDataId = "ChIJtWSlZ4rjZTUR7qRzJJ3jSnA";
-    _newShopData.pinCoordinates = { lat: 35.8611117, lng: 128.5941372 };
-    _newShopData.path = [
-      { lat: 35.86099311405982, lng: 128.593923871688 },
-      { lat: 35.861147451666795, lng: 128.59399092691336 },
-      { lat: 35.86122353347513, lng: 128.59420013921653 },
-      { lat: 35.86108223863008, lng: 128.59428060548697 },
-      { lat: 35.86089094674624, lng: 128.59418404596244 }
-    ];
-    _localItemlist.push(_newShopData);
-
-    const _newShopData2 = Object.assign({}, protoShopDataSet);
-    _newShopData2.address = "대한민국 대구광역시 중구 중앙대로66길";
-    _newShopData2.storeName = "탑마트 대구점";
-    _newShopData2.googleDataId = "ChIJwQyzSL_jZTURceWdkWAOOJo";
-    _newShopData2.pinCoordinates = { lat: 35.86125608523786, lng: 128.59337340622102 };
-    _localItemlist.push(_newShopData2);
-
-
-    // 해당 site의 아이템리스트 수신 후 
-    // ittem list 객체에 마커 객체를 생성
-    // 팩토리 패턴
-    _localItemlist.forEach((item) => {
-      if (item.pinCoordinates) {
-        item.marker = factoryMakers(item.pinCoordinates, _mapInstance, item);
-        item.marker.setTitle(item.storeName);
-        presentMakers.push(item.marker);
-      }
-
-      if (item.path) {
-        item.polygon = factoryPolygon(item.path, _mapInstance, item);
-        presentMakers.push(item.polygon);
-      }
-    });
-
-    //임시 테스트용 객체 도형 생성부
-    presentMakers.forEach((item) => {
-      item.setMap(_mapInstance);
-    });
-
-
-    curSectionName = _sectionName;
-    sectionsDB.push({ name: _sectionName, list: _localItemlist });
-
-    const _temp = sectionsDB.find(section => section.name === _sectionName);
-    setCurLocalItemlist(_temp ? _temp.list : []);
-
+  // 데이터 정제를 위한 공통 유틸리티 함수
+  const cleanItemForStorage = (item) => {
+    // 깊은 복사를 통해 원본 객체 변경 방지
+    const cleanItem = { ...item };
+    
+    // Google Maps 객체 제거
+    delete cleanItem.marker;
+    delete cleanItem.polygon;
+    delete cleanItem.itemMarker;
+    delete cleanItem.itemPolygon;
+    
+    // pinCoordinates가 객체인 경우 문자열로 변환
+    if (typeof cleanItem.pinCoordinates === 'object') {
+      cleanItem.pinCoordinates = `${cleanItem.pinCoordinates.lat}, ${cleanItem.pinCoordinates.lng}`;
+    }
+    
+    // path 배열 내의 객체들도 처리
+    if (Array.isArray(cleanItem.path)) {
+      cleanItem.path = cleanItem.path.map(point => {
+        if (typeof point.lat === 'function') {
+          // Google LatLng 객체인 경우
+          return { lat: point.lat(), lng: point.lng() };
+        }
+        return point; // 이미 { lat, lng } 형태인 경우
+      });
+    }
+    
+    return cleanItem;
   };
 
+  // 아이템 리스트 정제 함수
+  const cleanItemListForStorage = (itemList) => {
+    return itemList.map(item => cleanItemForStorage(item));
+  };
 
+  // FB와 연동 
+  const initShopList = async (_mapInstance) => {
+    // 1) initShopList 함수에서 로컬저장소의 curSectionName에 해당되는 list를 sectionDB로 가져오기
+    const loadFromLocalStorage = (sectionName) => {
+      try {
+        // localStorage에서 특정 섹션 데이터 가져오기
+        const storedSectionData = localStorage.getItem(`section_${sectionName}`);
+        
+        if (storedSectionData) {
+          const parsedSectionData = JSON.parse(storedSectionData);
+          console.log(`localStorage에서 ${sectionName} 섹션 데이터 찾음:`, parsedSectionData);
+          
+          // sectionsDB에 현재 섹션 데이터 추가/업데이트
+          const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
+          if (sectionIndex !== -1) {
+            sectionsDB[sectionIndex].list = parsedSectionData.list;
+          } else {
+            sectionsDB.push({ 
+              name: sectionName, 
+              list: parsedSectionData.list 
+            });
+          }
+          
+          return parsedSectionData.list;
+        }
+        return null; // 로컬에 데이터가 없는 경우
+      } catch (error) {
+        console.error('localStorage 로드 오류:', error);
+        return null;
+      }
+    };
 
+    // 로컬 저장소에 특정 섹션 데이터 저장
+    const saveToLocalStorage = (sectionName, itemList) => {
+      try {
+        // 공통 함수 사용하여 데이터 정제
+        const cleanItemList = cleanItemListForStorage(itemList);
+        
+        // 섹션 데이터 객체 생성
+        const sectionData = {
+          name: sectionName,
+          list: cleanItemList,
+          timestamp: Date.now()
+        };
+        
+        // localStorage에 저장
+        localStorage.setItem(`section_${sectionName}`, JSON.stringify(sectionData));
+        localStorage.setItem(`${sectionName}_timestamp`, sectionData.timestamp.toString());
+        
+        // sectionsDB 업데이트 - 명시적으로 sectionsDB 업데이트
+        const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
+        if (sectionIndex !== -1) {
+          sectionsDB[sectionIndex].list = itemList;
+        } else {
+          sectionsDB.push({ name: sectionName, list: itemList });
+        }
+        
+        console.log(`${sectionName} 데이터를 localStorage에 저장함 및 sectionsDB 업데이트 완료`);
+      } catch (error) {
+        console.error('localStorage 저장 오류:', error);
+      }
+    };
+    
+    // 서버에서 특정 섹션 데이터 가져와 로컬 및 sectionsDB 업데이트
+    const updateLocalFromServer = async (sectionName) => {
+      try {
+        // Firebase에서 현재 섹션 데이터 가져오기
+        const sectionRef = doc(firebasedb, "sections", sectionName);
+        const docSnap = await getDoc(sectionRef);
+        
+        if (docSnap.exists()) {
+          const serverData = docSnap.data();
+          const serverTimestamp = serverData.lastUpdated?.toMillis() || 0;
+          const localTimestamp = parseInt(localStorage.getItem(`${sectionName}_timestamp`) || '0');
+          
+          if (serverTimestamp > localTimestamp) {
+            // 서버 데이터가 더 최신인 경우에만 로컬 데이터 업데이트
+            console.log(`Firebase의 ${sectionName} 데이터가 더 최신임. 로컬 데이터 업데이트`);
+            
+            // 로컬 저장소 업데이트
+            saveToLocalStorage(sectionName, serverData.itemList);
+            
+            // sectionsDB 업데이트 (saveToLocalStorage 내에서 이미 처리됨)
+            console.log(`sectionsDB의 ${sectionName} 데이터도 업데이트됨`);
+            
+            return {
+              updated: true,
+              itemList: serverData.itemList
+            };
+          } else {
+            // 로컬 데이터가 더 최신이거나 같은 경우 - 아무 작업 안함
+            console.log(`로컬의 ${sectionName} 데이터가 더 최신이거나 같음. 자동 업데이트 안함`);
+            return {
+              updated: false,
+              itemList: null
+            };
+          }
+        } else {
+          // 서버에 데이터가 없는 경우 - 아무 작업 안함
+          console.log(`Firebase에 ${sectionName} 데이터가 없음. 자동 업데이트 안함`);
+          return {
+            updated: false,
+            itemList: null
+          };
+        }
+      } catch (error) {
+        console.error(`${sectionName} 섹션 서버 데이터 가져오기 오류:`, error);
+        return {
+          updated: false,
+          itemList: null,
+          error
+        };
+      }
+    };
+    
+    // 1) 로컬 저장소에서 데이터 가져오기
+    let localItemList = loadFromLocalStorage(curSectionName);
+    
+    if (localItemList) {
+      // 로컬 저장소에 데이터가 있는 경우
+      console.log(`로컬 저장소에서 ${curSectionName} 데이터를 가져옴`);
+      
+      // 2) 서버와 동기화 확인 (서버 → 로컬 방향으로만)
+      try {
+        const updateResult = await updateLocalFromServer(curSectionName);
+        
+        if (updateResult.updated) {
+          // 서버에서 업데이트된 경우 새 데이터 사용
+          localItemList = updateResult.itemList;
+        }
+      } catch (error) {
+        console.error('Firebase 동기화 확인 오류:', error);
+      }
+    } else {
+      // 3) 로컬 저장소에 데이터가 없는 경우 Firebase에서 가져오기
+      console.log(`로컬 저장소에 ${curSectionName} 데이터가 없음. Firebase에서 가져오기 시도`);
+      
+      try {
+        // Firebase에서 현재 섹션 데이터 가져오기
+        const sectionRef = doc(firebasedb, "sections", curSectionName);
+        const docSnap = await getDoc(sectionRef);
+        
+        if (docSnap.exists()) {
+          // Firebase에 데이터가 있는 경우
+          const serverData = docSnap.data();
+          localItemList = serverData.itemList;
+          console.log(`Firebase에서 ${curSectionName} 섹션 데이터 찾음`);
+          
+          // 로컬 저장소에 저장 (sectionsDB도 함께 업데이트)
+          saveToLocalStorage(curSectionName, localItemList);
+          
+          // 타임스탬프 저장
+          if (serverData.lastUpdated) {
+            localStorage.setItem(`${curSectionName}_timestamp`, serverData.lastUpdated.toMillis().toString());
+          }
+        } else {
+          // Firebase에도 데이터가 없는 경우 빈 데이터 생성
+          console.log(`Firebase에 ${curSectionName} 섹션 데이터가 없음. 빈 데이터 생성`);
+          localItemList = [];
+          
+          // 로컬 저장소에 빈 데이터 저장 (sectionsDB도 함께 업데이트)
+          saveToLocalStorage(curSectionName, localItemList);
+        }
+      } catch (error) {
+        console.error('Firebase 데이터 가져오기 오류:', error);
+        // 오류 발생 시 빈 데이터 생성
+        localItemList = [];
+        saveToLocalStorage(curSectionName, localItemList);
+      }
+    }
+    
+    // 최종적으로 가져온 데이터로 마커와 폴리곤 생성
+    if (localItemList && localItemList.length > 0) {
+      // 동기화된 데이터로 마커와 폴리곤 생성
+      localItemList.forEach((item) => {
+        // pinCoordinates가 문자열인 경우 객체로 변환
+        if (typeof item.pinCoordinates === 'string') {
+          const [lat, lng] = item.pinCoordinates.split(',').map(coord => parseFloat(coord.trim()));
+          item.pinCoordinates = { lat, lng };
+        }
+        
+        if (item.pinCoordinates) {
+          item.marker = factoryMakers(item.pinCoordinates, _mapInstance, item);
+          item.marker.setTitle(item.storeName);
+          presentMakers.push(item.marker);
+        }
 
+        if (item.path && item.path.length > 0) {
+          item.polygon = factoryPolygon(item.path, _mapInstance, item);
+          presentMakers.push(item.polygon);
+        }
+      });
 
+      presentMakers.forEach((item) => {
+        item.setMap(_mapInstance);
+      });
 
+      // 현재 섹션 설정 - sectionsDB에서 최신 데이터 사용
+      const _temp = sectionsDB.find(section => section.name === curSectionName);
+      setCurLocalItemlist(_temp ? _temp.list : []);
+    }
+  };
+
+  // 로컬 데이터를 서버로 명시적으로 업데이트하는 함수
+  const updateServerFromLocal = async (sectionName, itemList) => {
+    return asyncHandler(async () => {
+      // 공통 함수 사용하여 데이터 정제
+      const cleanItemList = cleanItemListForStorage(itemList);
+      
+      // 섹션 문서 참조
+      const sectionRef = doc(firebasedb, "sections", sectionName);
+      
+      // Firebase에 저장
+      await setDoc(sectionRef, {
+        itemList: cleanItemList,
+        lastUpdated: firestoreTimestamp()
+      });
+      
+      // 로컬 타임스탬프 업데이트
+      const serverTimestamp = Date.now();
+      localStorage.setItem(`${sectionName}_timestamp`, serverTimestamp.toString());
+      
+      console.log(`${sectionName} 데이터를 Firebase에 업데이트함`);
+      return true;
+    }, `${sectionName} 데이터가 서버에 성공적으로 업데이트되었습니다.`);
+  };
+
+  // 데이터 변경 시 Firebase에 저장하는 함수 수정 (명시적 호출용)
+  const saveToFirestore = async (sectionName, itemList) => {
+    return updateServerFromLocal(sectionName, itemList);
+  };
+
+  // sectionsDB를 Firebase에 저장하는 함수 개선 (명시적 호출용)
+  const saveSectionsToFirebase = async () => {
+    return asyncHandler(async () => {
+      // 각 섹션을 Firebase에 저장
+      for (const section of sectionsDB) {
+        await updateServerFromLocal(section.name, section.list);
+      }
+      
+      return true;
+    }, '모든 섹션 데이터가 서버에 저장되었습니다.');
+  };
 
   // pin 좌표 수정 버튼 클릭시 동작
   const handlePinCoordinatesButtonClick = (event) => {
@@ -540,6 +774,7 @@ export default function Editor() { // 메인 페이지
     //const service = new window.google.maps.places.PlacesService(_mapInstance);
 
     window.google.maps.event.addListener(_mapInstance, 'click', (clickevent) => {
+      // 여기에 사이드바 가리기 처리 - 지도 빈땅 클릭시 이벤트 
       console.log('click event');
     });
   }
@@ -714,6 +949,43 @@ export default function Editor() { // 메인 페이지
     setIsSearchFocused(false);
   };
 
+  // 별칭 수정 버튼 클릭 핸들러 추가
+  const handleCommentButtonClick = (event) => {
+    event.preventDefault();
+    
+    // 코멘트 입력 필드의 값을 가져옴
+    const commentValue = inputRefs.comment.current.value;
+    
+    if (commentValue.trim() !== '') {
+      // 별칭 필드 업데이트
+      updateDataSet({ alias: commentValue });
+      
+      // 코멘트 입력 필드 초기화
+      inputRefs.comment.current.value = '';
+    } else {
+      // 코멘트 입력 필드가 비어있으면 별칭 값을 코멘트 입력 필드에 복사
+      inputRefs.comment.current.value = editNewShopDataSet.alias || '';
+      // 포커스 설정
+      inputRefs.comment.current.focus();
+    }
+  };
+
+  // 로딩 인디케이터 UI 추가
+  const LoadingIndicator = () => (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingSpinner}></div>
+      <p>데이터 처리 중...</p>
+    </div>
+  );
+
+  // 에러 메시지 UI 추가
+  const ErrorMessage = ({ message, onClose }) => (
+    <div className={styles.errorMessage}>
+      <p>{message}</p>
+      <button onClick={onClose}>닫기</button>
+    </div>
+  );
+
   return (
     <div className={styles.container}>
       <Head>
@@ -766,14 +1038,31 @@ export default function Editor() { // 메인 페이지
             className={styles.menuButton}
             onClick={handleDetailLoadingClick}
             title="구글에서 가게 디테일 정보 가져옴"
+            disabled={isLoading}
           >
-            디테일 로딩
+            {isLoading ? '로딩 중...' : '디테일 로딩'}
           </button>
           <button
             className={styles.menuButton}
-            onClick={() => console.log(editNewShopDataSet)}
+            onClick={() => {
+              if (curSectionName) {
+                saveToFirestore(curSectionName, curLocalItemlist);
+              } else {
+                alert('저장할 섹션이 선택되지 않았습니다.');
+              }
+            }}
+            title="현재 데이터를 서버에 저장"
+            disabled={isLoading}
           >
-            체크1
+            {isLoading ? '저장 중...' : '서버송신'}
+          </button>
+          <button
+            className={styles.menuButton}
+            onClick={saveSectionsToFirebase}
+            title="모든 섹션 데이터를 서버에 저장"
+            disabled={isLoading}
+          >
+            {isLoading ? '저장 중...' : '전체저장'}
           </button>
         </div>
         <div className={styles.card}>
@@ -791,6 +1080,22 @@ export default function Editor() { // 메인 페이지
             <div className={styles.formRow}>
               <span>별칭</span> |
               <input type="text" name="alias" ref={inputRefs.alias} value={editNewShopDataSet.alias} />
+            </div>
+            <div className={styles.formRow}>
+              <span>코멘트</span> |
+              <input 
+                type="text" 
+                name="comment" 
+                ref={inputRefs.comment} 
+                className={styles.commentInput} 
+                
+              />
+              <button 
+                onClick={(event) => handleCommentButtonClick(event)} 
+                className={styles.inputOverlayButton}
+              >
+                수정
+              </button>
             </div>
             <div className={styles.formRow}>
               <span>지역분류</span> |
@@ -842,6 +1147,41 @@ export default function Editor() { // 메인 페이지
               <span>구글데이터ID</span> |
               <input type="text" name="googleDataId" ref={inputRefs.googleDataId} value={editNewShopDataSet.googleDataId} />
             </div>
+            <div className={styles.photoGallery}>
+              <div className={styles.mainImageContainer}>
+                {editNewShopDataSet.mainImage ? (
+                  <img 
+                    src={editNewShopDataSet.mainImage} 
+                    alt="메인 이미지" 
+                    className={styles.mainImage} 
+                  />
+                ) : (
+                  <div className={styles.emptyImage}>메인 이미지 없음</div>
+                )}
+              </div>
+              <div className={styles.thumbnailsContainer}>
+                {editNewShopDataSet.mainImages && editNewShopDataSet.mainImages.slice(1, 5).map((imageUrl, index) => (
+                  <div key={index} className={styles.thumbnailItem}>
+                    <img 
+                      src={imageUrl} 
+                      alt={`썸네일 ${index + 1}`} 
+                      className={styles.thumbnail} 
+                    />
+                    {index === 3 && editNewShopDataSet.mainImages.length > 5 && (
+                      <div className={styles.morePhotosIndicator}>
+                        +{editNewShopDataSet.mainImages.length - 5}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {/* 이미지가 부족한 경우 빈 썸네일 표시 */}
+                {editNewShopDataSet.mainImages && Array.from({ length: Math.max(0, 4 - (editNewShopDataSet.mainImages.length - 1)) }).map((_, index) => (
+                  <div key={`empty-${index}`} className={styles.emptyImage}>
+                    이미지 없음
+                  </div>
+                ))}
+              </div>
+            </div>
           </form>
         </div>
       </div>
@@ -892,6 +1232,17 @@ export default function Editor() { // 메인 페이지
         src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing&loading=async`}
         strategy="afterInteractive"
       />
+      
+      {/* 로딩 인디케이터 */}
+      {isLoading && <LoadingIndicator />}
+      
+      {/* 에러 메시지 */}
+      {errorMessage && (
+        <ErrorMessage 
+          message={errorMessage} 
+          onClose={() => setErrorMessage(null)} 
+        />
+      )}
     </div>
 
   );

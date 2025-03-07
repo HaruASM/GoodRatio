@@ -84,6 +84,8 @@ export default function Editor() { // 메인 페이지
     googleDataId: useRef(null),
   };
 
+  const [selectedItemOfShopList, setSelectedItemOfShopList] = useState(null);
+
   const handleButtonClick = (buttonName) => {
     setSelectedButton(buttonName);
   };
@@ -278,17 +280,29 @@ export default function Editor() { // 메인 페이지
 
 
   const factoryMakers = (coordinates, mapInst, shopItem) => {
+    const defaultIcon = {
+      path: window.google.maps.SymbolPath.CIRCLE,
+      scale: 10,
+      fillColor: '#FF0000',
+      fillOpacity: 1,
+      strokeWeight: 2,
+      strokeColor: '#FFFFFF',
+    };
+    
     const _markerOptions = Object.assign({}, optionsMarker, { position: coordinates });
     const _marker = new window.google.maps.Marker(_markerOptions);
 
     const handleOverlayClick = () => {
+      // 마커 클릭 시 해당 아이템 선택 핸들러 호출
+      selectItemHandlerMarkerInMap(_marker, shopItem);
+      
       // InfoWindow 생성 및 설정
       const infoWindow = new window.google.maps.InfoWindow({
         content: `
           <div>
-            <strong>아이템 리스트의 정보보</strong><br>
-            타입: ${_marker.type}<br>
-            <button id="customButton">내가 원하는 버튼</button>
+            <strong>${shopItem.storeName || '이름 없음'}</strong><br>
+            ${shopItem.address || '주소 없음'}<br>
+            <button id="customButton">상세 정보</button>
           </div>
         `,
       });
@@ -296,23 +310,29 @@ export default function Editor() { // 메인 페이지
       // InfoWindow를 오버레이의 위치에 표시
       infoWindow.open(mapInst, _marker);
 
-
       // 버튼 클릭 이벤트 리스너 추가
       window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
         const customButton = document.getElementById('customButton');
         if (customButton) {
           customButton.addEventListener('click', () => {
-            alert('버튼이 클릭되었습니다!');
+            selectItemHandlerMarkerInMap(_marker, shopItem);
           });
         }
       });
     };
 
     const handleOverlayMouseOver = () => {
-      _marker.setIcon({ url: OVERLAY_ICON.MARKER_MOUSEOVER });
+      // 선택된 아이템이 아닌 경우에만 마우스오버 효과 적용
+      if (!curSelectedShop || curSelectedShop.googleDataId !== shopItem.googleDataId) {
+        _marker.setIcon({ url: OVERLAY_ICON.MARKER_MOUSEOVER });
+      }
     }
+    
     const handleOverlayMouseOut = () => {
-      _marker.setIcon(optionsMarker.icon);
+      // 선택된 아이템이 아닌 경우에만 마우스아웃 효과 적용
+      if (!curSelectedShop || curSelectedShop.googleDataId !== shopItem.googleDataId) {
+        _marker.setIcon(defaultIcon);
+      }
     }
 
     // 오버레이에 이벤트 바인딩 
@@ -397,174 +417,226 @@ export default function Editor() { // 메인 페이지
     return itemList.map(item => cleanItemForStorage(item));
   };
 
-  // FB와 연동 
-  const initShopList = async (_mapInstance) => {
-    // 1) initShopList 함수에서 로컬저장소의 curSectionName에 해당되는 list를 sectionDB로 가져오기
-    const loadFromLocalStorage = (sectionName) => {
-      try {
-        // localStorage에서 특정 섹션 데이터 가져오기
-        const storedSectionData = localStorage.getItem(`section_${sectionName}`);
+  // 로컬 스토리지에서 sectionsDB로 데이터 로드
+  const loadFromLocalToSectionsDB = (sectionName) => {
+    try {
+      // 로컬 스토리지에서 섹션 데이터 가져오기
+      const storedSectionData = localStorage.getItem(`section_${sectionName}`);
+      const storedTimestamp = localStorage.getItem(`${sectionName}_timestamp`);
+      
+      if (storedSectionData) {
+        const parsedSectionData = JSON.parse(storedSectionData);
+        const timestamp = parseInt(storedTimestamp || '0');
         
-        if (storedSectionData) {
-          const parsedSectionData = JSON.parse(storedSectionData);
-          console.log(`localStorage에서 ${sectionName} 섹션 데이터 찾음:`, parsedSectionData);
+        // sectionsDB 업데이트 (Firebase 타임스탬프 포함)
+        const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
+        if (sectionIndex !== -1) {
+          sectionsDB[sectionIndex] = {
+            ...sectionsDB[sectionIndex],
+            list: parsedSectionData.list,
+            timestamp: timestamp, // Firebase 타임스탬프 또는 로컬 타임스탬프
+            lastUpdated: new Date(timestamp) // 가독성을 위한 Date 객체
+          };
+        } else {
+          sectionsDB.push({
+            name: sectionName,
+            list: parsedSectionData.list,
+            timestamp: timestamp, // Firebase 타임스탬프 또는 로컬 타임스탬프
+            lastUpdated: new Date(timestamp) // 가독성을 위한 Date 객체
+          });
+        }
+        
+        console.log(`로컬 스토리지에서 ${sectionName} 데이터를 가져와 sectionsDB에 로드함 (타임스탬프: ${new Date(timestamp).toLocaleString()})`);
+        
+        return parsedSectionData.list;
+      } else {
+        console.log(`로컬 스토리지에 ${sectionName} 데이터가 없음`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`로컬 스토리지에서 ${sectionName} 데이터 가져오기 오류:`, error);
+      return null;
+    }
+  };
+
+  // 파이어베이스에서 데이터 가져와 로컬 스토리지에 저장하는 함수
+  const fetchAndSaveFromFirebase = async (sectionName) => {
+    try {
+      // Firebase에서 섹션 데이터 가져오기
+      const sectionRef = doc(firebasedb, "sections", sectionName);
+      const docSnap = await getDoc(sectionRef);
+      
+      if (docSnap.exists()) {
+        const serverData = docSnap.data();
+        const serverTimestamp = serverData.lastUpdated?.toMillis() || Date.now();
+        
+        // 로컬 스토리지에 저장
+        const sectionData = {
+          name: sectionName,
+          list: serverData.itemList || [],
+          timestamp: serverTimestamp
+        };
+        
+        localStorage.setItem(`section_${sectionName}`, JSON.stringify(sectionData));
+        localStorage.setItem(`${sectionName}_timestamp`, serverTimestamp.toString());
+        
+        // sectionsDB 직접 업데이트 (Firebase 타임스탬프 포함)
+        const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
+        if (sectionIndex !== -1) {
+          sectionsDB[sectionIndex] = {
+            ...sectionsDB[sectionIndex],
+            list: serverData.itemList || [],
+            timestamp: serverTimestamp,
+            lastUpdated: new Date(serverTimestamp)
+          };
+        } else {
+          sectionsDB.push({
+            name: sectionName,
+            list: serverData.itemList || [],
+            timestamp: serverTimestamp,
+            lastUpdated: new Date(serverTimestamp)
+          });
+        }
+        
+        console.log(`Firebase에서 ${sectionName} 데이터를 가져와 로컬 스토리지와 sectionsDB에 저장함 (타임스탬프: ${new Date(serverTimestamp).toLocaleString()})`);
+        
+        return serverData.itemList || [];
+      } else {
+        console.log(`Firebase에 ${sectionName} 데이터가 없음`);
+        return [];
+      }
+    } catch (error) {
+      console.error(`Firebase에서 ${sectionName} 데이터 가져오기 오류:`, error);
+      return [];
+    }
+  };
+
+  // 파이어베이스에서 로컬 스토리지로 데이터 동기화 확인 함수
+  const checkAndSyncFromFirebase = async (sectionName) => {
+    try {
+      // Firebase에서 섹션 데이터 가져오기
+      const sectionRef = doc(firebasedb, "sections", sectionName);
+      const docSnap = await getDoc(sectionRef);
+      
+      if (docSnap.exists()) {
+        const serverData = docSnap.data();
+        const serverTimestamp = serverData.lastUpdated?.toMillis() || 0;
+        const localTimestamp = parseInt(localStorage.getItem(`${sectionName}_timestamp`) || '0');
+        
+        console.log(`Firebase 타임스탬프: ${new Date(serverTimestamp).toLocaleString()}, 로컬 타임스탬프: ${new Date(localTimestamp).toLocaleString()}`);
+        
+        // 서버 데이터가 더 최신인 경우 로컬 스토리지와 sectionsDB 업데이트
+        if (serverTimestamp > localTimestamp) {
+          console.log(`Firebase의 ${sectionName} 데이터가 더 최신임. 로컬 스토리지와 sectionsDB 업데이트`);
           
-          // sectionsDB에 현재 섹션 데이터 추가/업데이트
+          // 로컬 스토리지에 저장
+          const sectionData = {
+            name: sectionName,
+            list: serverData.itemList || [],
+            timestamp: serverTimestamp
+          };
+          
+          localStorage.setItem(`section_${sectionName}`, JSON.stringify(sectionData));
+          localStorage.setItem(`${sectionName}_timestamp`, serverTimestamp.toString());
+          
+          // sectionsDB 직접 업데이트
           const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
           if (sectionIndex !== -1) {
-            sectionsDB[sectionIndex].list = parsedSectionData.list;
+            sectionsDB[sectionIndex] = {
+              ...sectionsDB[sectionIndex],
+              list: serverData.itemList || [],
+              timestamp: serverTimestamp,
+              lastUpdated: new Date(serverTimestamp)
+            };
           } else {
-            sectionsDB.push({ 
-              name: sectionName, 
-              list: parsedSectionData.list 
+            sectionsDB.push({
+              name: sectionName,
+              list: serverData.itemList || [],
+              timestamp: serverTimestamp,
+              lastUpdated: new Date(serverTimestamp)
             });
           }
           
-          return parsedSectionData.list;
+          return serverData.itemList || [];
+        } else {
+          console.log(`로컬 스토리지의 ${sectionName} 데이터가 최신이거나 같음. 업데이트 안함`);
+          return null;
         }
-        return null; // 로컬에 데이터가 없는 경우
-      } catch (error) {
-        console.error('localStorage 로드 오류:', error);
+      } else {
+        console.log(`Firebase에 ${sectionName} 데이터가 없음`);
         return null;
       }
-    };
+    } catch (error) {
+      console.error(`Firebase 동기화 확인 오류:`, error);
+      return null;
+    }
+  };
 
-    // 로컬 저장소에 특정 섹션 데이터 저장
-    const saveToLocalStorage = (sectionName, itemList) => {
-      try {
-        // 공통 함수 사용하여 데이터 정제
-        const cleanItemList = cleanItemListForStorage(itemList);
-        
-        // 섹션 데이터 객체 생성
-        const sectionData = {
-          name: sectionName,
-          list: cleanItemList,
-          timestamp: Date.now()
-        };
-        
-        // localStorage에 저장
-        localStorage.setItem(`section_${sectionName}`, JSON.stringify(sectionData));
-        localStorage.setItem(`${sectionName}_timestamp`, sectionData.timestamp.toString());
-        
-        // sectionsDB 업데이트 - 명시적으로 sectionsDB 업데이트
-        const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
-        if (sectionIndex !== -1) {
-          sectionsDB[sectionIndex].list = itemList;
-        } else {
-          sectionsDB.push({ name: sectionName, list: itemList });
-        }
-        
-        console.log(`${sectionName} 데이터를 localStorage에 저장함 및 sectionsDB 업데이트 완료`);
-      } catch (error) {
-        console.error('localStorage 저장 오류:', error);
-      }
+  // 빈 데이터 생성 시에도 타임스탬프 추가
+  const createEmptySection = (sectionName) => {
+    const currentTimestamp = Date.now();
+    
+    // 빈 데이터 생성
+    const emptySectionData = {
+      name: sectionName,
+      list: [],
+      timestamp: currentTimestamp
     };
     
-    // 서버에서 특정 섹션 데이터 가져와 로컬 및 sectionsDB 업데이트
-    const updateLocalFromServer = async (sectionName) => {
-      try {
-        // Firebase에서 현재 섹션 데이터 가져오기
-        const sectionRef = doc(firebasedb, "sections", sectionName);
-        const docSnap = await getDoc(sectionRef);
-        
-        if (docSnap.exists()) {
-          const serverData = docSnap.data();
-          const serverTimestamp = serverData.lastUpdated?.toMillis() || 0;
-          const localTimestamp = parseInt(localStorage.getItem(`${sectionName}_timestamp`) || '0');
-          
-          if (serverTimestamp > localTimestamp) {
-            // 서버 데이터가 더 최신인 경우에만 로컬 데이터 업데이트
-            console.log(`Firebase의 ${sectionName} 데이터가 더 최신임. 로컬 데이터 업데이트`);
-            
-            // 로컬 저장소 업데이트
-            saveToLocalStorage(sectionName, serverData.itemList);
-            
-            // sectionsDB 업데이트 (saveToLocalStorage 내에서 이미 처리됨)
-            console.log(`sectionsDB의 ${sectionName} 데이터도 업데이트됨`);
-            
-            return {
-              updated: true,
-              itemList: serverData.itemList
-            };
-          } else {
-            // 로컬 데이터가 더 최신이거나 같은 경우 - 아무 작업 안함
-            console.log(`로컬의 ${sectionName} 데이터가 더 최신이거나 같음. 자동 업데이트 안함`);
-            return {
-              updated: false,
-              itemList: null
-            };
-          }
-        } else {
-          // 서버에 데이터가 없는 경우 - 아무 작업 안함
-          console.log(`Firebase에 ${sectionName} 데이터가 없음. 자동 업데이트 안함`);
-          return {
-            updated: false,
-            itemList: null
-          };
-        }
-      } catch (error) {
-        console.error(`${sectionName} 섹션 서버 데이터 가져오기 오류:`, error);
-        return {
-          updated: false,
-          itemList: null,
-          error
-        };
-      }
-    };
+    // 로컬 스토리지에 저장
+    localStorage.setItem(`section_${sectionName}`, JSON.stringify(emptySectionData));
+    localStorage.setItem(`${sectionName}_timestamp`, currentTimestamp.toString());
     
-    // 1) 로컬 저장소에서 데이터 가져오기
-    let localItemList = loadFromLocalStorage(curSectionName);
+    // sectionsDB 업데이트
+    const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
+    if (sectionIndex !== -1) {
+      sectionsDB[sectionIndex] = {
+        ...sectionsDB[sectionIndex],
+        list: [],
+        timestamp: currentTimestamp,
+        lastUpdated: new Date(currentTimestamp)
+      };
+    } else {
+      sectionsDB.push({
+        name: sectionName,
+        list: [],
+        timestamp: currentTimestamp,
+        lastUpdated: new Date(currentTimestamp)
+      });
+    }
+    
+    console.log(`${sectionName} 섹션에 빈 데이터 생성 (타임스탬프: ${new Date(currentTimestamp).toLocaleString()})`);
+    
+    return [];
+  };
+
+  // FB와 연동 - initShopList 함수 수정
+  const initShopList = async (_mapInstance) => {
+    // 1) 로컬 스토리지에서 sectionsDB로 데이터 로드
+    let localItemList = loadFromLocalToSectionsDB(curSectionName);
     
     if (localItemList) {
-      // 로컬 저장소에 데이터가 있는 경우
-      console.log(`로컬 저장소에서 ${curSectionName} 데이터를 가져옴`);
+      // 로컬 스토리지에 데이터가 있는 경우
+      console.log(`로컬 스토리지에서 ${curSectionName} 데이터를 가져옴`);
       
-      // 2) 서버와 동기화 확인 (서버 → 로컬 방향으로만)
-      try {
-        const updateResult = await updateLocalFromServer(curSectionName);
-        
-        if (updateResult.updated) {
-          // 서버에서 업데이트된 경우 새 데이터 사용
-          localItemList = updateResult.itemList;
-        }
-      } catch (error) {
-        console.error('Firebase 동기화 확인 오류:', error);
+      // 2) Firebase와 동기화 확인 (Firebase → 로컬 스토리지 방향으로만)
+      const updatedList = await checkAndSyncFromFirebase(curSectionName);
+      
+      // 업데이트된 데이터가 있으면 사용
+      if (updatedList) {
+        localItemList = updatedList;
       }
     } else {
-      // 3) 로컬 저장소에 데이터가 없는 경우 Firebase에서 가져오기
-      console.log(`로컬 저장소에 ${curSectionName} 데이터가 없음. Firebase에서 가져오기 시도`);
+      // 3) 로컬 스토리지에 데이터가 없는 경우 Firebase에서 가져오기
+      console.log(`로컬 스토리지에 ${curSectionName} 데이터가 없음. Firebase에서 가져오기 시도`);
       
-      try {
-        // Firebase에서 현재 섹션 데이터 가져오기
-        const sectionRef = doc(firebasedb, "sections", curSectionName);
-        const docSnap = await getDoc(sectionRef);
-        
-        if (docSnap.exists()) {
-          // Firebase에 데이터가 있는 경우
-          const serverData = docSnap.data();
-          localItemList = serverData.itemList;
-          console.log(`Firebase에서 ${curSectionName} 섹션 데이터 찾음`);
-          
-          // 로컬 저장소에 저장 (sectionsDB도 함께 업데이트)
-          saveToLocalStorage(curSectionName, localItemList);
-          
-          // 타임스탬프 저장
-          if (serverData.lastUpdated) {
-            localStorage.setItem(`${curSectionName}_timestamp`, serverData.lastUpdated.toMillis().toString());
-          }
-        } else {
-          // Firebase에도 데이터가 없는 경우 빈 데이터 생성
-          console.log(`Firebase에 ${curSectionName} 섹션 데이터가 없음. 빈 데이터 생성`);
-          localItemList = [];
-          
-          // 로컬 저장소에 빈 데이터 저장 (sectionsDB도 함께 업데이트)
-          saveToLocalStorage(curSectionName, localItemList);
-        }
-      } catch (error) {
-        console.error('Firebase 데이터 가져오기 오류:', error);
-        // 오류 발생 시 빈 데이터 생성
-        localItemList = [];
-        saveToLocalStorage(curSectionName, localItemList);
+      // Firebase에서 데이터 가져와 로컬 스토리지와 sectionsDB에 저장
+      localItemList = await fetchAndSaveFromFirebase(curSectionName);
+      
+      // Firebase에도 데이터가 없는 경우 빈 데이터 생성
+      if (localItemList.length === 0) {
+        console.log(`Firebase에도 ${curSectionName} 데이터가 없음. 빈 데이터 생성`);
+        localItemList = createEmptySection(curSectionName);
       }
     }
     
@@ -594,47 +666,18 @@ export default function Editor() { // 메인 페이지
         item.setMap(_mapInstance);
       });
 
-      // 현재 섹션 설정 - sectionsDB에서 최신 데이터 사용
+      // 현재 섹션 설정
       const _temp = sectionsDB.find(section => section.name === curSectionName);
       setCurLocalItemlist(_temp ? _temp.list : []);
     }
   };
 
-  // 로컬 데이터를 서버로 명시적으로 업데이트하는 함수
-  const updateServerFromLocal = async (sectionName, itemList) => {
-    return asyncHandler(async () => {
-      // 공통 함수 사용하여 데이터 정제
-      const cleanItemList = cleanItemListForStorage(itemList);
-      
-      // 섹션 문서 참조
-      const sectionRef = doc(firebasedb, "sections", sectionName);
-      
-      // Firebase에 저장
-      await setDoc(sectionRef, {
-        itemList: cleanItemList,
-        lastUpdated: firestoreTimestamp()
-      });
-      
-      // 로컬 타임스탬프 업데이트
-      const serverTimestamp = Date.now();
-      localStorage.setItem(`${sectionName}_timestamp`, serverTimestamp.toString());
-      
-      console.log(`${sectionName} 데이터를 Firebase에 업데이트함`);
-      return true;
-    }, `${sectionName} 데이터가 서버에 성공적으로 업데이트되었습니다.`);
-  };
-
-  // 데이터 변경 시 Firebase에 저장하는 함수 수정 (명시적 호출용)
-  const saveToFirestore = async (sectionName, itemList) => {
-    return updateServerFromLocal(sectionName, itemList);
-  };
-
-  // sectionsDB를 Firebase에 저장하는 함수 개선 (명시적 호출용)
+  // 모든 섹션 데이터를 Firebase에 저장하는 함수 (명시적 호출용)
   const saveSectionsToFirebase = async () => {
     return asyncHandler(async () => {
       // 각 섹션을 Firebase에 저장
       for (const section of sectionsDB) {
-        await updateServerFromLocal(section.name, section.list);
+        await saveToFirebase(section.name, section.list);
       }
       
       return true;
@@ -877,51 +920,137 @@ export default function Editor() { // 메인 페이지
     });
   }, [editNewShopDataSet]);
 
-  useEffect(() => {
-    const itemListContainer = document.querySelector(`.${styles.itemList}`);
-    if (!itemListContainer) {
-      console.error('Item list container not found');
-      return;
+  // 현재 선택된 상점 정보를 저장하는 상태 추가
+  const [curSelectedShop, setCurSelectedShop] = useState(null);
+  // 사이드바에서 선택된 아이템 인덱스 저장
+  const [selectedSidebarItemIndex, setSelectedSidebarItemIndex] = useState(-1);
+  
+  // 1. 사이드바에서 아이템 선택 시 핸들러
+  // 선택시 selectedItem의 상태만 업데이트, 아후  selectedItem의 useEffect에서 처리 
+  const selectItemHandlerSidebar = (item, index) => {
+    console.log("사이드바에서 아이템 선택됨:", item);
+    console.log("선택된 아이템의 마커:", item.marker);
+    
+    // curLocalItemlist에서 해당 아이템 찾기
+    const foundItem = curLocalItemlist.find(listItem => 
+      listItem.googleDataId === item.googleDataId
+    );
+    
+    console.log("curLocalItemlist에서 찾은 아이템:", foundItem);
+    
+    // 선택된 아이템 인덱스 저장
+    setSelectedSidebarItemIndex(index);
+    
+    // 선택된 아이템 상태 업데이트
+    setCurSelectedShop(item);
+    
+    // 선택된 아이템의 마커 강조
+    if (item && item.marker) {
+      // 이전에 선택된 마커가 있으면 원래 스타일로 복원
+      if (curSelectedShop && curSelectedShop.marker) {
+        curSelectedShop.marker.setIcon({
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#FF0000',
+          fillOpacity: 1,
+          strokeWeight: 2,
+          strokeColor: '#FFFFFF',
+        });
+      }
+      
+      // 새로 선택된 마커 강조
+      item.marker.setIcon({
+        url: OVERLAY_ICON.MARKER_MOUSEOVER,
+        scaledSize: new window.google.maps.Size(40, 40)
+      });
+      
+      // 지도 중심 이동
+      if (instMap.current) {
+        instMap.current.setCenter(item.marker.getPosition());
+        instMap.current.setZoom(18);
+      }
     }
+    
+    // 선택된 아이템 정보를 폼 데이터에 표시
+    setEditNewShopDataSet(item);
+  };
+  
+  // 2. 검색 입력에서 아이템 선택 시 핸들러 (공란으로 유지)
+  const selectItemHandlerSearchInput = (item) => {
+    // 검색 입력에서 아이템 선택 시 처리 로직 (향후 구현)
+  };
+  
+  // 3. 지도 내 마커 클릭 시 핸들러
+  const selectItemHandlerMarkerInMap = (marker, shopItem) => {
+    console.log("지도에서 마커 선택됨:", marker);
+    
+    // curLocalItemlist에서 해당 아이템 찾기
+    const foundItemIndex = curLocalItemlist.findIndex(item => 
+      item.googleDataId === shopItem.googleDataId
+    );
+    
+    if (foundItemIndex !== -1) {
+      const foundItem = curLocalItemlist[foundItemIndex];
+      console.log("curLocalItemlist에서 찾은 아이템:", foundItem);
+      
+      // 사이드바에서 해당 아이템 인덱스 저장
+      setSelectedSidebarItemIndex(foundItemIndex);
+      
+      // 선택된 아이템 상태 업데이트
+      setCurSelectedShop(foundItem);
+      
+      // 이전에 선택된 마커가 있으면 원래 스타일로 복원
+      if (curSelectedShop && curSelectedShop.marker && curSelectedShop.marker !== marker) {
+        curSelectedShop.marker.setIcon({
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#FF0000',
+          fillOpacity: 1,
+          strokeWeight: 2,
+          strokeColor: '#FFFFFF',
+        });
+      }
+      
+      // 새로 선택된 마커 강조
+      marker.setIcon({
+        url: OVERLAY_ICON.MARKER_MOUSEOVER,
+        scaledSize: new window.google.maps.Size(40, 40)
+      });
+      
+      // 선택된 아이템 정보를 폼 데이터에 표시
+      setEditNewShopDataSet(foundItem);
+    } else {      console.log("curLocalItemlist에서 해당 아이템을 찾을 수 없음");    }
+  };
+  
+  // 사이드바 아이템 목록 생성 부분 수정
+  useEffect(() => {
+    const _itemListContainer = document.querySelector(`.${styles.itemList}`);
+    if (!_itemListContainer) {      console.error('Item list container not found');      return;    }
 
     // 기존 아이템 제거
-    itemListContainer.innerHTML = '';
+    _itemListContainer.innerHTML = '';
 
     // curLocalItemlist의 아이템을 순회하여 사이드바에 추가
-    curLocalItemlist.forEach((item) => {
-      const listItem = document.createElement('li');
-      listItem.className = styles.item;
-
-      const link = document.createElement('a');
-      link.href = '#';
-
-      const itemDetails = document.createElement('div');
-      itemDetails.className = styles.itemDetails;
-
-      const itemTitle = document.createElement('span');
-      itemTitle.className = styles.itemTitle;
-      itemTitle.innerHTML = `${item.storeName} <small>${item.storeStyle}</small>`;
-
-      const businessHours = document.createElement('p');
-      businessHours.textContent = `영업 중 · ${item.businessHours[0] || '정보 없음'}`;
-
-      const address = document.createElement('p');
-      address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.address}`;
+    curLocalItemlist.forEach((_item, _index) => {
+      const listItem = document.createElement('li');      listItem.className = styles.item;
+      const link = document.createElement('a');      link.href = 'javascript:void(0)';
+      const itemDetails = document.createElement('div');       itemDetails.className = styles.itemDetails;
+      const itemTitle = document.createElement('span');      itemTitle.className = styles.itemTitle;
+      itemTitle.innerHTML = `${_item.storeName} <small>${_item.storeStyle}</small>`;
+      const businessHours = document.createElement('p');  businessHours.textContent = `영업 중 · ${_item.businessHours[0] || '정보 없음'}`;
+      const address = document.createElement('p');  address.innerHTML = `<strong>${_item.distance || '정보 없음'}</strong> · ${_item.address}`;
 
       const itemImage = document.createElement('img');
-      itemImage.src = "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
-      itemImage.alt = `${item.storeName} ${item.storeStyle}`;
+      itemImage.src = _item.mainImage || "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
+      itemImage.alt = `${_item.storeName} ${_item.storeStyle}`;
       itemImage.className = styles.itemImage;
       itemImage.width = 100;
       itemImage.height = 100;
 
-      // 아이템 클릭 시 해당 마커로 이동
+      // 아이템 클릭 시 해당 마커로 이동 및 선택 처리
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        if (item.marker && instMap.current) {
-          instMap.current.setCenter(item.marker.getPosition());
-          instMap.current.setZoom(18); // 필요에 따라 줌 레벨 조정
-        }
+        setSelectedItemOfShopList(_item); // 선택된 아이템을 지정하면, 해당 useEffect에서 나머지 부대효과 처리됨. 
       });
 
       itemDetails.appendChild(itemTitle);
@@ -930,12 +1059,98 @@ export default function Editor() { // 메인 페이지
       link.appendChild(itemDetails);
       link.appendChild(itemImage);
       listItem.appendChild(link);
-      itemListContainer.appendChild(listItem);
-    });
-  }, [curLocalItemlist]);
+      _itemListContainer.appendChild(listItem);
+    });  // for each 끝
 
-  //return () => clearInterval(intervalId); // 컴포넌트 언마운트시
-  //}, []);     
+
+  }, [curLocalItemlist]); // selectedSidebarItemIndex 의존성 추가
+  
+  useEffect(() => {
+    console.log('selectedItemOfShopList', selectedItemOfShopList);
+    
+    if (!selectedItemOfShopList) return;
+    
+    // 1. 사이드바 selectedItemOfShopList에 해당되는 아이템 선택 처리
+    const itemIndex = curLocalItemlist.findIndex(item => 
+      item.googleDataId === selectedItemOfShopList.googleDataId
+    );
+    
+    if (itemIndex !== -1) {
+      console.log(`사이드바 아이템 선택: 인덱스 ${itemIndex}`);
+      setSelectedSidebarItemIndex(itemIndex);
+      
+      // 사이드바 아이템으로 스크롤
+      const itemListContainer = document.querySelector(`.${styles.itemList}`);
+      if (itemListContainer) {
+        const selectedItem = itemListContainer.children[itemIndex];
+        if (selectedItem) {
+          selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    }
+    
+    // 2. 해당 마커로 좌표 이동
+    if (selectedItemOfShopList.marker) {
+      console.log('선택된 아이템의 마커로 이동');
+      
+      // 이전에 선택된 마커가 있으면 원래 스타일로 복원
+      if (curSelectedShop && curSelectedShop.marker && 
+          curSelectedShop.googleDataId !== selectedItemOfShopList.googleDataId) {
+        curSelectedShop.marker.setIcon({
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#FF0000',
+          fillOpacity: 1,
+          strokeWeight: 2,
+          strokeColor: '#FFFFFF',
+        });
+      }
+      
+      // 선택된 마커 강조
+      selectedItemOfShopList.marker.setIcon({
+        url: OVERLAY_ICON.MARKER_MOUSEOVER,
+        scaledSize: new window.google.maps.Size(40, 40)
+      });
+      
+      // 지도 중심 이동
+      if (instMap.current) {
+        instMap.current.setCenter(selectedItemOfShopList.marker.getPosition());
+        instMap.current.setZoom(18);
+      }
+    }
+    
+    // 3. 폼데이터로 해당 아이템 정보 업데이트
+    console.log('폼 데이터 업데이트:', selectedItemOfShopList);
+    setEditNewShopDataSet(selectedItemOfShopList);
+    
+    // 현재 선택된 상점 업데이트
+    setCurSelectedShop(selectedItemOfShopList);
+    
+  }, [selectedItemOfShopList]);
+
+
+
+  //selectedSidebarItemIndex 
+
+  useEffect(() => {
+    console.log('selectedSidebarItemIndex', selectedItemOfShopList);
+    // 현재 선택된 아이템인 경우 스타일 추가
+    // if (selectedSidebarItemIndex === index) {
+    //   listItem.classList.add(styles.selectedItem);
+    // }
+  }, [selectedItemOfShopList]);
+
+
+  // 폼 데이터 초기화 버튼 추가
+  const handleResetForm = () => {
+    // 선택된 아이템 초기화
+    setCurSelectedShop(null);
+    setSelectedSidebarItemIndex(-1);
+    setSelectedItemOfShopList(null);
+    
+    // 폼 데이터 초기화
+    setEditNewShopDataSet(protoShopDataSet);
+  };
 
   const toggleSidebar = () => {
     setIsSidebarVisible(!isSidebarVisible); // 사이드바 가시성 토글
@@ -1046,7 +1261,7 @@ export default function Editor() { // 메인 페이지
             className={styles.menuButton}
             onClick={() => {
               if (curSectionName) {
-                saveToFirestore(curSectionName, curLocalItemlist);
+                saveToFirebase(curSectionName, curLocalItemlist);
               } else {
                 alert('저장할 섹션이 선택되지 않았습니다.');
               }
@@ -1064,13 +1279,20 @@ export default function Editor() { // 메인 페이지
           >
             {isLoading ? '저장 중...' : '전체저장'}
           </button>
+          <button 
+            className={styles.menuButton}
+            onClick={handleResetForm}
+            title="폼 데이터 초기화"
+          >
+            초기화
+          </button>
         </div>
         <div className={styles.card}>
-          <h3>My Shops Data
+          <h3>
+            {curSelectedShop ? curSelectedShop.storeName : 'My Shops Data'}
             <button onClick={handleEditFoamCardButton} className={`${styles.menuButton} ${styles.disabledButton}`}>
               수정
             </button>
-
           </h3>
           <form className={styles.form}>
             <div className={styles.formRow}>

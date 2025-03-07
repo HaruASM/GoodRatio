@@ -483,3 +483,8 @@
 .errorMessage button:hover {
   background-color: #5a171d;
 }
+
+.selectedItem {
+  background-color: #e6f7ff;
+  border-left: 4px solid #1890ff;
+}

@@ -4,19 +4,14 @@
 			"path": "pages/editor/index.js",
 			"bookmarks": [
 				{
-					"line": 613,
+					"line": 662,
 					"column": 48,
 					"label": "initShopList. DB에서 아이템리스트 받아옴"
 				},
 				{
-					"line": 645,
+					"line": 694,
 					"column": 39,
 					"label": "마커 생성부"
-				},
-				{
-					"line": 1025,
-					"column": 19,
-					"label": "사이드바 생성부"
 				}
 			]
 		}

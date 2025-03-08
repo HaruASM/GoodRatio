@@ -85,6 +85,10 @@ export default function Editor() { // 메인 페이지
   };
 
   const [selectedItemOfShopList, setSelectedItemOfShopList] = useState(null);
+  const [selectedItemSidebarList, setSelectedItemSidebarList] = useState(null);
+
+  // 이전 선택 항목의 DOM 요소를 추적하는 useRef
+  const prevSelectedElementRef = useRef(null);
 
   const handleButtonClick = (buttonName) => {
     setSelectedButton(buttonName);
@@ -117,47 +121,47 @@ export default function Editor() { // 메인 페이지
 
   const handleDetailLoadingClick = () => {
     asyncHandler(async () => {
-      const placeId = editNewShopDataSet.googleDataId;
+    const placeId = editNewShopDataSet.googleDataId;
 
       if (!placeId) {
         throw new Error('Place ID가 없습니다.');
       }
 
       return new Promise((resolve, reject) => {
-        const service = new window.google.maps.places.PlacesService(instMap.current);
-        service.getDetails({ placeId }, (result, status) => {
-          if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-            const _updates = {};
+      const service = new window.google.maps.places.PlacesService(instMap.current);
+      service.getDetails({ placeId }, (result, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+          const _updates = {};
 
-            if (result.opening_hours) {
-              // 영업시간 정보를 상태에 설정
-              _updates.businessHours = result.opening_hours.weekday_text;
-            }
+          if (result.opening_hours) {
+            // 영업시간 정보를 상태에 설정
+            _updates.businessHours = result.opening_hours.weekday_text;
+          }
 
-            // 위경도 정보를 상태에 설정
-            if (result.geometry && result.geometry.location) {
-              const lat = result.geometry.location.lat();
-              const lng = result.geometry.location.lng();
-              _updates.pinCoordinates = `${lat}, ${lng}`;
-            }
+          // 위경도 정보를 상태에 설정
+          if (result.geometry && result.geometry.location) {
+            const lat = result.geometry.location.lat();
+            const lng = result.geometry.location.lng();
+            _updates.pinCoordinates = `${lat}, ${lng}`;
+          }
 
-            // 사진 정보를 상태에 설정
-            if (result.photos && result.photos.length > 0) {
+          // 사진 정보를 상태에 설정
+          if (result.photos && result.photos.length > 0) {
               // 최대 10장의 사진 URL을 배열로 저장
-              const photoUrls = result.photos.slice(0, 10).map(photo => 
-                photo.getUrl({ maxWidth: 400, maxHeight: 400 })
-              );
-              _updates.subImages = photoUrls; // 여러 장의 사진을 저장할 배열 필드
-              _updates.mainImage = photoUrls[0]; // 첫 번째 사진은 기존 필드에도 저장
-            }
+            const photoUrls = result.photos.slice(0, 10).map(photo => 
+              photo.getUrl({ maxWidth: 400, maxHeight: 400 })
+            );
+            _updates.subImages = photoUrls; // 여러 장의 사진을 저장할 배열 필드
+            _updates.mainImage = photoUrls[0]; // 첫 번째 사진은 기존 필드에도 저장
+          }
 
             // 데이터셋 업데이트
-            updateDataSet(_updates);
+          updateDataSet(_updates);
             resolve(true);
-          } else {
+        } else {
             reject(new Error(`장소 상세 정보를 가져오지 못했습니다: ${status}`));
-          }
-        });
+        }
+      });
       });
     }, '구글에서 가게 상세 정보를 가져왔습니다.');
   };
@@ -291,10 +295,13 @@ export default function Editor() { // 메인 페이지
     
     const _markerOptions = Object.assign({}, optionsMarker, { position: coordinates });
     const _marker = new window.google.maps.Marker(_markerOptions);
+    
+    // 마커 객체에 아이템 객체 직접 연결
+    _marker.shopItem = shopItem;
 
     const handleOverlayClick = () => {
-      // 마커 클릭 시 해당 아이템 선택 핸들러 호출
-      selectItemHandlerMarkerInMap(_marker, shopItem);
+      // 마커에 연결된 아이템 객체 직접 사용
+      selectItemHandlerMarkerInMap(_marker);
       
       // InfoWindow 생성 및 설정
       const infoWindow = new window.google.maps.InfoWindow({
@@ -315,7 +322,7 @@ export default function Editor() { // 메인 페이지
         const customButton = document.getElementById('customButton');
         if (customButton) {
           customButton.addEventListener('click', () => {
-            selectItemHandlerMarkerInMap(_marker, shopItem);
+            selectItemHandlerMarkerInMap(_marker);
           });
         }
       });
@@ -323,14 +330,14 @@ export default function Editor() { // 메인 페이지
 
     const handleOverlayMouseOver = () => {
       // 선택된 아이템이 아닌 경우에만 마우스오버 효과 적용
-      if (!curSelectedShop || curSelectedShop.googleDataId !== shopItem.googleDataId) {
-        _marker.setIcon({ url: OVERLAY_ICON.MARKER_MOUSEOVER });
-      }
+      if (!selectedItemOfShopList || selectedItemOfShopList.googleDataId !== shopItem.googleDataId) {
+      _marker.setIcon({ url: OVERLAY_ICON.MARKER_MOUSEOVER });
+    }
     }
     
     const handleOverlayMouseOut = () => {
       // 선택된 아이템이 아닌 경우에만 마우스아웃 효과 적용
-      if (!curSelectedShop || curSelectedShop.googleDataId !== shopItem.googleDataId) {
+      if (!selectedItemOfShopList || selectedItemOfShopList.googleDataId !== shopItem.googleDataId) {
         _marker.setIcon(defaultIcon);
       }
     }
@@ -382,40 +389,7 @@ export default function Editor() { // 메인 페이지
 
 
 
-  // 데이터 정제를 위한 공통 유틸리티 함수
-  const cleanItemForStorage = (item) => {
-    // 깊은 복사를 통해 원본 객체 변경 방지
-    const cleanItem = { ...item };
-    
-    // Google Maps 객체 제거
-    delete cleanItem.marker;
-    delete cleanItem.polygon;
-    delete cleanItem.itemMarker;
-    delete cleanItem.itemPolygon;
-    
-    // pinCoordinates가 객체인 경우 문자열로 변환
-    if (typeof cleanItem.pinCoordinates === 'object') {
-      cleanItem.pinCoordinates = `${cleanItem.pinCoordinates.lat}, ${cleanItem.pinCoordinates.lng}`;
-    }
-    
-    // path 배열 내의 객체들도 처리
-    if (Array.isArray(cleanItem.path)) {
-      cleanItem.path = cleanItem.path.map(point => {
-        if (typeof point.lat === 'function') {
-          // Google LatLng 객체인 경우
-          return { lat: point.lat(), lng: point.lng() };
-        }
-        return point; // 이미 { lat, lng } 형태인 경우
-      });
-    }
-    
-    return cleanItem;
-  };
-
-  // 아이템 리스트 정제 함수
-  const cleanItemListForStorage = (itemList) => {
-    return itemList.map(item => cleanItemForStorage(item));
-  };
+  
 
   // 로컬 스토리지에서 sectionsDB로 데이터 로드
   const loadFromLocalToSectionsDB = (sectionName) => {
@@ -453,11 +427,11 @@ export default function Editor() { // 메인 페이지
         console.log(`로컬 스토리지에 ${sectionName} 데이터가 없음`);
         return null;
       }
-    } catch (error) {
+      } catch (error) {
       console.error(`로컬 스토리지에서 ${sectionName} 데이터 가져오기 오류:`, error);
-      return null;
-    }
-  };
+        return null;
+      }
+    };
 
   // 파이어베이스에서 데이터 가져와 로컬 스토리지에 저장하는 함수
   const fetchAndSaveFromFirebase = async (sectionName) => {
@@ -516,17 +490,17 @@ export default function Editor() { // 메인 페이지
     try {
       // Firebase에서 섹션 데이터 가져오기
       const sectionRef = doc(firebasedb, "sections", sectionName);
-      const docSnap = await getDoc(sectionRef);
-      
-      if (docSnap.exists()) {
-        const serverData = docSnap.data();
-        const serverTimestamp = serverData.lastUpdated?.toMillis() || 0;
-        const localTimestamp = parseInt(localStorage.getItem(`${sectionName}_timestamp`) || '0');
+        const docSnap = await getDoc(sectionRef);
         
-        console.log(`Firebase 타임스탬프: ${new Date(serverTimestamp).toLocaleString()}, 로컬 타임스탬프: ${new Date(localTimestamp).toLocaleString()}`);
+        if (docSnap.exists()) {
+          const serverData = docSnap.data();
+          const serverTimestamp = serverData.lastUpdated?.toMillis() || 0;
+        const localtimestamp = parseInt(localStorage.getItem(`${sectionName}_timestamp`) || '0');
+          
+        console.log(`Firebase 타임스탬프: ${new Date(serverTimestamp).toLocaleString()}, 로컬 타임스탬프: ${new Date(localtimestamp).toLocaleString()}`);
         
         // 서버 데이터가 더 최신인 경우 로컬 스토리지와 sectionsDB 업데이트
-        if (serverTimestamp > localTimestamp) {
+          if (serverTimestamp > localtimestamp) {
           console.log(`Firebase의 ${sectionName} 데이터가 더 최신임. 로컬 스토리지와 sectionsDB 업데이트`);
           
           // 로컬 스토리지에 저장
@@ -541,14 +515,14 @@ export default function Editor() { // 메인 페이지
           
           // sectionsDB 직접 업데이트
           const sectionIndex = sectionsDB.findIndex(section => section.name === sectionName);
-          if (sectionIndex !== -1) {
+            if (sectionIndex !== -1) {
             sectionsDB[sectionIndex] = {
               ...sectionsDB[sectionIndex],
               list: serverData.itemList || [],
               timestamp: serverTimestamp,
               lastUpdated: new Date(serverTimestamp)
             };
-          } else {
+            } else {
             sectionsDB.push({
               name: sectionName,
               list: serverData.itemList || [],
@@ -558,7 +532,7 @@ export default function Editor() { // 메인 페이지
           }
           
           return serverData.itemList || [];
-        } else {
+          } else {
           console.log(`로컬 스토리지의 ${sectionName} 데이터가 최신이거나 같음. 업데이트 안함`);
           return null;
         }
@@ -625,15 +599,15 @@ export default function Editor() { // 메인 페이지
       // 업데이트된 데이터가 있으면 사용
       if (updatedList) {
         localItemList = updatedList;
-      }
-    } else {
+            }
+          } else {
       // 3) 로컬 스토리지에 데이터가 없는 경우 Firebase에서 가져오기
       console.log(`로컬 스토리지에 ${curSectionName} 데이터가 없음. Firebase에서 가져오기 시도`);
-      
+            
       // Firebase에서 데이터 가져와 로컬 스토리지와 sectionsDB에 저장
       localItemList = await fetchAndSaveFromFirebase(curSectionName);
-      
-      // Firebase에도 데이터가 없는 경우 빈 데이터 생성
+            
+          // Firebase에도 데이터가 없는 경우 빈 데이터 생성
       if (localItemList.length === 0) {
         console.log(`Firebase에도 ${curSectionName} 데이터가 없음. 빈 데이터 생성`);
         localItemList = createEmptySection(curSectionName);
@@ -920,59 +894,17 @@ export default function Editor() { // 메인 페이지
     });
   }, [editNewShopDataSet]);
 
-  // 현재 선택된 상점 정보를 저장하는 상태 추가
-  const [curSelectedShop, setCurSelectedShop] = useState(null);
-  // 사이드바에서 선택된 아이템 인덱스 저장
-  const [selectedSidebarItemIndex, setSelectedSidebarItemIndex] = useState(-1);
-  
-  // 1. 사이드바에서 아이템 선택 시 핸들러
-  // 선택시 selectedItem의 상태만 업데이트, 아후  selectedItem의 useEffect에서 처리 
+  // 사이드바에서 아이템 선택 시 핸들러
   const selectItemHandlerSidebar = (item, index) => {
     console.log("사이드바에서 아이템 선택됨:", item);
-    console.log("선택된 아이템의 마커:", item.marker);
     
     // curLocalItemlist에서 해당 아이템 찾기
     const foundItem = curLocalItemlist.find(listItem => 
       listItem.googleDataId === item.googleDataId
     );
-    
-    console.log("curLocalItemlist에서 찾은 아이템:", foundItem);
-    
     // 선택된 아이템 인덱스 저장
-    setSelectedSidebarItemIndex(index);
+    setSelectedItemOfShopList(item);
     
-    // 선택된 아이템 상태 업데이트
-    setCurSelectedShop(item);
-    
-    // 선택된 아이템의 마커 강조
-    if (item && item.marker) {
-      // 이전에 선택된 마커가 있으면 원래 스타일로 복원
-      if (curSelectedShop && curSelectedShop.marker) {
-        curSelectedShop.marker.setIcon({
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: '#FF0000',
-          fillOpacity: 1,
-          strokeWeight: 2,
-          strokeColor: '#FFFFFF',
-        });
-      }
-      
-      // 새로 선택된 마커 강조
-      item.marker.setIcon({
-        url: OVERLAY_ICON.MARKER_MOUSEOVER,
-        scaledSize: new window.google.maps.Size(40, 40)
-      });
-      
-      // 지도 중심 이동
-      if (instMap.current) {
-        instMap.current.setCenter(item.marker.getPosition());
-        instMap.current.setZoom(18);
-      }
-    }
-    
-    // 선택된 아이템 정보를 폼 데이터에 표시
-    setEditNewShopDataSet(item);
   };
   
   // 2. 검색 입력에서 아이템 선택 시 핸들러 (공란으로 유지)
@@ -981,172 +913,48 @@ export default function Editor() { // 메인 페이지
   };
   
   // 3. 지도 내 마커 클릭 시 핸들러
-  const selectItemHandlerMarkerInMap = (marker, shopItem) => {
-    console.log("지도에서 마커 선택됨:", marker);
-    
-    // curLocalItemlist에서 해당 아이템 찾기
-    const foundItemIndex = curLocalItemlist.findIndex(item => 
-      item.googleDataId === shopItem.googleDataId
-    );
-    
-    if (foundItemIndex !== -1) {
-      const foundItem = curLocalItemlist[foundItemIndex];
-      console.log("curLocalItemlist에서 찾은 아이템:", foundItem);
-      
-      // 사이드바에서 해당 아이템 인덱스 저장
-      setSelectedSidebarItemIndex(foundItemIndex);
-      
-      // 선택된 아이템 상태 업데이트
-      setCurSelectedShop(foundItem);
-      
-      // 이전에 선택된 마커가 있으면 원래 스타일로 복원
-      if (curSelectedShop && curSelectedShop.marker && curSelectedShop.marker !== marker) {
-        curSelectedShop.marker.setIcon({
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: '#FF0000',
-          fillOpacity: 1,
-          strokeWeight: 2,
-          strokeColor: '#FFFFFF',
-        });
-      }
-      
-      // 새로 선택된 마커 강조
-      marker.setIcon({
-        url: OVERLAY_ICON.MARKER_MOUSEOVER,
-        scaledSize: new window.google.maps.Size(40, 40)
-      });
-      
-      // 선택된 아이템 정보를 폼 데이터에 표시
-      setEditNewShopDataSet(foundItem);
-    } else {      console.log("curLocalItemlist에서 해당 아이템을 찾을 수 없음");    }
+  const selectItemHandlerMarkerInMap = (marker) => {
+        
+    // 마커에 직접 연결된 아이템 객체 사용
+    const shopItem = marker.shopItem;
+        if (!shopItem) {      console.error("마커에 연결된 아이템 객체가 없습니다.");      return;    }
+       
+    // 선택된 아이템 상태 업데이트
+    setSelectedItemOfShopList(shopItem);
+   
   };
   
-  // 사이드바 아이템 목록 생성 부분 수정
+  // selectedItemSidebarList가 변경될 때 실행되는 useEffect
   useEffect(() => {
-    const _itemListContainer = document.querySelector(`.${styles.itemList}`);
-    if (!_itemListContainer) {      console.error('Item list container not found');      return;    }
-
-    // 기존 아이템 제거
-    _itemListContainer.innerHTML = '';
-
-    // curLocalItemlist의 아이템을 순회하여 사이드바에 추가
-    curLocalItemlist.forEach((_item, _index) => {
-      const listItem = document.createElement('li');      listItem.className = styles.item;
-      const link = document.createElement('a');      link.href = 'javascript:void(0)';
-      const itemDetails = document.createElement('div');       itemDetails.className = styles.itemDetails;
-      const itemTitle = document.createElement('span');      itemTitle.className = styles.itemTitle;
-      itemTitle.innerHTML = `${_item.storeName} <small>${_item.storeStyle}</small>`;
-      const businessHours = document.createElement('p');  businessHours.textContent = `영업 중 · ${_item.businessHours[0] || '정보 없음'}`;
-      const address = document.createElement('p');  address.innerHTML = `<strong>${_item.distance || '정보 없음'}</strong> · ${_item.address}`;
-
-      const itemImage = document.createElement('img');
-      itemImage.src = _item.mainImage || "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
-      itemImage.alt = `${_item.storeName} ${_item.storeStyle}`;
-      itemImage.className = styles.itemImage;
-      itemImage.width = 100;
-      itemImage.height = 100;
-
-      // 아이템 클릭 시 해당 마커로 이동 및 선택 처리
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        setSelectedItemOfShopList(_item); // 선택된 아이템을 지정하면, 해당 useEffect에서 나머지 부대효과 처리됨. 
-      });
-
-      itemDetails.appendChild(itemTitle);
-      itemDetails.appendChild(businessHours);
-      itemDetails.appendChild(address);
-      link.appendChild(itemDetails);
-      link.appendChild(itemImage);
-      listItem.appendChild(link);
-      _itemListContainer.appendChild(listItem);
-    });  // for each 끝
-
-
-  }, [curLocalItemlist]); // selectedSidebarItemIndex 의존성 추가
-  
-  useEffect(() => {
-    console.log('selectedItemOfShopList', selectedItemOfShopList);
+    if (!selectedItemOfShopList || !selectedItemOfShopList.marker) return;
     
-    if (!selectedItemOfShopList) return;
-    
-    // 1. 사이드바 selectedItemOfShopList에 해당되는 아이템 선택 처리
-    const itemIndex = curLocalItemlist.findIndex(item => 
-      item.googleDataId === selectedItemOfShopList.googleDataId
-    );
-    
-    if (itemIndex !== -1) {
-      console.log(`사이드바 아이템 선택: 인덱스 ${itemIndex}`);
-      setSelectedSidebarItemIndex(itemIndex);
-      
-      // 사이드바 아이템으로 스크롤
-      const itemListContainer = document.querySelector(`.${styles.itemList}`);
-      if (itemListContainer) {
-        const selectedItem = itemListContainer.children[itemIndex];
-        if (selectedItem) {
-          selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }
+    // 지도 중심 이동만 수행
+    if (instMap.current && selectedItemOfShopList.marker) {
+      instMap.current.setCenter(selectedItemOfShopList.marker.getPosition());
+      instMap.current.setZoom(18);
     }
     
-    // 2. 해당 마커로 좌표 이동
-    if (selectedItemOfShopList.marker) {
-      console.log('선택된 아이템의 마커로 이동');
-      
-      // 이전에 선택된 마커가 있으면 원래 스타일로 복원
-      if (curSelectedShop && curSelectedShop.marker && 
-          curSelectedShop.googleDataId !== selectedItemOfShopList.googleDataId) {
-        curSelectedShop.marker.setIcon({
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: '#FF0000',
-          fillOpacity: 1,
-          strokeWeight: 2,
-          strokeColor: '#FFFFFF',
-        });
-      }
-      
-      // 선택된 마커 강조
-      selectedItemOfShopList.marker.setIcon({
-        url: OVERLAY_ICON.MARKER_MOUSEOVER,
-        scaledSize: new window.google.maps.Size(40, 40)
-      });
-      
-      // 지도 중심 이동
-      if (instMap.current) {
-        instMap.current.setCenter(selectedItemOfShopList.marker.getPosition());
-        instMap.current.setZoom(18);
-      }
-    }
-    
-    // 3. 폼데이터로 해당 아이템 정보 업데이트
-    console.log('폼 데이터 업데이트:', selectedItemOfShopList);
+    // 폼 데이터 업데이트
     setEditNewShopDataSet(selectedItemOfShopList);
     
-    // 현재 선택된 상점 업데이트
-    setCurSelectedShop(selectedItemOfShopList);
+    // 사이드바 아이템 선택 상태 업데이트
+    setSelectedItemSidebarList((prev) => {
+      // 같은 항목을 다시 선택한 경우 이전 상태 유지 (토글 기능 제거)
+      if (prev && prev.googleDataId === selectedItemOfShopList.googleDataId)  return prev; // 이전 상태 유지
+      
+      return selectedItemOfShopList; // 새 항목으로 상태 업데이트
+    });
     
+    // 4. 기타 필요한 상태 업데이트
+    // ...
+
   }, [selectedItemOfShopList]);
-
-
-
-  //selectedSidebarItemIndex 
-
-  useEffect(() => {
-    console.log('selectedSidebarItemIndex', selectedItemOfShopList);
-    // 현재 선택된 아이템인 경우 스타일 추가
-    // if (selectedSidebarItemIndex === index) {
-    //   listItem.classList.add(styles.selectedItem);
-    // }
-  }, [selectedItemOfShopList]);
-
 
   // 폼 데이터 초기화 버튼 추가
   const handleResetForm = () => {
     // 선택된 아이템 초기화
-    setCurSelectedShop(null);
-    setSelectedSidebarItemIndex(-1);
     setSelectedItemOfShopList(null);
+    setSelectedItemSidebarList(null);
     
     // 폼 데이터 초기화
     setEditNewShopDataSet(protoShopDataSet);
@@ -1200,6 +1008,168 @@ export default function Editor() { // 메인 페이지
       <button onClick={onClose}>닫기</button>
     </div>
   );
+
+  // 사이드바 아이템 목록 생성 부분 - curLocalItemlist에만 의존
+  useEffect(() => {
+    const itemListContainer = document.querySelector(`.${styles.itemList}`);
+    if (!itemListContainer) {
+      console.error('Item list container not found');
+      return;
+    }
+
+    // 기존 아이템 제거
+    itemListContainer.innerHTML = '';
+
+    // curLocalItemlist의 아이템을 순회하여 사이드바에 추가
+    curLocalItemlist.forEach((item, index) => {
+      const listItem = document.createElement('li');
+      listItem.className = styles.item;
+      
+      // 선택 스타일은 여기서 적용하지 않음 (별도 useEffect에서 처리)
+      
+      const link = document.createElement('a');
+      link.href = '#';
+
+      const itemDetails = document.createElement('div');
+      itemDetails.className = styles.itemDetails;
+
+      const itemTitle = document.createElement('span');
+      itemTitle.className = styles.itemTitle;
+      itemTitle.innerHTML = `${item.storeName} <small>${item.storeStyle}</small>`;
+
+      const businessHours = document.createElement('p');
+      businessHours.textContent = `영업 중 · ${item.businessHours[0] || '정보 없음'}`;
+
+      const address = document.createElement('p');
+      address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.address}`;
+
+      const itemImage = document.createElement('img');
+      itemImage.src = item.mainImage || "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
+      itemImage.alt = `${item.storeName} ${item.storeStyle}`;
+      itemImage.className = styles.itemImage;
+      itemImage.width = 100;
+      itemImage.height = 100;
+
+      // 아이템 클릭 시 해당 마커로 이동 및 선택 처리
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        selectItemHandlerSidebar(item, index);
+      });
+
+      itemDetails.appendChild(itemTitle);
+      itemDetails.appendChild(businessHours);
+      itemDetails.appendChild(address);
+      link.appendChild(itemDetails);
+      link.appendChild(itemImage);
+      listItem.appendChild(link);
+      itemListContainer.appendChild(listItem);
+      
+      // 중요: 사이드바 DOM 요소를 아이템 객체에 저장
+      item.sidebarElement = listItem;
+      item.sidebarIndex = index;
+    });
+    
+    // 사이드바 생성 후 현재 선택된 아이템이 있으면 스타일 적용
+    // (초기 로드 시 선택 상태 처리를 위함)
+    if (selectedItemSidebarList) {
+      const selectedItem = curLocalItemlist.find(item => 
+        item.googleDataId === selectedItemSidebarList.googleDataId
+      );
+      
+      if (selectedItem && selectedItem.sidebarElement) {
+        selectedItem.sidebarElement.classList.add(styles.selectedItem);
+      }
+    }
+  }, [curLocalItemlist]); // selectedItemSidebarList 의존성 제거
+
+  useEffect(() => {
+    return () => {
+      // 컴포넌트 언마운트 시 순환 참조 해제
+      curLocalItemlist.forEach(item => {
+        if (item.marker) {
+          item.marker.shopItem = null;
+          item.marker.setMap(null);
+          item.marker = null;
+        }
+      });
+    };
+  }, []);
+
+  // DOM 조작을 처리하는 useEffect
+  useEffect(() => {
+    if (!selectedItemSidebarList || !selectedItemSidebarList.sidebarElement) return;
+    
+    // 이전 선택 항목이 있으면 스타일 초기화
+    if (prevSelectedElementRef.current && 
+        prevSelectedElementRef.current !== selectedItemSidebarList.sidebarElement) {
+      prevSelectedElementRef.current.classList.remove('selected');
+      // 인라인 스타일 초기화
+      prevSelectedElementRef.current.style.backgroundColor = '';
+      prevSelectedElementRef.current.style.color = '';
+      prevSelectedElementRef.current.style.fontWeight = '';
+      prevSelectedElementRef.current.style.borderLeft = '';
+      prevSelectedElementRef.current.style.boxShadow = '';
+    }
+    
+    // 선택된 항목에 클래스 추가 및 인라인 스타일 적용
+    const element = selectedItemSidebarList.sidebarElement;
+    element.classList.add('selected');
+    
+    // 인라인 스타일 직접 적용 - 왼쪽 세로 바와 그림자 효과만 적용
+    element.style.borderLeft = '4px solid #4a90e2';
+    element.style.paddingLeft = '12px';
+    element.style.backgroundColor = '#f8f9fa';
+    element.style.boxShadow = '0 0 8px rgba(74, 144, 226, 0.5)';
+    
+    prevSelectedElementRef.current = element;
+    
+    // 선택된 항목이 보이도록 스크롤 조정
+    element.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'nearest' 
+    });
+  }, [selectedItemSidebarList]);
+
+  // 디버깅을 위한 useEffect
+  useEffect(() => {
+    // 모든 스타일시트에서 .selected 관련 규칙 찾기
+    const findSelectedRules = () => {
+      const rules = [];
+      for (let i = 0; i < document.styleSheets.length; i++) {
+        try {
+          const styleSheet = document.styleSheets[i];
+          const cssRules = styleSheet.cssRules || styleSheet.rules;
+          for (let j = 0; j < cssRules.length; j++) {
+            if (cssRules[j].selectorText && 
+                (cssRules[j].selectorText.includes('.selected') || 
+                 cssRules[j].selectorText.includes('.sidebar-item.selected'))) {
+              rules.push({
+                selector: cssRules[j].selectorText,
+                cssText: cssRules[j].cssText
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('스타일시트 접근 오류:', e);
+        }
+      }
+      return rules;
+    };
+    
+    console.log('선택 관련 CSS 규칙:', findSelectedRules());
+    
+    // 선택된 항목이 있으면 해당 항목의 계산된 스타일 확인
+    if (selectedItemSidebarList && selectedItemSidebarList.sidebarElement) {
+      const computedStyle = window.getComputedStyle(selectedItemSidebarList.sidebarElement);
+      console.log('선택된 요소의 계산된 스타일:', {
+        backgroundColor: computedStyle.backgroundColor,
+        color: computedStyle.color,
+        fontWeight: computedStyle.fontWeight,
+        borderLeft: computedStyle.borderLeft,
+        boxShadow: computedStyle.boxShadow
+      });
+    }
+  }, [selectedItemSidebarList]);
 
   return (
     <div className={styles.container}>
@@ -1289,7 +1259,7 @@ export default function Editor() { // 메인 페이지
         </div>
         <div className={styles.card}>
           <h3>
-            {curSelectedShop ? curSelectedShop.storeName : 'My Shops Data'}
+            {selectedItemOfShopList ? selectedItemOfShopList.storeName : 'My Shops Data'}
             <button onClick={handleEditFoamCardButton} className={`${styles.menuButton} ${styles.disabledButton}`}>
               수정
             </button>

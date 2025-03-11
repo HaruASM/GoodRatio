@@ -287,11 +287,6 @@ export default function Editor() { // 메인 페이지
               photo.getUrl({ maxWidth: 400, maxHeight: 400 })
             );
             _updates.subImages = photoUrls; // Google Place API에서 가져온 이미지는 subImages에 저장
-            
-            // mainImage가 없는 경우에만 첫 번째 사진을 메인 이미지로 설정
-            if (!editNewShopDataSet.mainImage) {
-              _updates.mainImage = photoUrls[0];
-            }
           } else {
             console.log('No photos available.');
           }
@@ -316,7 +311,6 @@ export default function Editor() { // 메인 페이지
 
           // 여기서 데이터셋 한번에 업데이트
           updateDataSet(_updates);
-          alert('Google Place 정보를 성공적으로 가져왔습니다.');
         } else {
           console.error('Failed to get place details:', status);
           alert(`Place 정보를 가져오는데 실패했습니다: ${status}`);
@@ -1000,11 +994,99 @@ export default function Editor() { // 메인 페이지
   // 선택된 상점 정보를 저장하는 상태 변수 추가
   const [selectedCurShop, setSelectedCurShop] = useState(null);
 
-  // selectedCurShop이 변경될 때마다 실행
-  useEffect(() => {
+  
+  useEffect(() => { // AT 상점선택시 연결기능[selectedCurShop
     if (selectedCurShop) {
+      // 1. 좌측 사이드바 아이템 하이라이트 효과
+      const itemElements = document.querySelectorAll(`.${styles.item}`);
+      itemElements.forEach(item => {
+        item.classList.remove(styles.selectedItem);
+      });
+      
+      // 선택된 아이템 찾기 (storeName으로 비교)
+      const itemName = selectedCurShop.serverDataset ? 
+        selectedCurShop.serverDataset.storeName : 
+        selectedCurShop.storeName;
+        
+      const selectedItemElement = Array.from(itemElements).find(item => {
+        const titleElement = item.querySelector(`.${styles.itemTitle}`);
+        return titleElement && titleElement.textContent.includes(itemName);
+      });
+      
+      if (selectedItemElement) {
+        selectedItemElement.classList.add(styles.selectedItem);
+        // 스크롤 위치 조정
+        selectedItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      
+      // 2. 지도 이동 및 마커 정보창 표시
+      if (instMap.current) {
+        try {
+          let position = null;
+          let targetMarker = null;
+          
+          // 서버 데이터 또는 기존 데이터에서 좌표와 마커 가져오기
+          if (selectedCurShop.serverDataset && selectedCurShop.serverDataset.pinCoordinates) {
+            position = parseCoordinates(selectedCurShop.serverDataset.pinCoordinates);
+            targetMarker = selectedCurShop.itemMarker;
+          } else if (selectedCurShop.pinCoordinates) {
+            position = parseCoordinates(selectedCurShop.pinCoordinates);
+            targetMarker = selectedCurShop.itemMarker;
+          }
+
+          if (position) {
+            // 지도 중심 이동
+            instMap.current.setCenter(position);
+            instMap.current.setZoom(18);
             
-      // 선택된 상점 정보로 폼 데이터 업데이트
+            // 마커 정보창 표시
+            if (targetMarker) {
+              // 기존 정보창 닫기
+              const infoWindows = document.querySelectorAll('.gm-style-iw-a');
+              infoWindows.forEach(iw => {
+                const closeButton = iw.querySelector('.gm-ui-hover-effect');
+                if (closeButton) closeButton.click();
+              });
+              
+              // 새 정보창 생성 및 표시
+              const infoWindow = new window.google.maps.InfoWindow({
+                content: `
+                  <div style="padding: 10px; max-width: 200px;">
+                    <strong>${itemName || '이름 없음'}</strong><br>
+                    ${selectedCurShop.serverDataset?.storeStyle || selectedCurShop.storeStyle || ''}<br>
+                    ${selectedCurShop.serverDataset?.address || selectedCurShop.address || ''}
+                  </div>
+                `,
+              });
+              
+              infoWindow.open(instMap.current, targetMarker);
+              
+              // 마커 애니메이션 효과
+              const originalIcon = targetMarker.getIcon();
+              const bounceAnimation = setInterval(() => {
+                const scale = targetMarker.getIcon().scale || 1;
+                targetMarker.setIcon({
+                  ...originalIcon,
+                  scale: scale * 1.2
+                });
+                
+                setTimeout(() => {
+                  targetMarker.setIcon(originalIcon);
+                }, 150);
+              }, 300);
+              
+              // 2초 후 애니메이션 중지
+              setTimeout(() => {
+                clearInterval(bounceAnimation);
+              }, 2000);
+            }
+          }
+        } catch (error) {
+          console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
+        }
+      }
+      
+      // 3. 폼 데이터 업데이트 (기존 코드 유지)
       if (selectedCurShop.serverDataset) {
         // serverDataset 구조를 가진 경우
         const serverDataset = { ...selectedCurShop.serverDataset };

@@ -526,3 +526,36 @@
 .errorMessage button:hover {
   background-color: #5a171d;
 }
+
+.selectedItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  transition: background-color 0.3s;
+  background-color: #e6f7ff;
+  border-left: 4px solid #1890ff;
+}
+
+.selectedItem:hover {
+  background-color: #d6f0ff;
+  cursor: pointer;
+}
+
+.selectedItem a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  width: 100%;
+}
+
+.selectedItem::after {
+  content: "✓";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #1890ff;
+  font-weight: bold;
+  font-size: 16px;
+}

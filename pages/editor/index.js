@@ -458,38 +458,30 @@ export default function Editor() { // 메인 페이지
     // 마커를 지도에 표시
     _marker.setMap(mapInst);
 
+    // 인포윈도우 생성 (처음에는 표시하지 않음)
+    const infoWindow = new window.google.maps.InfoWindow({
+      content: `
+        <div>
+          <strong>${shopItem.serverDataset?.storeName || shopItem.storeName || '이름 없음'}</strong><br>
+          ${shopItem.serverDataset?.storeStyle || shopItem.storeStyle || ''}<br>
+          ${shopItem.serverDataset?.address || shopItem.address || ''}
+        </div>
+      `,
+    });
+
     const handleOverlayClick = () => {
-      // InfoWindow 생성 및 설정
-      const infoWindow = new window.google.maps.InfoWindow({
-        content: `
-          <div>
-            <strong>아이템 리스트의 정보보</strong><br>
-            타입: ${_marker.type}<br>
-            <button id="customButton">내가 원하는 버튼</button>
-          </div>
-        `,
-      });
-
-      // InfoWindow를 오버레이의 위치에 표시
-      infoWindow.open(mapInst, _marker);
-
-
-      // 버튼 클릭 이벤트 리스너 추가
-      window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
-        const customButton = document.getElementById('customButton');
-        if (customButton) {
-          customButton.addEventListener('click', () => {
-            alert('버튼이 클릭되었습니다!');
-          });
-        }
-      });
+      // 클릭 시 해당 상점 선택
+      setSelectedCurShop(shopItem);
     };
 
     const handleOverlayMouseOver = () => {
-      _marker.setIcon({ url: OVERLAY_ICON.MARKER_MOUSEOVER });
+      // 마우스 오버 시 인포윈도우 표시 (아이콘 변경 제거)
+      infoWindow.open(mapInst, _marker);
     }
+    
     const handleOverlayMouseOut = () => {
-      _marker.setIcon(optionsMarker.icon);
+      // 마우스 아웃 시 인포윈도우 닫기
+      infoWindow.close();
     }
 
     // 오버레이에 이벤트 바인딩 
@@ -998,9 +990,11 @@ export default function Editor() { // 메인 페이지
   useEffect(() => { // AT 상점선택시 연결기능[selectedCurShop
     if (selectedCurShop) {
       // 1. 좌측 사이드바 아이템 하이라이트 효과
-      const itemElements = document.querySelectorAll(`.${styles.item}`);
+      const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
+      
+      // 모든 아이템을 기본 클래스로 초기화
       itemElements.forEach(item => {
-        item.classList.remove(styles.selectedItem);
+        item.className = styles.item;
       });
       
       // 선택된 아이템 찾기 (storeName으로 비교)
@@ -1014,7 +1008,8 @@ export default function Editor() { // 메인 페이지
       });
       
       if (selectedItemElement) {
-        selectedItemElement.classList.add(styles.selectedItem);
+        // 클래스 교체 (item -> selectedItem)
+        selectedItemElement.className = styles.selectedItem;
         // 스크롤 위치 조정
         selectedItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -1061,24 +1056,13 @@ export default function Editor() { // 메인 페이지
               
               infoWindow.open(instMap.current, targetMarker);
               
-              // 마커 애니메이션 효과
-              const originalIcon = targetMarker.getIcon();
-              const bounceAnimation = setInterval(() => {
-                const scale = targetMarker.getIcon().scale || 1;
-                targetMarker.setIcon({
-                  ...originalIcon,
-                  scale: scale * 1.2
-                });
-                
-                setTimeout(() => {
-                  targetMarker.setIcon(originalIcon);
-                }, 150);
-              }, 300);
+              // 간단한 마커 애니메이션 효과 - BOUNCE 사용
+              targetMarker.setAnimation(window.google.maps.Animation.BOUNCE);
               
               // 2초 후 애니메이션 중지
               setTimeout(() => {
-                clearInterval(bounceAnimation);
-              }, 2000);
+                targetMarker.setAnimation(null);
+              }, 1500);
             }
           }
         } catch (error) {

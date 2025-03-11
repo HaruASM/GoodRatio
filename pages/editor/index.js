@@ -450,14 +450,14 @@ export default function Editor() { // 메인 페이지
     ({ optionsMarker, optionsPolygon } = setProtoOverlays());  //전역 위치의 포로토타입 마커에 세팅 
   }
 
-  // 전역 인포윈도우 객체 참조 추가
+  // 공유 인포윈도우 참조
   const sharedInfoWindow = useRef(null);
 
   // 클릭된 마커/폴리곤의 인포윈도우 상태 추가
-  const [clickedInfoWindowOpen, setClickedInfoWindowOpen] = useState(false);
-  const clickedItemRef = useRef(null);
+  const [clickedItem, setClickedItem] = useState(null);
+  const [hoveredItem, setHoveredItem] = useState(null);
 
-  // 인포윈도우 내용 생성 함수 (중복 제거)
+  // 인포윈도우 내용 생성 함수
   const createInfoWindowContent = (shopItem) => {
     const name = shopItem.serverDataset?.storeName || shopItem.storeName || '이름 없음';
     const style = shopItem.serverDataset?.storeStyle || shopItem.storeStyle || '';
@@ -471,6 +471,76 @@ export default function Editor() { // 메인 페이지
       </div>
     `;
   };
+
+  // 인포윈도우 표시 함수
+  const showInfoWindow = (shopItem, mapInst, anchor = null) => {
+    if (!sharedInfoWindow.current || !shopItem) return;
+    
+    // 인포윈도우 내용 설정
+    sharedInfoWindow.current.setContent(createInfoWindowContent(shopItem));
+    
+    // 위치 설정
+    const pinPosition = parseCoordinates(
+      shopItem.serverDataset?.pinCoordinates || shopItem.pinCoordinates
+    );
+    
+    if (anchor) {
+      // 마커에 연결
+      sharedInfoWindow.current.open(mapInst, anchor);
+    } else if (pinPosition) {
+      // 위치만 설정
+      sharedInfoWindow.current.setPosition(pinPosition);
+      sharedInfoWindow.current.open(mapInst);
+    }
+  };
+
+  // 인포윈도우 관리를 위한 useEffect
+  useEffect(() => {
+    if (!instMap.current) return;
+    
+    // 1. 클릭된 아이템이 있으면 해당 아이템의 인포윈도우 표시
+    if (clickedItem) {
+      showInfoWindow(clickedItem, instMap.current, clickedItem.itemMarker);
+      
+      // 클릭된 마커에 애니메이션 효과 적용
+      if (clickedItem.itemMarker) {
+        clickedItem.itemMarker.setAnimation(window.google.maps.Animation.BOUNCE);
+        setTimeout(() => {
+          clickedItem.itemMarker.setAnimation(null);
+        }, 2000);
+      }
+      
+      // 인포윈도우 닫기 이벤트 리스너 추가
+      if (sharedInfoWindow.current) {
+        window.google.maps.event.addListenerOnce(sharedInfoWindow.current, 'closeclick', () => {
+          setClickedItem(null);
+        });
+      }
+    } 
+    // 2. 클릭된 아이템이 없고 마우스 오버 중인 아이템이 있으면 해당 아이템의 인포윈도우 표시
+    else if (hoveredItem) {
+      showInfoWindow(hoveredItem, instMap.current, hoveredItem.itemMarker);
+    } 
+    // 3. 둘 다 없으면 인포윈도우 닫기
+    else if (sharedInfoWindow.current) {
+      sharedInfoWindow.current.close();
+    }
+  }, [clickedItem, hoveredItem]);
+
+  // 지도 클릭 이벤트 처리를 위한 useEffect
+  useEffect(() => {
+    if (!instMap.current) return;
+    
+    const mapClickListener = window.google.maps.event.addListener(instMap.current, 'click', () => {
+      // 지도 빈 영역 클릭 시 클릭된 아이템 초기화
+      setClickedItem(null);
+    });
+    
+    return () => {
+      // 컴포넌트 언마운트 시 이벤트 리스너 제거
+      window.google.maps.event.removeListener(mapClickListener);
+    };
+  }, [instMap.current]);
 
   const factoryMakers = (coordinates, mapInst, shopItem) => {
     const _markerOptions = Object.assign({}, optionsMarker, { position: coordinates });
@@ -488,41 +558,18 @@ export default function Editor() { // 메인 페이지
       // 클릭 시 해당 상점 선택
       setSelectedCurShop(shopItem);
       
-      // 클릭된 아이템 저장 및 인포윈도우 상태 업데이트
-      clickedItemRef.current = shopItem;
-      setClickedInfoWindowOpen(true);
-      
-      // 인포윈도우 표시
-      if (sharedInfoWindow.current) {
-        sharedInfoWindow.current.setContent(createInfoWindowContent(shopItem));
-        sharedInfoWindow.current.open(mapInst, _marker);
-        
-        // 인포윈도우 닫기 이벤트 리스너 추가
-        window.google.maps.event.addListenerOnce(sharedInfoWindow.current, 'closeclick', () => {
-          setClickedInfoWindowOpen(false);
-          clickedItemRef.current = null;
-        });
-      }
+      // 이미 클릭된 아이템이면 클릭 해제, 아니면 클릭 설정
+      setClickedItem(prevItem => prevItem === shopItem ? null : shopItem);
     };
 
     const handleOverlayMouseOver = () => {
-      // 클릭된 인포윈도우가 열려있지 않은 경우에만 마우스오버 인포윈도우 표시
-      if (!clickedInfoWindowOpen) {
-        // 마우스 오버 시 공유 인포윈도우 내용 업데이트 및 표시
-        if (sharedInfoWindow.current) {
-          sharedInfoWindow.current.setContent(createInfoWindowContent(shopItem));
-          sharedInfoWindow.current.open(mapInst, _marker);
-        }
-      }
+      // 마우스 오버 상태 설정
+      setHoveredItem(shopItem);
     };
     
     const handleOverlayMouseOut = () => {
-      // 클릭된 인포윈도우가 열려있지 않은 경우에만 마우스아웃 시 인포윈도우 닫기
-      if (!clickedInfoWindowOpen) {
-        if (sharedInfoWindow.current) {
-          sharedInfoWindow.current.close();
-        }
-      }
+      // 마우스 아웃 상태 설정
+      setHoveredItem(null);
     };
 
     // 오버레이에 이벤트 바인딩 
@@ -533,24 +580,6 @@ export default function Editor() { // 메인 페이지
     return _marker;
   };
 
-
-  // 폴리곤 가시성 관리를 위한 함수 추가
-  const updatePolygonVisibility = (map) => {
-    const zoomLevel = map.getZoom();
-    const isVisible = zoomLevel >= 17;
-    
-    // 현재 섹션의 모든 아이템을 순회하며 폴리곤 가시성 업데이트
-    const currentItems = getCurLocalItemlist();
-    if (currentItems && currentItems.length > 0) {
-      currentItems.forEach(item => {
-        if (item.itemPolygon) {
-          item.itemPolygon.setVisible(isVisible);
-        }
-      });
-    }
-  };
-
-  // 폴리곤 생성 함수 수정
   const factoryPolygon = (paths, mapInst, shopItem) => {
     const _polygonOptions = Object.assign({}, optionsPolygon, { 
       paths: paths,
@@ -571,60 +600,24 @@ export default function Editor() { // 메인 페이지
       // 클릭 시 해당 상점 선택
       setSelectedCurShop(shopItem);
       
-      // 클릭된 아이템 저장 및 인포윈도우 상태 업데이트
-      clickedItemRef.current = shopItem;
-      setClickedInfoWindowOpen(true);
-      
-      // pinCoordinates 위치에 인포윈도우 표시
-      const pinPosition = parseCoordinates(
-        shopItem.serverDataset?.pinCoordinates || shopItem.pinCoordinates
-      );
-      
-      if (pinPosition && sharedInfoWindow.current) {
-        sharedInfoWindow.current.setContent(createInfoWindowContent(shopItem));
-        sharedInfoWindow.current.setPosition(pinPosition);
-        sharedInfoWindow.current.open(mapInst);
-        
-        // 인포윈도우 닫기 이벤트 리스너 추가
-        window.google.maps.event.addListenerOnce(sharedInfoWindow.current, 'closeclick', () => {
-          setClickedInfoWindowOpen(false);
-          clickedItemRef.current = null;
-        });
-      }
+      // 이미 클릭된 아이템이면 클릭 해제, 아니면 클릭 설정
+      setClickedItem(prevItem => prevItem === shopItem ? null : shopItem);
     };
 
     const handleOverlayMouseOver = () => {
       // 마우스 오버 시 폴리곤 색상 변경
       _polygon.setOptions({ fillColor: OVERLAY_COLOR.MOUSEOVER });
       
-      // 클릭된 인포윈도우가 열려있지 않은 경우에만 마우스오버 인포윈도우 표시
-      if (!clickedInfoWindowOpen) {
-        // 마우스 오버 시 공유 인포윈도우 내용 업데이트 및 표시
-        if (sharedInfoWindow.current) {
-          // pinCoordinates 위치에 인포윈도우 표시
-          const pinPosition = parseCoordinates(
-            shopItem.serverDataset?.pinCoordinates || shopItem.pinCoordinates
-          );
-          
-          if (pinPosition) {
-            sharedInfoWindow.current.setContent(createInfoWindowContent(shopItem));
-            sharedInfoWindow.current.setPosition(pinPosition);
-            sharedInfoWindow.current.open(mapInst);
-          }
-        }
-      }
+      // 마우스 오버 상태 설정
+      setHoveredItem(shopItem);
     };
     
     const handleOverlayMouseOut = () => {
       // 마우스 아웃 시 폴리곤 색상 원복
       _polygon.setOptions({ fillColor: OVERLAY_COLOR.IDLE });
       
-      // 클릭된 인포윈도우가 열려있지 않은 경우에만 마우스아웃 시 인포윈도우 닫기
-      if (!clickedInfoWindowOpen) {
-        if (sharedInfoWindow.current) {
-          sharedInfoWindow.current.close();
-        }
-      }
+      // 마우스 아웃 상태 설정
+      setHoveredItem(null);
     };
 
     // 오버레이에 이벤트 바인딩 
@@ -925,14 +918,31 @@ export default function Editor() { // 메인 페이지
   const initPlaceInfo = (_mapInstance) => {
     window.google.maps.event.addListener(_mapInstance, 'click', (clickevent) => {
       // 지도 빈 영역 클릭 시 열려있는 인포윈도우 닫기
-      if (clickedInfoWindowOpen && sharedInfoWindow.current) {
-        sharedInfoWindow.current.close();
-        setClickedInfoWindowOpen(false);
-        clickedItemRef.current = null;
+      if (clickedItem) {
+        setClickedItem(null);
       }
     });
   };
 
+  // 폴리곤 가시성 관리를 위한 함수 추가
+  const updatePolygonVisibility = (map) => {
+    if (!map) return;
+    
+    const zoomLevel = map.getZoom();
+    const isVisible = zoomLevel >= 17;
+    
+    // 현재 섹션의 모든 아이템을 순회하며 폴리곤 가시성 업데이트
+    const currentItems = getCurLocalItemlist();
+    if (currentItems && currentItems.length > 0) {
+      currentItems.forEach(item => {
+        if (item.itemPolygon) {
+          item.itemPolygon.setVisible(isVisible);
+        }
+      });
+    }
+  };
+
+  // 지도 초기화 함수 수정
   const initGoogleMapPage = () => {
     // console.log('initPage');
 
@@ -966,18 +976,15 @@ export default function Editor() { // 메인 페이지
 
     // g맵용 로드 완료시 동작 
     window.google.maps.event.addListenerOnce(_mapInstance, 'idle', () => {
-
       initDrawingManager(_mapInstance);
       initSearchInput(_mapInstance);
       initPlaceInfo(_mapInstance);
       initMarker();
       initShopList(_mapInstance);
-
+      
       // 초기 폴리곤 가시성 설정
       updatePolygonVisibility(_mapInstance);
-
-      // -- 현재 내위치 마커 
-    });  // idle 이벤트 
+    });
 
     instMap.current = _mapInstance;
   } // initializeGoogleMapPage 마침
@@ -1131,15 +1138,12 @@ export default function Editor() { // 메인 페이지
       if (instMap.current) {
         try {
           let position = null;
-          let targetMarker = null;
           
-          // 서버 데이터 또는 기존 데이터에서 좌표와 마커 가져오기
+          // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
           if (selectedCurShop.serverDataset && selectedCurShop.serverDataset.pinCoordinates) {
             position = parseCoordinates(selectedCurShop.serverDataset.pinCoordinates);
-            targetMarker = selectedCurShop.itemMarker;
           } else if (selectedCurShop.pinCoordinates) {
             position = parseCoordinates(selectedCurShop.pinCoordinates);
-            targetMarker = selectedCurShop.itemMarker;
           }
 
           if (position) {
@@ -1147,32 +1151,10 @@ export default function Editor() { // 메인 페이지
             instMap.current.setCenter(position);
             instMap.current.setZoom(18);
             
-            // 마커 정보창 표시 - 사이드바에서 선택한 경우에만 인포윈도우 표시
+            // 사이드바에서 선택한 경우 클릭된 아이템으로 설정
             // (마커/폴리곤 클릭 시에는 해당 이벤트 핸들러에서 처리)
-            if (targetMarker && clickedItemRef.current !== selectedCurShop) {
-              // 공유 인포윈도우 사용
-              if (sharedInfoWindow.current) {
-                sharedInfoWindow.current.setContent(createInfoWindowContent(selectedCurShop));
-                sharedInfoWindow.current.open(instMap.current, targetMarker);
-                
-                // 클릭된 상태로 설정
-                clickedItemRef.current = selectedCurShop;
-                setClickedInfoWindowOpen(true);
-                
-                // 인포윈도우 닫기 이벤트 리스너 추가
-                window.google.maps.event.addListenerOnce(sharedInfoWindow.current, 'closeclick', () => {
-                  setClickedInfoWindowOpen(false);
-                  clickedItemRef.current = null;
-                });
-              }
-              
-              // 간단한 마커 애니메이션 효과 - BOUNCE 사용
-              targetMarker.setAnimation(window.google.maps.Animation.BOUNCE);
-              
-              // 2초 후 애니메이션 중지
-              setTimeout(() => {
-                targetMarker.setAnimation(null);
-              }, 2000);
+            if (clickedItem !== selectedCurShop) {
+              setClickedItem(selectedCurShop);
             }
           }
         } catch (error) {
@@ -1223,7 +1205,7 @@ export default function Editor() { // 메인 페이지
         updateDataSet(updates);
       }
     }
-  }, [selectedCurShop, clickedInfoWindowOpen]);
+  }, [selectedCurShop]);
 
   useEffect(() => {
     const itemListContainer = document.querySelector(`.${styles.itemList}`);

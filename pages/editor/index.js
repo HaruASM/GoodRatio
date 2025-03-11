@@ -44,6 +44,24 @@ export default function Editor() { // 메인 페이지
   // 선택된 상점 정보를 저장하는 상태 변수 추가 - 코드 순서 변경
   const [selectedCurShop, setSelectedCurShop] = useState(null);
   
+  // 폼 데이터를 관리하는 상태 추가
+  const [formData, setFormData] = useState({
+    storeName: "",
+    storeStyle: "",
+    alias: "",
+    comment: "",
+    locationMap: "",
+    businessHours: "",
+    hotHours: "",
+    discountHours: "",
+    address: "",
+    mainImage: "",
+    pinCoordinates: "",
+    path: "",
+    categoryIcon: "",
+    googleDataId: "",
+  });
+  
   // 현재 선택된 섹션의 아이템 리스트를 가져오는 함수
   const getCurLocalItemlist = () => {
     return sectionsDB.current.get(curSectionName) || [];
@@ -192,6 +210,7 @@ export default function Editor() { // 메인 페이지
     categoryIcon: "",
     googleDataId: "",
     path: [],
+    comment: "", // comment 필드 추가
   }
 
   const protoShopDataSet = {
@@ -199,7 +218,7 @@ export default function Editor() { // 메인 페이지
     distance: "",
     itemMarker: null,
     itemPolygon: null,
-    comment: "", // comment 필드 추가
+    // comment 필드는 이미 serverDataset에 추가되었으므로 여기서는 제거
     // 모든 입력 필드에 대한 초기값 설정
     storeName: "",
     storeStyle: "",
@@ -257,7 +276,35 @@ export default function Editor() { // 메인 페이지
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     console.log(`입력 필드 변경: ${name} = ${value}`);
-    // 기능 제거 - 차후 추가 예정
+    
+    // formData 상태 업데이트
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // selectedCurShop이 있는 경우에만 처리
+    if (selectedCurShop && selectedCurShop.serverDataset) {
+      // 값 변환 처리 (필요한 경우)
+      let processedValue = value;
+      
+      // 배열 형태로 저장해야 하는 필드 처리
+      if (name === 'businessHours') {
+        processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
+      }
+      
+      // serverDataset에 값 업데이트 (1:1 매칭)
+      const updatedServerDataset = {
+        ...selectedCurShop.serverDataset,
+        [name]: processedValue
+      };
+      
+      // 상태 업데이트를 위해 새 객체 생성
+      setSelectedCurShop({
+        ...selectedCurShop,
+        serverDataset: updatedServerDataset
+      });
+    }
   };
 
   const updateDataSet = (updates) => {
@@ -868,8 +915,7 @@ export default function Editor() { // 메인 페이지
     instMap.current = _mapInstance;
   } // initializeGoogleMapPage 마침
 
-  //  useEffect(() => { // 1회 실행 but 2회 실행중
-  useEffect(() => {
+  useEffect(() => { // 1회 실행 but 2회 실행중
     let _cnt = 0;
     let _intervalId = setInterval(() => {
       if (window.google) {
@@ -891,44 +937,45 @@ export default function Editor() { // 메인 페이지
         console.log('구글서비스 로딩 중', _cnt);
       }
     }, 100);
-
   }, []);
 
 
 
-  useEffect(() => { 
-    // DOM이 완전히 로드된 후에만 실행되도록 조건 추가
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      Object.keys(inputRefs).forEach((field) => {
-        const input = inputRefs[field].current;
-
-        if (input) {
-          // selectedCurShop만 사용
-          let _value = '';
+  // selectedCurShop이 변경될 때 formData 업데이트
+  useEffect(() => {
+    if (selectedCurShop) {
+      const newFormData = {};
+      
+      // 기본 필드 처리
+      Object.keys(formData).forEach(field => {
+        // serverDataset 우선 사용
+        if (selectedCurShop.serverDataset && selectedCurShop.serverDataset[field] !== undefined) {
+          let fieldValue = selectedCurShop.serverDataset[field];
           
-          if (selectedCurShop) {
-            if (selectedCurShop.serverDataset && selectedCurShop.serverDataset[field] !== undefined) {
-              _value = selectedCurShop.serverDataset[field];
-            } else if (selectedCurShop[field] !== undefined) {
-              _value = selectedCurShop[field];
-            }
-            
-            // pinCoordinates는 특별 처리
-            if (field === 'pinCoordinates' && selectedCurShop.pinCoordinates && typeof selectedCurShop.pinCoordinates !== 'string') {
-              _value = stringifyCoordinates(selectedCurShop.pinCoordinates);
-            }
+          // 배열 처리
+          if (Array.isArray(fieldValue) && field === 'businessHours') {
+            fieldValue = fieldValue.join(', ');
           }
           
-          if (Array.isArray(_value)) {
-            input.value = _value.length > 0 ? _value.join(', ') : '';
-            input.readOnly = _value.length > 0;
-          } else {
-            input.value = _value || '';
-            input.readOnly = Boolean(_value);
-          }
+          newFormData[field] = fieldValue || '';
+        } 
+        // serverDataset에 없는 경우 기존 필드 사용
+        else if (selectedCurShop[field] !== undefined) {
+          newFormData[field] = selectedCurShop[field] || '';
+        } else {
+          newFormData[field] = '';
         }
-        // 오류 메시지 제거하고 조용히 넘어가기
       });
+      
+      // pinCoordinates와 path 특별 처리
+      const hasCoordinates = selectedCurShop.serverDataset?.pinCoordinates || selectedCurShop.pinCoordinates;
+      newFormData.pinCoordinates = hasCoordinates ? '등록됨' : '';
+      
+      const pathValue = selectedCurShop.serverDataset?.path || selectedCurShop.path;
+      const hasPath = Array.isArray(pathValue) && pathValue.length > 0;
+      newFormData.path = hasPath ? '등록됨' : '';
+      
+      setFormData(newFormData);
     }
   }, [selectedCurShop]);
 
@@ -1364,15 +1411,31 @@ export default function Editor() { // 메인 페이지
                 name="storeName" 
                 ref={inputRefs.storeName} 
                 onChange={handleInputChange} 
+                value={formData.storeName}
+                readOnly={Boolean(formData.storeName)}
               />
             </div>
             <div className={styles.formRow}>
               <span>가게스타일</span> |
-              <input type="text" name="storeStyle" ref={inputRefs.storeStyle} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="storeStyle" 
+                ref={inputRefs.storeStyle} 
+                onChange={handleInputChange} 
+                value={formData.storeStyle}
+                readOnly={Boolean(formData.storeStyle)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>별칭</span> |
-              <input type="text" name="alias" ref={inputRefs.alias} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="alias" 
+                ref={inputRefs.alias} 
+                onChange={handleInputChange} 
+                value={formData.alias}
+                readOnly={Boolean(formData.alias)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>코멘트</span> |
@@ -1382,6 +1445,8 @@ export default function Editor() { // 메인 페이지
                 ref={inputRefs.comment} 
                 className={styles.commentInput} 
                 onChange={handleInputChange}
+                value={formData.comment}
+                readOnly={Boolean(formData.comment)}
               />
               <button 
                 type="button"
@@ -1393,35 +1458,80 @@ export default function Editor() { // 메인 페이지
             </div>
             <div className={styles.formRow}>
               <span>지역분류</span> |
-              <input type="text" name="locationMap" ref={inputRefs.locationMap} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="locationMap" 
+                ref={inputRefs.locationMap} 
+                onChange={handleInputChange} 
+                value={formData.locationMap}
+                readOnly={Boolean(formData.locationMap)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>영업시간</span> |
-              <input type="text" name="businessHours" ref={inputRefs.businessHours} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="businessHours" 
+                ref={inputRefs.businessHours} 
+                onChange={handleInputChange} 
+                value={formData.businessHours}
+                readOnly={Boolean(formData.businessHours)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>hot시간대</span> |
-              <input type="text" name="hotHours" ref={inputRefs.hotHours} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="hotHours" 
+                ref={inputRefs.hotHours} 
+                onChange={handleInputChange} 
+                value={formData.hotHours}
+                readOnly={Boolean(formData.hotHours)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>할인시간</span> |
-              <input type="text" name="discountHours" ref={inputRefs.discountHours} onChange={handleInputChange} />
-            </div>
-            <div className={styles.formRow}>
-              <span>거리</span> |
-              <input type="text" name="distance" ref={inputRefs.distance} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="discountHours" 
+                ref={inputRefs.discountHours} 
+                onChange={handleInputChange} 
+                value={formData.discountHours}
+                readOnly={Boolean(formData.discountHours)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>주소</span> |
-              <input type="text" name="address" ref={inputRefs.address} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="address" 
+                ref={inputRefs.address} 
+                onChange={handleInputChange} 
+                value={formData.address}
+                readOnly={Boolean(formData.address)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>대표이미지</span> |
-              <input type="text" name="mainImage" ref={inputRefs.mainImage} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="mainImage" 
+                ref={inputRefs.mainImage} 
+                onChange={handleInputChange} 
+                value={formData.mainImage}
+                readOnly={Boolean(formData.mainImage)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>pin좌표</span> |
-              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="pinCoordinates" 
+                ref={inputRefs.pinCoordinates} 
+                onChange={handleInputChange} 
+                value={formData.pinCoordinates}
+                readOnly={Boolean(formData.pinCoordinates)}
+              />
               <button 
                 type="button"
                 onClick={handlePinCoordinatesButtonClick} 
@@ -1432,7 +1542,14 @@ export default function Editor() { // 메인 페이지
             </div>
             <div className={styles.formRow}>
               <span>path</span> |
-              <input type="text" name="path" ref={inputRefs.path} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="path" 
+                ref={inputRefs.path} 
+                onChange={handleInputChange} 
+                value={formData.path}
+                readOnly={Boolean(formData.path)}
+              />
               <button 
                 type="button"
                 onClick={handlePathButtonClick} 
@@ -1443,11 +1560,25 @@ export default function Editor() { // 메인 페이지
             </div>
             <div className={styles.formRow}>
               <span>카테고리아이콘</span> |
-              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="categoryIcon" 
+                ref={inputRefs.categoryIcon} 
+                onChange={handleInputChange} 
+                value={formData.categoryIcon}
+                readOnly={Boolean(formData.categoryIcon)}
+              />
             </div>
             <div className={styles.formRow}>
               <span>구글데이터ID</span> |
-              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="googleDataId" 
+                ref={inputRefs.googleDataId} 
+                onChange={handleInputChange} 
+                value={formData.googleDataId}
+                readOnly={Boolean(formData.googleDataId)}
+              />
               <button 
                 type="button"
                 onClick={handleDetailLoadingClick} 

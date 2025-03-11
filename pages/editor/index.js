@@ -41,6 +41,9 @@ export default function Editor() { // 메인 페이지
   // curSectionName을 상태로 관리
   const [curSectionName, setCurSectionName] = useState("반월당");
   
+  // 선택된 상점 정보를 저장하는 상태 변수 추가 - 코드 순서 변경
+  const [selectedCurShop, setSelectedCurShop] = useState(null);
+  
   // 현재 선택된 섹션의 아이템 리스트를 가져오는 함수
   const getCurLocalItemlist = () => {
     return sectionsDB.current.get(curSectionName) || [];
@@ -216,7 +219,7 @@ export default function Editor() { // 메인 페이지
   };
 
 
-  // 브라우저 뒷단에서 데이터 저장 및 관리 
+  
   const [editNewShopDataSet, setEditNewShopDataSet] = useState(protoShopDataSet);
 
   const locationMapRef = useRef(null); // 반월당역 관광지도 영역에 대한 참조 레퍼런스
@@ -244,105 +247,27 @@ export default function Editor() { // 메인 페이지
   };
 
 
-  const handleDetailLoadingClick = () => {
-    const placeId = editNewShopDataSet.googleDataId;
-
-    if (!placeId) {
-      alert('구글 데이터 ID를 입력해주세요.');
-      return;
-    }
-
-    if (!window.google || !window.google.maps || !window.google.maps.places) {
-      alert('Google Maps API가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
-      return;
-    }
-
-    try {
-      const service = new window.google.maps.places.PlacesService(instMap.current);
-      service.getDetails({ placeId }, (result, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-          console.log('Google Place 상세 정보:', result);
-          const _updates = {};
-
-          if (result.opening_hours) {
-            // 영업시간 정보를 상태에 설정
-            _updates.businessHours = result.opening_hours.weekday_text;
-          } else {
-            console.log('No opening hours information available.');
-          }
-
-          // 위경도 정보를 상태에 설정
-          if (result.geometry && result.geometry.location) {
-            const lat = result.geometry.location.lat();
-            const lng = result.geometry.location.lng();
-            _updates.pinCoordinates = `${lat}, ${lng}`;
-          } else {
-            console.log('No location information available.');
-          }
-
-          // 사진 정보를 상태에 설정
-          if (result.photos && result.photos.length > 0) {
-            // 최대 10장의 사진 URL을 배열로 저장
-            const photoUrls = result.photos.slice(0, 10).map(photo => 
-              photo.getUrl({ maxWidth: 400, maxHeight: 400 })
-            );
-            _updates.subImages = photoUrls; // Google Place API에서 가져온 이미지는 subImages에 저장
-          } else {
-            console.log('No photos available.');
-          }
-
-          // 주소 정보 설정
-          if (result.formatted_address) {
-            _updates.address = result.formatted_address;
-          }
-
-          // 가게 이름 설정
-          if (result.name) {
-            _updates.storeName = result.name;
-          }
-
-          // 가게 유형 설정
-          if (result.types && result.types.length > 0) {
-            _updates.storeStyle = result.types[0];
-          }
-
-          // Place ID 저장 (이미 입력된 ID와 동일하지만 일관성을 위해 저장)
-          _updates.googleDataId = result.place_id;
-
-          // 여기서 데이터셋 한번에 업데이트
-          updateDataSet(_updates);
-        } else {
-          console.error('Failed to get place details:', status);
-          alert(`Place 정보를 가져오는데 실패했습니다: ${status}`);
-        }
-      });
-    } catch (error) {
-      console.error('Google Place API 호출 중 오류 발생:', error);
-      alert('Google Place API 호출 중 오류가 발생했습니다.');
-    }
+  const handleDetailLoadingClick = (event) => {
+    // 이벤트 기본 동작 방지
+    if (event) event.preventDefault();
+    console.log('디테일 로딩 버튼 클릭');
+    // 기능 제거 - 차후 추가 예정
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    updateDataSet({ [name]: value });
+    console.log(`입력 필드 변경: ${name} = ${value}`);
+    // 기능 제거 - 차후 추가 예정
   };
 
   const updateDataSet = (updates) => {
-    // undefined 값을 빈 문자열로 변환
-    const sanitizedUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
-      // 배열인 경우 빈 배열로, undefined/null인 경우 빈 문자열로 변환
-      acc[key] = Array.isArray(value) ? (value || []) : (value === undefined || value === null ? "" : value);
-      return acc;
-    }, {});
-
-    setEditNewShopDataSet((prev) => ({
-      ...prev,
-      ...sanitizedUpdates,
-    }));
+    console.log('데이터 업데이트 요청:', updates);
+    // 기능 제거 - 차후 추가 예정
   };
 
   const handleEditFoamCardButton = () => {
     console.log('수정 버튼 클릭');
+    // 기능 제거 - 차후 추가 예정
   };
 
   // 폼데이터내 지적도 도형 버튼 클릭시 동작. 다각형에 대한 처리를 위해 사용 
@@ -354,59 +279,11 @@ export default function Editor() { // 메인 페이지
   // 1.드로잉매니저 컨트롤러 보여주고, 
   // 2. 이벤트 처리 결과 pin과 다각형을 기존 객체 변수에 저장. 
   // 3. 기존은 삭제 
-  // 4. 생선된 다각형 pin 객체는 editMyShopDataSet에 저장
+  
   const handlePathButtonClick = (event) => {
     event.preventDefault();
-    const _drawingManager = drawingManagerRef.current;
-    _drawingManager.setOptions({ drawingControl: true });
-
-    if (_drawingManager) {
-      _drawingManager.setOptions({ drawingControl: true, });
-      _drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.POLYGON);
-
-      // 다각형 이벤츠 처리부 
-      window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', (eventObjOverlay) => {
-
-        console.log('handlePathButtonClick');
-        // const coordinates = [];
-        // path.forEach((point) => {
-        //   coordinates.push({ lat: point.lat(), lng: point.lng() });
-        // });
-        // const coordinates = [];
-        // eventObjOverlay.getPath().forEach((point) => {
-        //   coordinates.push({ lat: point.lat(), lng: point.lng() });
-        // });
-        // console.log('다각형 좌표들:', coordinates);
-
-
-
-        //updateDataSet('path', eventObjOverlay.getPath()); 
-        // setEditNewShopDataSet((prev) => ({
-        //   ...prev,
-        //   ['path']: eventObjOverlay.getPath(),
-        // }));
-        // setOverlayPolygonFoamCard(prev => {
-        //   if (prev) prev.setMap(null);
-        //   return eventObjOverlay;
-        // });
-        // const handlePolygonPathChange = () => {
-        //   console.log('다각형 경로 변경');
-        // };
-
-        // const path = eventObjOverlay.getPath();
-        // window.google.maps.event.addListener(path, 'set_at', handlePolygonPathChange);
-        // window.google.maps.event.addListener(path, 'insert_at', handlePolygonPathChange);
-        // window.google.maps.event.addListener(path, 'remove_at', handlePolygonPathChange);
-
-
-        // 초기화 
-        _drawingManager.setOptions({ drawingControl: false });
-      });
-
-
-
-    } else console.error('드로잉 매니저 생성 안됨')
-
+    console.log('경로 그리기 버튼 클릭');
+    // 기능 제거 - 차후 추가 예정
   };
 
 
@@ -729,7 +606,7 @@ export default function Editor() { // 메인 페이지
   };
 
   // FB와 연동 
-  const initShopList = async (_mapInstance) => {
+  const initShopList = async (_mapInstance) => { // AT shopLIst 초기화및 서버,로컬 통신신
     // 현재 섹션의 아이템 리스트 가져오기
     let localItemList = getCurLocalItemlist();
     
@@ -785,10 +662,12 @@ export default function Editor() { // 메인 페이지
 
 
 
+
   // pin 좌표 수정 버튼 클릭시 동작
   const handlePinCoordinatesButtonClick = (event) => {
     event.preventDefault();
     console.log('pin 좌표 수정 버튼 클릭');
+    // 기능 제거 - 차후 추가 예정
   };
 
 
@@ -1017,36 +896,44 @@ export default function Editor() { // 메인 페이지
 
 
 
-  useEffect(() => { // 브라우저 백단에 있는 샵데이터 객체 업데이트시 => form 입력 필드 업데이트 해줌
-    Object.keys(inputRefs).forEach((field) => {
-      const input = inputRefs[field].current;
+  useEffect(() => { 
+    // DOM이 완전히 로드된 후에만 실행되도록 조건 추가
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      Object.keys(inputRefs).forEach((field) => {
+        const input = inputRefs[field].current;
 
-      if (input) {
-        const _value = editNewShopDataSet[field];
-        if (Array.isArray(_value)) {
-          input.value = _value.length > 0 ? _value.join(', ') : '';
-          input.readOnly = _value.length > 0;
-        } else {
-          input.value = _value || '';
-          input.readOnly = Boolean(_value);
+        if (input) {
+          // selectedCurShop만 사용
+          let _value = '';
+          
+          if (selectedCurShop) {
+            if (selectedCurShop.serverDataset && selectedCurShop.serverDataset[field] !== undefined) {
+              _value = selectedCurShop.serverDataset[field];
+            } else if (selectedCurShop[field] !== undefined) {
+              _value = selectedCurShop[field];
+            }
+            
+            // pinCoordinates는 특별 처리
+            if (field === 'pinCoordinates' && selectedCurShop.pinCoordinates && typeof selectedCurShop.pinCoordinates !== 'string') {
+              _value = stringifyCoordinates(selectedCurShop.pinCoordinates);
+            }
+          }
+          
+          if (Array.isArray(_value)) {
+            input.value = _value.length > 0 ? _value.join(', ') : '';
+            input.readOnly = _value.length > 0;
+          } else {
+            input.value = _value || '';
+            input.readOnly = Boolean(_value);
+          }
         }
-      } else {
-        console.log('input 요소가 없습니다. DOM 미스매치');
-      }
+        // 오류 메시지 제거하고 조용히 넘어가기
+      });
+    }
+  }, [selectedCurShop]);
 
-      if (field === 'path' && editNewShopDataSet[field]) {
-        console.log('editMyShopDataSet[field] - 폼데이터내 path 업데이트 되었음');
-        //const _value = editMyShopDataSet[field];
-        //const _map = instMap.current;
-        //const _drawingManager = drawingManagerRef.current;
-
-      }
-
-    });
-  }, [editNewShopDataSet]);
-
-  // curSectionName이 변경될 때 데이터 로드
-  useEffect(() => {
+  
+  useEffect(() => { //AT 지역변경 동작[curSectionName
     const loadSectionData = async () => {
       console.log(`섹션 데이터 로드: ${curSectionName}`);
       
@@ -1104,10 +991,10 @@ export default function Editor() { // 메인 페이지
   }, [curSectionName]);
 
   // 선택된 상점 정보를 저장하는 상태 변수 추가
-  const [selectedCurShop, setSelectedCurShop] = useState(null);
+  // const [selectedCurShop, setSelectedCurShop] = useState(null); // 중복 선언 제거
 
   
-  useEffect(() => { // AT 상점선택시 연결기능[selectedCurShop
+  useEffect(() => { //AT 상점선택 동작 [selectedCurShop
     if (selectedCurShop) {
       // 1. 좌측 사이드바 아이템 하이라이트 효과
       const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
@@ -1162,7 +1049,10 @@ export default function Editor() { // 메인 페이지
         }
       }
       
-      // 3. 폼 데이터 업데이트 (기존 코드 유지)
+      // 3. 폼 데이터 업데이트 - 이제 직접 폼 필드에 값을 표시하므로 여기서는 editNewShopDataSet 업데이트하지 않음
+      // 수정이 필요한 경우에만 editNewShopDataSet을 업데이트하도록 함
+      // 기존 코드 주석 처리
+      /*
       if (selectedCurShop.serverDataset) {
         // serverDataset 구조를 가진 경우
         const serverDataset = { ...selectedCurShop.serverDataset };
@@ -1204,6 +1094,7 @@ export default function Editor() { // 메인 페이지
         
         updateDataSet(updates);
       }
+      */
     }
   }, [selectedCurShop]);
 
@@ -1328,90 +1219,8 @@ export default function Editor() { // 메인 페이지
   // 별칭 수정 버튼 클릭 핸들러 추가
   const handleCommentButtonClick = (event) => {
     event.preventDefault();
-    
-    if (editNewShopDataSet.comment && editNewShopDataSet.comment.trim() !== '') {
-      // 별칭 필드 업데이트
-      updateDataSet({ 
-        alias: editNewShopDataSet.comment || '',
-        comment: '' // 코멘트 필드 초기화
-      });
-    } else {
-      // 코멘트 입력 필드가 비어있으면 별칭 값을 코멘트 입력 필드에 복사
-      updateDataSet({ 
-        comment: editNewShopDataSet.alias || '' 
-      });
-      // 포커스 설정
-      if (inputRefs.comment.current) {
-        inputRefs.comment.current.focus();
-      }
-    }
-  };
-
-  // 데이터 변경 시 Firebase에 저장하는 함수 수정
-  const saveToFirestore = async (sectionName, itemList) => {
-    try {
-      // Firestore에 저장 가능한 형태로 데이터 변환
-      const cleanItemList = itemList.map(item => {
-        // serverDataset 구조를 가진 경우
-        if (item.serverDataset) {
-          // serverDataset 속성만 추출하여 사용
-          const serverData = { ...item.serverDataset };
-          
-          // distance 속성은 serverDataset 외부에 있으므로 추가
-          if (item.distance) {
-            serverData.distance = item.distance;
-          }
-          
-          // pinCoordinates가 객체인 경우 문자열로 변환
-          if (serverData.pinCoordinates) {
-            serverData.pinCoordinates = stringifyCoordinates(serverData.pinCoordinates);
-          }
-          
-          // path 배열 내의 객체들도 처리
-          if (Array.isArray(serverData.path)) {
-            serverData.path = serverData.path.map(point => {
-              return parseCoordinates(point) || point;
-            });
-          }
-          
-          return serverData;
-        } else {
-          // 기존 구조인 경우 (호환성 유지)
-          const cleanItem = { ...item };
-          
-          // Google Maps 객체 제거
-          delete cleanItem.marker;
-          delete cleanItem.polygon;
-          delete cleanItem.itemMarker;
-          delete cleanItem.itemPolygon;
-          
-          // pinCoordinates가 객체인 경우 문자열로 변환
-          if (cleanItem.pinCoordinates) {
-            cleanItem.pinCoordinates = stringifyCoordinates(cleanItem.pinCoordinates);
-          }
-          
-          // path 배열 내의 객체들도 처리
-          if (Array.isArray(cleanItem.path)) {
-            cleanItem.path = cleanItem.path.map(point => {
-              return parseCoordinates(point) || point;
-            });
-          }
-          
-          return cleanItem;
-        }
-      });
-      
-      const sectionRef = doc(firebasedb, "sections", sectionName);
-      await setDoc(sectionRef, {
-        itemList: cleanItemList,
-        lastUpdated: firestoreTimestamp()
-      });
-      
-      localStorage.setItem(`${sectionName}_timestamp`, Date.now().toString());
-      console.log(`${sectionName} 데이터를 Firebase에 저장함`);
-    } catch (error) {
-      console.error("Firebase 저장 오류:", error);
-    }
+    console.log('코멘트 수정 버튼 클릭');
+    // 기능 제거 - 차후 추가 예정
   };
 
   // Firebase에서 섹션 데이터 가져오기
@@ -1489,57 +1298,6 @@ export default function Editor() { // 메인 페이지
     }
   };
 
-  // sectionsDB를 Firebase에 저장하는 함수
-  const saveSectionsToFirebase = async () => {
-    try {
-      // 각 섹션을 Firebase에 저장
-      for (const [sectionName, itemList] of sectionsDB.current) {
-        // Firestore에 저장 가능한 형태로 데이터 변환
-        const cleanItemList = itemList.map(item => {
-          // 깊은 복사를 통해 원본 객체 변경 방지
-          const cleanItem = { ...item };
-          
-          // Google Maps 객체 제거
-          delete cleanItem.marker;
-          delete cleanItem.polygon;
-          delete cleanItem.itemMarker;
-          delete cleanItem.itemPolygon;
-          
-          // pinCoordinates가 객체인 경우 문자열로 변환
-          if (cleanItem.pinCoordinates) {
-            cleanItem.pinCoordinates = stringifyCoordinates(cleanItem.pinCoordinates);
-          }
-          
-          // path 배열 내의 객체들도 처리
-          if (Array.isArray(cleanItem.path)) {
-            cleanItem.path = cleanItem.path.map(point => {
-              return parseCoordinates(point) || point;
-            });
-          }
-          
-          return cleanItem;
-        });
-        
-        // 섹션 문서 참조
-        const sectionRef = doc(firebasedb, "sections", sectionName);
-        
-        // Firebase에 저장
-        await setDoc(sectionRef, {
-          itemList: cleanItemList,
-          lastUpdated: firestoreTimestamp()
-        });
-        
-        console.log(`${sectionName} 섹션을 Firebase에 저장함`);
-      }
-      
-      alert('모든 섹션 데이터가 서버에 저장되었습니다.');
-    } catch (error) {
-      console.error("Firebase sections 데이터 저장 오류:", error);
-      alert('데이터 저장 중 오류가 발생했습니다.');
-    }
-  };
-
-
   return (
     <div className={styles.container}>
       <Head>
@@ -1588,40 +1346,8 @@ export default function Editor() { // 메인 페이지
           <button className={styles.menuButton}>추가</button>
           <button className={styles.menuButton}>삭제</button>
           <button className={styles.menuButton} onClick={handlerfunc25}>2.5D</button>
-          <button
-            className={styles.menuButton}
-            onClick={handleDetailLoadingClick}
-            title="구글에서 가게 디테일 정보 가져옴"
-          >
-            디테일 로딩
-          </button>
-          <button
-            className={styles.menuButton}
-            onClick={() => console.log(editNewShopDataSet)}
-          >
-            체크1
-          </button>
-          <button
-            className={styles.menuButton}
-            onClick={() => {
-              if (curSectionName) {
-                saveToFirestore(curSectionName, getCurLocalItemlist());
-                alert('서버에 데이터가 저장되었습니다.');
-              } else {
-                alert('저장할 섹션이 선택되지 않았습니다.');
-              }
-            }}
-            title="현재 데이터를 서버에 저장"
-          >
-            서버송신
-          </button>
-          <button
-            className={styles.menuButton}
-            onClick={saveSectionsToFirebase}
-            title="모든 섹션 데이터를 서버에 저장"
-          >
-            전체저장
-          </button>
+          
+          
         </div>
         <div className={styles.card}>
           <h3>My Shops Data
@@ -1633,11 +1359,20 @@ export default function Editor() { // 메인 페이지
           <form className={styles.form}>
             <div className={styles.formRow}>
               <span>가게명</span> |
-              <input type="text" name="storeName" ref={inputRefs.storeName} value={editNewShopDataSet.storeName} onChange={handleInputChange} />
+              <input 
+                type="text" 
+                name="storeName" 
+                ref={inputRefs.storeName} 
+                onChange={handleInputChange} 
+              />
+            </div>
+            <div className={styles.formRow}>
+              <span>가게스타일</span> |
+              <input type="text" name="storeStyle" ref={inputRefs.storeStyle} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>별칭</span> |
-              <input type="text" name="alias" ref={inputRefs.alias} value={editNewShopDataSet.alias} onChange={handleInputChange} />
+              <input type="text" name="alias" ref={inputRefs.alias} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>코멘트</span> |
@@ -1646,10 +1381,10 @@ export default function Editor() { // 메인 페이지
                 name="comment" 
                 ref={inputRefs.comment} 
                 className={styles.commentInput} 
-                value={editNewShopDataSet.comment}
                 onChange={handleInputChange}
               />
               <button 
+                type="button"
                 onClick={(event) => handleCommentButtonClick(event)} 
                 className={styles.inputOverlayButton}
               >
@@ -1658,63 +1393,75 @@ export default function Editor() { // 메인 페이지
             </div>
             <div className={styles.formRow}>
               <span>지역분류</span> |
-              <input type="text" name="locationMap" ref={inputRefs.locationMap} value={editNewShopDataSet.locationMap} onChange={handleInputChange} />
+              <input type="text" name="locationMap" ref={inputRefs.locationMap} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>영업시간</span> |
-              <input type="text" name="businessHours" ref={inputRefs.businessHours} value={editNewShopDataSet.businessHours} onChange={handleInputChange} />
+              <input type="text" name="businessHours" ref={inputRefs.businessHours} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>hot시간대</span> |
-              <input type="text" name="hotHours" ref={inputRefs.hotHours} value={editNewShopDataSet.hotHours} onChange={handleInputChange} />
+              <input type="text" name="hotHours" ref={inputRefs.hotHours} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>할인시간</span> |
-              <input type="text" name="discountHours" ref={inputRefs.discountHours} value={editNewShopDataSet.discountHours} onChange={handleInputChange} />
+              <input type="text" name="discountHours" ref={inputRefs.discountHours} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>거리</span> |
-              <input type="text" name="distance" ref={inputRefs.distance} value={editNewShopDataSet.distance} onChange={handleInputChange} />
+              <input type="text" name="distance" ref={inputRefs.distance} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>주소</span> |
-              <input type="text" name="address" ref={inputRefs.address} value={editNewShopDataSet.address} onChange={handleInputChange} />
+              <input type="text" name="address" ref={inputRefs.address} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>대표이미지</span> |
-              <input type="text" name="mainImage" ref={inputRefs.mainImage} value={editNewShopDataSet.mainImage} onChange={handleInputChange} />
+              <input type="text" name="mainImage" ref={inputRefs.mainImage} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>pin좌표</span> |
-              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} value={editNewShopDataSet.pinCoordinates} onChange={handleInputChange} />
-              <button onClick={(event) => handlePinCoordinatesButtonClick(event)} className={styles.inputOverlayButton}>
-                수정
+              <input type="text" name="pinCoordinates" ref={inputRefs.pinCoordinates} onChange={handleInputChange} />
+              <button 
+                type="button"
+                onClick={handlePinCoordinatesButtonClick} 
+                className={styles.inputOverlayButton}
+              >
+                좌표 가져오기
               </button>
             </div>
             <div className={styles.formRow}>
-              <span>지적도 도형</span> |
-              <input type="text" name="path" ref={inputRefs.path} value={editNewShopDataSet.path} readOnly />
-              <button onClick={(event) => handlePathButtonClick(event)} className={styles.inputOverlayButton}>
-                수정
+              <span>path</span> |
+              <input type="text" name="path" ref={inputRefs.path} onChange={handleInputChange} />
+              <button 
+                type="button"
+                onClick={handlePathButtonClick} 
+                className={styles.inputOverlayButton}
+              >
+                경로 그리기
               </button>
             </div>
             <div className={styles.formRow}>
-              <span>분류아이콘</span> |
-              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} value={editNewShopDataSet.categoryIcon} onChange={handleInputChange} />
+              <span>카테고리아이콘</span> |
+              <input type="text" name="categoryIcon" ref={inputRefs.categoryIcon} onChange={handleInputChange} />
             </div>
             <div className={styles.formRow}>
               <span>구글데이터ID</span> |
-              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} value={editNewShopDataSet.googleDataId} onChange={handleInputChange} />
-              <button onClick={handleDetailLoadingClick} className={styles.inputOverlayButton}>
+              <input type="text" name="googleDataId" ref={inputRefs.googleDataId} onChange={handleInputChange} />
+              <button 
+                type="button"
+                onClick={handleDetailLoadingClick} 
+                className={styles.inputOverlayButton}
+              >
                 디테일 로딩
               </button>
             </div>
             <div className={styles.photoGallery}>
               {/* 메인 이미지 (좌측) */}
               <div className={styles.mainImageContainer}>
-                {editNewShopDataSet.mainImage ? (
+                {(selectedCurShop?.serverDataset?.mainImage || selectedCurShop?.mainImage) ? (
                   <img 
-                    src={editNewShopDataSet.mainImage} 
+                    src={selectedCurShop?.serverDataset?.mainImage || selectedCurShop?.mainImage} 
                     alt="메인 이미지" 
                     className={styles.mainImage} 
                   />
@@ -1725,19 +1472,26 @@ export default function Editor() { // 메인 페이지
               
               {/* 서브 이미지 4분할 (우측) */}
               <div className={styles.subImagesGrid}>
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <div key={`sub-${index}`} className={styles.subImageItem}>
-                    {editNewShopDataSet.subImages && index < editNewShopDataSet.subImages.length ? (
-                      <img 
-                        src={editNewShopDataSet.subImages[index]} 
-                        alt={`서브 이미지 ${index + 1}`} 
-                        className={styles.subImage} 
-                      />
-                    ) : (
-                      <div className={styles.emptySubImage}></div>
-                    )}
-                  </div>
-                ))}
+                {Array.from({ length: 4 }).map((_, index) => {
+                  // selectedCurShop만 사용
+                  const subImages = selectedCurShop?.serverDataset?.subImages || 
+                                    selectedCurShop?.subImages || 
+                                    [];
+                  
+                  return (
+                    <div key={`sub-${index}`} className={styles.subImageItem}>
+                      {subImages && index < subImages.length ? (
+                        <img 
+                          src={subImages[index]} 
+                          alt={`서브 이미지 ${index + 1}`} 
+                          className={styles.subImage} 
+                        />
+                      ) : (
+                        <div className={styles.emptySubImage}></div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </form>

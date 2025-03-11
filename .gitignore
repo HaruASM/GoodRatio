@@ -46,3 +46,6 @@ next-env.d.ts
 .env.development
 .env.production
 .cursor
+
+# memo
+memo.txt

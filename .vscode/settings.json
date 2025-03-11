@@ -1,3 +1,6 @@
 {
-    "commentAnchors.tagHighlights.enabled": true
+    "commentAnchors.tagHighlights.enabled": true,
+    "commentAnchors.epic.provideAutoCompletion": false,
+    "commentAnchors.showCursor": true,
+    "commentAnchors.tags.displayLineNumber": false
 }

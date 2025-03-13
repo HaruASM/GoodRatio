@@ -5,17 +5,11 @@ import Image from 'next/image';
 import styles from './styles.module.css';
 import { collection, doc, getDoc, setDoc, getDocs, serverTimestamp as firestoreTimestamp } from 'firebase/firestore';
 import { firebasedb } from '../../firebase'; // 상대 경로 주의
-import { ActionTypes, editReducer, initialEditState, editActions, editUtils } from '../../utils/editActions';
+import { ActionTypes, initialEditState, editReducer, editActions, editUtils } from './editActions';
+import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from './dataModels';
+import { createInfoWindowContent, showInfoWindow, factoryMakers, factoryPolygon, setProtoOverlays, updatePolygonVisibility } from './mapUtils';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
-const OVERLAY_COLOR = {
-  IDLE: '#FF0000', // 빨간색
-  MOUSEOVER: '#00FF00', // 초록색
-};
-const OVERLAY_ICON = {
-  MARKER_MOUSEOVER: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png", // 파란색
-  MARKER: "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // 초록색
-};
 
 export default function Editor() { // 메인 페이지
   //const [instMap, setInstMap] = useState(null); //구글맵 인스턴스 
@@ -68,47 +62,7 @@ export default function Editor() { // 메인 페이지
     return sectionsDB.current.get(curSectionName) || [];
   };
 
-  // 좌표 변환 유틸리티 함수
-  const parseCoordinates = (coordinates) => {
-    if (!coordinates) return null;
-    
-    try {
-      if (typeof coordinates === 'string') {
-        const [lat, lng] = coordinates.split(',').map(coord => parseFloat(coord.trim()));
-        if (!isNaN(lat) && !isNaN(lng)) {
-          return { lat, lng };
-        }
-      } else if (typeof coordinates === 'object' && coordinates !== null) {
-        return {
-          lat: typeof coordinates.lat === 'function' ? coordinates.lat() : coordinates.lat,
-          lng: typeof coordinates.lng === 'function' ? coordinates.lng() : coordinates.lng
-        };
-      }
-    } catch (error) {
-      console.warn('좌표 변환 오류:', error);
-    }
-    
-    return null;
-  };
-
-  // 좌표를 문자열로 변환하는 함수
-  const stringifyCoordinates = (coordinates) => {
-    if (!coordinates) return '';
-    
-    try {
-      if (typeof coordinates === 'string') {
-        return coordinates;
-      } else if (typeof coordinates === 'object' && coordinates !== null) {
-        const lat = typeof coordinates.lat === 'function' ? coordinates.lat() : coordinates.lat;
-        const lng = typeof coordinates.lng === 'function' ? coordinates.lng() : coordinates.lng;
-        return `${lat}, ${lng}`;
-      }
-    } catch (error) {
-      console.warn('좌표 문자열 변환 오류:', error);
-    }
-    
-    return '';
-  };
+  // 좌표 변환 유틸리티 함수들은 dataModels.js로 이동했습니다.
 
   // 로컬 저장소에서 데이터 로드 함수 수정
   const loadFromLocalStorage = () => {
@@ -174,44 +128,13 @@ export default function Editor() { // 메인 페이지
   const [curLocalItemlist, setCurLocalItemlist] = useState([]);
   const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
 
-  const protoServerDataset = { // AT 데이터셋 자료형형 선언부
-    locationMap: "",
-    storeName: "",
-    storeStyle: "",
-    alias: "",
-    businessHours: [],
-    hotHours: "",
-    discountHours: "",
-    address: "",
-    mainImage: "",
-    mainImages: [],
-    subImages: [], // Google Place API에서 가져온 이미지를 저장할 배열
-    pinCoordinates: "",
-    categoryIcon: "",
-    googleDataId: "",
-    path: [],
-    comment: "", // comment 필드 추가
-  }
-
-  const protoShopDataSet = {
-    serverDataset: {...protoServerDataset}, // 깊은 복사를 통해 참조 문제 방지
-    distance: "",
-    itemMarker: null,
-    itemPolygon: null,
-  };
-
-
+  // protoServerDataset과 protoShopDataSet은 dataModels.js로 이동했습니다.
   
   // 기존 상태들을 useReducer로 대체
   const [editState, dispatch] = useReducer(editReducer, initialEditState);
   
   // 기존 상태 변수들을 editState에서 추출
   const { isEditing, isEditCompleted, hasChanges, originalShopData, editNewShopDataSet, modifiedFields, isPanelVisible } = editState;
-  
-  // 패널 토글 함수 추가
-  const toggleEditPanel = () => {
-    dispatch(editActions.togglePanel(isPanelVisible));
-  };
   
   // 기존 상태 setter 함수들은 이제 dispatch를 통해 처리됨
   // setIsEditing, setIsEditCompleted, setHasChanges, setOriginalShopData, setEditNewShopDataSet, setModifiedFields
@@ -263,12 +186,19 @@ export default function Editor() { // 메인 페이지
       // 편집 완료 상태로 변경
       dispatch(editActions.completeEdit(hasAnyChanges));
       
+      // 변경 여부에 따라 명시적으로 CHANGE 상태 액션 디스패치
       if (hasAnyChanges) {
-        // 변경 사항이 있는 경우 폼 데이터 업데이트
+        // 변경 사항이 있는 경우
+        dispatch(editActions.setHasChanges());
+        
+        // 폼 데이터 업데이트
         const updatedFormData = editUtils.updateFormDataFromEditData(editNewShopDataSet, formData);
         setFormData(updatedFormData);
       } else {
-        // 변경 사항이 없는 경우에도 selectedCurShop 업데이트 필요
+        // 변경 사항이 없는 경우
+        dispatch(editActions.setNoChanges());
+        
+        // selectedCurShop 업데이트 필요
         if (selectedCurShop) {
           // 깊은 복사로 새 객체 생성 (참조 문제 방지)
           const updatedShop = {
@@ -480,40 +410,7 @@ export default function Editor() { // 메인 페이지
 
   let optionsMarker, optionsPolygon;
 
-  const setProtoOverlays = () => {
-    const _optionsMarker = {
-      icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: '#FF0000',
-        fillOpacity: 1,
-        strokeWeight: 2,
-        strokeColor: '#FFFFFF',
-      },
-      label: {
-        text: 'S',
-        color: '#FFFFFF',
-        fontSize: '12px',
-        fontWeight: 'bold',
-      },
-      position: null,
-      map: null,
-      title: null,
-    };
-
-    const _optionsPolygon = {
-      paths: [],
-      strokeColor: OVERLAY_COLOR.IDLE,
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      map: null,
-    };
-    return { optionsMarker: _optionsMarker, optionsPolygon: _optionsPolygon };
-  }
-
-
   const initMarker = () => {
-
     //TODO 이단계에서 마커와 폴리곤들 이벤트 바인딩을 해야할듯
     ({ optionsMarker, optionsPolygon } = setProtoOverlays());  //전역 위치의 포로토타입 마커에 세팅 
   }
@@ -568,7 +465,7 @@ export default function Editor() { // 메인 페이지
     
     // 1. 클릭된 아이템이 있으면 해당 아이템의 인포윈도우 표시
     if (clickedItem) {
-      showInfoWindow(clickedItem, instMap.current, clickedItem.itemMarker);
+      showInfoWindow(clickedItem, instMap.current, sharedInfoWindow.current, clickedItem.itemMarker);
       
       // 클릭된 마커에 애니메이션 효과 적용
       if (clickedItem.itemMarker) {
@@ -587,7 +484,7 @@ export default function Editor() { // 메인 페이지
     } 
     // 2. 클릭된 아이템이 없고 마우스 오버 중인 아이템이 있으면 해당 아이템의 인포윈도우 표시
     else if (hoveredItem) {
-      showInfoWindow(hoveredItem, instMap.current, hoveredItem.itemMarker);
+      showInfoWindow(hoveredItem, instMap.current, sharedInfoWindow.current, hoveredItem.itemMarker);
     } 
     // 3. 둘 다 없으면 인포윈도우 닫기
     else if (sharedInfoWindow.current) {
@@ -610,8 +507,7 @@ export default function Editor() { // 메인 페이지
     };
   }, [instMap.current]);
 
-  const factoryMakers = (coordinates, mapInst, shopItem) => {
-    console.log('마커 생성:', shopItem);
+  const factoryMakers = (coordinates, mapInst, shopItem, optionsMarker, sharedInfoWindow, setSelectedCurShop, setClickedItem, setHoveredItem) => {
     const _markerOptions = Object.assign({}, optionsMarker, { position: coordinates });
     const _marker = new window.google.maps.Marker(_markerOptions);
     
@@ -649,8 +545,7 @@ export default function Editor() { // 메인 페이지
     return _marker;
   };
 
-  const factoryPolygon = (paths, mapInst, shopItem) => {
-    console.log('폴리곤 생성:', shopItem);
+  const factoryPolygon = (paths, mapInst, shopItem, optionsPolygon, sharedInfoWindow, setSelectedCurShop, setClickedItem, setHoveredItem) => {
     const _polygonOptions = Object.assign({}, optionsPolygon, { 
       paths: paths,
       strokeColor: OVERLAY_COLOR.IDLE,
@@ -802,7 +697,7 @@ export default function Editor() { // 메인 페이지
     
     // 아이템 리스트가 있으면 마커와 폴리곤 생성
     if (localItemList && localItemList.length > 0) {
-      console.log('아이템 리스트 로드됨:', localItemList);
+      // console.log 제거
       
       // 모든 아이템이 올바른 구조를 가지도록 초기화
       const initializedItemList = localItemList.map(shopItem => {
@@ -837,7 +732,7 @@ export default function Editor() { // 메인 페이지
         if (shopItem.serverDataset.pinCoordinates) {
           const coordinates = parseCoordinates(shopItem.serverDataset.pinCoordinates);
           if (coordinates) {
-            const marker = factoryMakers(coordinates, _mapInstance, shopItem);
+            const marker = factoryMakers(coordinates, _mapInstance, shopItem, optionsMarker, sharedInfoWindow.current, setSelectedCurShop, setClickedItem, setHoveredItem);
             shopItem.itemMarker = marker;
             presentMakers.push(marker);
           }
@@ -845,7 +740,7 @@ export default function Editor() { // 메인 페이지
         
         // 폴리곤 생성
         if (shopItem.serverDataset.path && shopItem.serverDataset.path.length > 0) {
-          const polygon = factoryPolygon(shopItem.serverDataset.path, _mapInstance, shopItem);
+          const polygon = factoryPolygon(shopItem.serverDataset.path, _mapInstance, shopItem, optionsPolygon, sharedInfoWindow.current, setSelectedCurShop, setClickedItem, setHoveredItem);
           shopItem.itemPolygon = polygon;
         }
       });
@@ -972,10 +867,7 @@ export default function Editor() { // 메인 페이지
 
     // 오버레이 생성시 
     window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj) => {
-
-      console.log('overlaycomplete', '드로잉 매니저');
-
-
+      // console.log 제거
       _drawingManager.setDrawingMode(null); // 그리기 모드 초기화
     });
 
@@ -1003,23 +895,7 @@ export default function Editor() { // 메인 페이지
     });
   };
 
-  // 폴리곤 가시성 관리를 위한 함수 추가
-  const updatePolygonVisibility = (map) => {
-    if (!map) return;
-    
-    const zoomLevel = map.getZoom();
-    const isVisible = zoomLevel >= 17;
-    
-    // 현재 섹션의 모든 아이템을 순회하며 폴리곤 가시성 업데이트
-    const currentItems = getCurLocalItemlist();
-    if (currentItems && currentItems.length > 0) {
-      currentItems.forEach(item => {
-        if (item.itemPolygon) {
-          item.itemPolygon.setVisible(isVisible);
-        }
-      });
-    }
-  };
+  // 폴리곤 가시성 관리 함수는 mapUtils.js로 이동했습니다.
 
   // 지도 초기화 함수 수정
   const initGoogleMapPage = () => {
@@ -1050,7 +926,7 @@ export default function Editor() { // 메인 페이지
 
     // 줌 변경 이벤트 리스너 추가
     window.google.maps.event.addListener(_mapInstance, 'zoom_changed', () => {
-      updatePolygonVisibility(_mapInstance);
+      updatePolygonVisibility(_mapInstance, getCurLocalItemlist());
     });
 
     // g맵용 로드 완료시 동작 
@@ -1062,7 +938,7 @@ export default function Editor() { // 메인 페이지
       initShopList(_mapInstance);
       
       // 초기 폴리곤 가시성 설정
-      updatePolygonVisibility(_mapInstance);
+      updatePolygonVisibility(_mapInstance, getCurLocalItemlist());
     });
 
     instMap.current = _mapInstance;
@@ -1503,7 +1379,8 @@ export default function Editor() { // 메인 페이지
       <div className={styles.map} id="mapSection">
         {/* 구글 맵이 표시되는 영역 */}
       </div>
-      <div className={`${styles.rightSidebar} ${isPanelVisible ? '' : styles.hidden}`}>
+      {/* 항상 우측 사이드바 표시 */}
+      <div className={styles.rightSidebar}>
         <div className={styles.editor}>
           {/* 상단 버튼들만 숨김 처리 */}
           <div style={{ display: 'none' }}>
@@ -1520,26 +1397,14 @@ export default function Editor() { // 메인 페이지
                 >
                   +상점추가
                 </button>
-                <button 
-                  className={styles.togglePanelButton}
-                  onClick={toggleEditPanel}
-                  title={isPanelVisible ? "패널 숨기기" : "패널 표시하기"}
-                >
-                  {isPanelVisible ? "◀" : "▶"}
-                </button>
+                {/* 패널 토글 버튼 제거 */}
               </div>
             ) : isEditing ? (
               <div className={styles.editorHeader}>
                 <div className={styles.editingStatusText}>
                   {editNewShopDataSet.serverDataset.storeName || '새 상점'}을 수정중...
                 </div>
-                <button 
-                  className={styles.togglePanelButton}
-                  onClick={toggleEditPanel}
-                  title={isPanelVisible ? "패널 숨기기" : "패널 표시하기"}
-                >
-                  {isPanelVisible ? "◀" : "▶"}
-                </button>
+                {/* 패널 토글 버튼 제거 */}
               </div>
             ) : (
               <div className={styles.editorHeader}>
@@ -1566,7 +1431,17 @@ export default function Editor() { // 메인 페이지
                     </button>
                   </div>
                 )}
-                {!hasChanges && (
+                {!hasChanges && isEditCompleted && (
+                  <div className={styles.editActionButtons}>
+                    <button 
+                      className={styles.confirmButton}
+                      onClick={handleCancelEdit}
+                    >
+                      다시탐색
+                    </button>
+                  </div>
+                )}
+                {!hasChanges && !isEditCompleted && (
                   <button 
                     className={`${styles.emptyButton} ${styles.addShopButton}`}
                     onClick={addNewShopItem}
@@ -1575,13 +1450,7 @@ export default function Editor() { // 메인 페이지
                     +상점추가
                   </button>
                 )}
-                <button 
-                  className={styles.togglePanelButton}
-                  onClick={toggleEditPanel}
-                  title={isPanelVisible ? "패널 숨기기" : "패널 표시하기"}
-                >
-                  {isPanelVisible ? "◀" : "▶"}
-                </button>
+                {/* 패널 토글 버튼 제거 */}
               </div>
             )}
           </div>
@@ -1970,16 +1839,19 @@ export default function Editor() { // 메인 페이지
           </form>
         </div>
       </div>
-      {/* 패널이 숨겨진 상태에서 표시할 토글 버튼 */}
-      {!isPanelVisible && (
+      {/* 플로팅 토글 버튼 제거 */}
+      {/* {!isPanelVisible && (
         <button 
           className={styles.floatingToggleButton}
-          onClick={toggleEditPanel}
+          onClick={() => {
+            // 직접 상태 업데이트
+            dispatch({ type: ActionTypes.EDIT.PANEL.ON });
+          }}
           title="패널 표시하기"
         >
           ▶
         </button>
-      )}
+      )} */}
       <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm}>
         {!isSidebarVisible && (
           <button className={styles.headerButton} onClick={toggleSidebar}>

@@ -1,10 +1,6 @@
 // 액션 타입 정의
 export const ActionTypes = {
   EDIT: {
-    PANEL: {
-      ON: 'EDIT_PANEL_ON',
-      OFF: 'EDIT_PANEL_OFF'
-    },
     PHASE: {
       BEGIN: 'EDIT_PHASE_BEGIN',
       ONGOING: 'EDIT_PHASE_ONGOING',
@@ -47,7 +43,7 @@ export const ActionTypes = {
 
 // 초기 상태
 export const initialEditState = {
-  isPanelVisible: true,
+  isPanelVisible: true, // 항상 보이도록 true로 유지
   isEditing: false,
   isEditCompleted: false,
   hasChanges: false,
@@ -59,12 +55,6 @@ export const initialEditState = {
 // 편집 리듀서
 export const editReducer = (state, action) => {
   switch (action.type) {
-    // 패널 표시/숨김
-    case ActionTypes.EDIT.PANEL.ON:
-      return { ...state, isPanelVisible: true };
-    case ActionTypes.EDIT.PANEL.OFF:
-      return { ...state, isPanelVisible: false };
-    
     // 편집 단계
     case ActionTypes.EDIT.PHASE.BEGIN:
       return {
@@ -94,6 +84,16 @@ export const editReducer = (state, action) => {
           ...state.modifiedFields,
           [action.payload.fieldName]: true
         }
+      };
+    case ActionTypes.EDIT.CHANGE.NONE:
+      return {
+        ...state,
+        hasChanges: false
+      };
+    case ActionTypes.EDIT.CHANGE.EXIST:
+      return {
+        ...state,
+        hasChanges: true
       };
     
     // 확정 상태
@@ -154,11 +154,6 @@ export const editReducer = (state, action) => {
 
 // 액션 생성 함수들
 export const editActions = {
-  // 패널 관련 액션
-  togglePanel: (isVisible) => ({
-    type: isVisible ? ActionTypes.EDIT.PANEL.OFF : ActionTypes.EDIT.PANEL.ON
-  }),
-  
   // 편집 시작
   beginEdit: (originalShopData, editNewShopDataSet) => ({
     type: ActionTypes.EDIT.PHASE.BEGIN,
@@ -185,6 +180,16 @@ export const editActions = {
   trackFieldChange: (fieldName) => ({
     type: ActionTypes.EDIT.CHANGE.FIELD,
     payload: { fieldName }
+  }),
+  
+  // 변경 없음 상태 설정
+  setNoChanges: () => ({
+    type: ActionTypes.EDIT.CHANGE.NONE
+  }),
+  
+  // 변경 있음 상태 설정
+  setHasChanges: () => ({
+    type: ActionTypes.EDIT.CHANGE.EXIST
   }),
   
   // 필드 데이터 업데이트

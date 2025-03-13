@@ -23,9 +23,15 @@
   padding-top: 0; /* 상단 패딩 제거 */
 }
 
+/* 모바일 화면에서도 우측 사이드바 표시 */
 @media (max-width: 768px) {
   .rightSidebar {
-    display: none; /* 모바일 화면에서 우측 사이드바 숨기기 */
+    width: 100%; /* 전체 너비로 변경 */
+    position: absolute; /* 절대 위치로 변경 */
+    top: 0;
+    right: 0;
+    height: 100%;
+    z-index: 10; /* 맵 위에 표시 */
   }
 }
 
@@ -626,44 +632,6 @@
 
 .confirmButton:hover {
   background-color: #0069d9;
-}
-
-/* 패널 토글 버튼 스타일 */
-.togglePanelButton {
-  background: none;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 5px;
-  margin-left: 10px;
-  color: #333;
-  transition: color 0.3s;
-}
-
-.togglePanelButton:hover {
-  color: #007bff;
-}
-
-/* 패널이 숨겨진 상태에서 표시할 플로팅 버튼 */
-.floatingToggleButton {
-  position: fixed;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  background: #fff;
-  border: 1px solid #ddd;
-  border-right: none;
-  border-radius: 4px 0 0 4px;
-  padding: 15px 5px;
-  font-size: 16px;
-  cursor: pointer;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  transition: background-color 0.3s;
-}
-
-.floatingToggleButton:hover {
-  background-color: #f0f0f0;
 }
 
 /* 에디터 헤더 스타일 */

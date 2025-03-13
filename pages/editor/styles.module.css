@@ -130,7 +130,7 @@
 
 .editor {
   
-  margin-top: 10px;
+ 
 }
 
 .editor .menuButton {
@@ -264,6 +264,7 @@
 .divider {
   border-bottom: 1px solid #ddd;
   margin: 10px 0;
+  padding-bottom: 5px;
 }
 
 /* 값이 있는 필드와 없는 필드의 스타일 */
@@ -319,10 +320,6 @@
 
 .menuButton.strikethrough {
   text-decoration: line-through;
-}
-
-.hidden {
-  display: none; /* 사이드바 숨기기 */
 }
 
 .headerButton {
@@ -576,10 +573,21 @@
 .editingStatusText {
   font-size: 12px;
   padding: 5px 10px;
-  margin-bottom: 8px;
+  
   color: #333;
   font-weight: bold;
   display: inline-block; /* 인라인 블록으로 변경 */
+  max-width: 200px; /* 최대 너비 설정 */
+  white-space: nowrap; /* 텍스트 줄바꿈 방지 */
+  overflow: hidden; /* 넘치는 텍스트 숨김 */
+  text-overflow: ellipsis; /* 넘치는 텍스트에 ... 표시 */
+  cursor: default; /* 기본 커서 */
+  vertical-align: middle; /* 수직 정렬 추가 */
+}
+
+.editingStatusText:hover {
+  text-decoration: underline; /* 호버 시 밑줄 표시 */
+  cursor: help; /* 도움말 커서로 변경 */
 }
 
 .editActionButtons {
@@ -618,4 +626,55 @@
 
 .confirmButton:hover {
   background-color: #0069d9;
+}
+
+/* 패널 토글 버튼 스타일 */
+.togglePanelButton {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 5px;
+  margin-left: 10px;
+  color: #333;
+  transition: color 0.3s;
+}
+
+.togglePanelButton:hover {
+  color: #007bff;
+}
+
+/* 패널이 숨겨진 상태에서 표시할 플로팅 버튼 */
+.floatingToggleButton {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #fff;
+  border: 1px solid #ddd;
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  padding: 15px 5px;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  transition: background-color 0.3s;
+}
+
+.floatingToggleButton:hover {
+  background-color: #f0f0f0;
+}
+
+/* 에디터 헤더 스타일 */
+.editorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+/* 기존 hidden 클래스가 없다면 추가 */
+.hidden {
+  display: none !important;
 }

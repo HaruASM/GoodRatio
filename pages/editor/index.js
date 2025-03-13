@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useReducer } from 'react';
 import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
 import { collection, doc, getDoc, setDoc, getDocs, serverTimestamp as firestoreTimestamp } from 'firebase/firestore';
 import { firebasedb } from '../../firebase'; // 상대 경로 주의
+import { ActionTypes, editReducer, initialEditState, editActions, editUtils } from '../../utils/editActions';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 const OVERLAY_COLOR = {
@@ -201,26 +202,20 @@ export default function Editor() { // 메인 페이지
 
 
   
-  // 편집 모드 상태 추가
-  const [isEditing, setIsEditing] = useState(false);
+  // 기존 상태들을 useReducer로 대체
+  const [editState, dispatch] = useReducer(editReducer, initialEditState);
   
-  // 수정 완료 상태 추가
-  const [isEditCompleted, setIsEditCompleted] = useState(false);
+  // 기존 상태 변수들을 editState에서 추출
+  const { isEditing, isEditCompleted, hasChanges, originalShopData, editNewShopDataSet, modifiedFields, isPanelVisible } = editState;
   
-  // 수정 시작 시점의 원본 데이터 저장
-  const [originalShopData, setOriginalShopData] = useState(null);
+  // 패널 토글 함수 추가
+  const toggleEditPanel = () => {
+    dispatch(editActions.togglePanel(isPanelVisible));
+  };
   
-  // 수정 여부 상태 추가
-  const [hasChanges, setHasChanges] = useState(false);
+  // 기존 상태 setter 함수들은 이제 dispatch를 통해 처리됨
+  // setIsEditing, setIsEditCompleted, setHasChanges, setOriginalShopData, setEditNewShopDataSet, setModifiedFields
   
-  // editNewShopDataSet 상태 초기화 (깊은 복사로 별도 객체 생성)
-  const [editNewShopDataSet, setEditNewShopDataSet] = useState({
-    serverDataset: {...protoServerDataset},
-    distance: "",
-    itemMarker: null,
-    itemPolygon: null,
-  });
-
   const locationMapRef = useRef(null); // 반월당역 관광지도 영역에 대한 참조 레퍼런스
 
   const inputRefs = {
@@ -263,85 +258,85 @@ export default function Editor() { // 메인 페이지
   const handleEditFoamCardButton = () => {
     if (isEditing) {
       // 편집 모드 종료 (완료 버튼 클릭)
-      // justWriteServerDB(); // 확인 단계에서 호출하도록 이동
-      setIsEditing(false);
+      const hasAnyChanges = editUtils.compareShopData(originalShopData, editNewShopDataSet);
       
-      // 원본 데이터와 현재 데이터 비교하여 변경 여부 확인
-      const hasAnyChanges = compareShopData(originalShopData, editNewShopDataSet);
-      setHasChanges(hasAnyChanges);
+      // 편집 완료 상태로 변경
+      dispatch(editActions.completeEdit(hasAnyChanges));
       
-      setIsEditCompleted(true); // 수정 완료 상태로 변경
-      setModifiedFields({}); // 수정된 필드 초기화
-      
-      // 편집 모드 종료 후 폼 데이터 업데이트 (editNewShopDataSet 값으로)
-      updateFormDataFromEditData();
+      if (hasAnyChanges) {
+        // 변경 사항이 있는 경우 폼 데이터 업데이트
+        const updatedFormData = editUtils.updateFormDataFromEditData(editNewShopDataSet, formData);
+        setFormData(updatedFormData);
+      } else {
+        // 변경 사항이 없는 경우에도 selectedCurShop 업데이트 필요
+        if (selectedCurShop) {
+          // 깊은 복사로 새 객체 생성 (참조 문제 방지)
+          const updatedShop = {
+            ...selectedCurShop,
+            serverDataset: JSON.parse(JSON.stringify(selectedCurShop.serverDataset))
+          };
+          
+          // selectedCurShop 업데이트 (변경 사항이 없으므로 원본 데이터 그대로 사용)
+          setSelectedCurShop(updatedShop);
+          
+          // 폼 데이터 업데이트
+          const updatedFormData = editUtils.updateFormDataFromShop(updatedShop, formData);
+          setFormData(updatedFormData);
+        }
+      }
     } else {
-      // 편집 모드 시작 (수정 버튼 클릭)
-      // selectedCurShop이 있는 경우 해당 데이터로 editNewShopDataSet 초기화
+      // 편집 모드 시작 (수정 버튼 클릭 또는 재수정 버튼 클릭)
       if (selectedCurShop) {
-        // 현재 선택된 상점 데이터를 원본으로 저장 (깊은 복사)
-        setOriginalShopData({
-          ...protoShopDataSet,
-          serverDataset: { ...protoServerDataset, ...JSON.parse(JSON.stringify(selectedCurShop.serverDataset)) },
-          distance: selectedCurShop.distance || "",
-          itemMarker: selectedCurShop.itemMarker,
-          itemPolygon: selectedCurShop.itemPolygon
-        });
+        let newOriginalShopData;
+        let newEditNewShopDataSet;
         
-        // 항상 올바른 구조의 객체 생성
-        setEditNewShopDataSet({
-          ...protoShopDataSet,
-          serverDataset: { ...protoServerDataset, ...selectedCurShop.serverDataset },
-          distance: selectedCurShop.distance || "",
-          itemMarker: selectedCurShop.itemMarker,
-          itemPolygon: selectedCurShop.itemPolygon
-        });
+        // 수정 완료 상태에서 재수정 버튼을 클릭한 경우
+        if (isEditCompleted && hasChanges) {
+          // 이미 수정된 데이터를 그대로 사용
+          newOriginalShopData = originalShopData;
+          newEditNewShopDataSet = editNewShopDataSet;
+        } else {
+          // 일반 수정 버튼 클릭 시 - 현재 선택된 상점 데이터를 원본으로 저장 (깊은 복사)
+          newOriginalShopData = {
+            ...protoShopDataSet,
+            serverDataset: { ...protoServerDataset, ...JSON.parse(JSON.stringify(selectedCurShop.serverDataset)) },
+            distance: selectedCurShop.distance || "",
+            itemMarker: selectedCurShop.itemMarker,
+            itemPolygon: selectedCurShop.itemPolygon
+          };
+          
+          // 항상 올바른 구조의 객체 생성
+          newEditNewShopDataSet = {
+            ...protoShopDataSet,
+            serverDataset: { ...protoServerDataset, ...JSON.parse(JSON.stringify(selectedCurShop.serverDataset)) },
+            distance: selectedCurShop.distance || "",
+            itemMarker: selectedCurShop.itemMarker,
+            itemPolygon: selectedCurShop.itemPolygon
+          };
+        }
+        
+        // 편집 시작 상태로 변경
+        dispatch(editActions.beginEdit(newOriginalShopData, newEditNewShopDataSet));
       } else {
         // selectedCurShop이 없는 경우 기본값으로 초기화
-        setOriginalShopData(null);
-        setEditNewShopDataSet({
+        const newEditNewShopDataSet = {
           ...protoShopDataSet,
           serverDataset: { ...protoServerDataset },
           distance: "",
           itemMarker: null,
           itemPolygon: null
+        };
+        
+        // 편집 시작 상태로 변경
+        dispatch({
+          type: ActionTypes.EDIT.PHASE.BEGIN,
+          payload: {
+            originalShopData: null,
+            editNewShopDataSet: newEditNewShopDataSet
+          }
         });
       }
-      setModifiedFields({}); // 수정된 필드 초기화
-      setIsEditing(true);
     }
-  };
-
-  // 데이터 비교 함수 수정 - 객체 키를 직접 순회하는 방식으로 변경
-  const compareShopData = (original, current) => {
-    if (!original) return true; // 원본이 없으면 변경된 것으로 간주
-    
-    // serverDataset 객체 비교
-    const originalData = original.serverDataset || {};
-    const currentData = current.serverDataset || {};
-    
-    // 모든 키를 순회하며 비교
-    for (const key in originalData) {
-      // 배열인 경우 문자열로 변환하여 비교
-      if (Array.isArray(originalData[key]) && Array.isArray(currentData[key])) {
-        if (originalData[key].join(',') !== currentData[key].join(',')) {
-          return true; // 변경됨
-        }
-      } 
-      // 일반 값 비교
-      else if (originalData[key] !== currentData[key]) {
-        return true; // 변경됨
-      }
-    }
-    
-    // 새로 추가된 키가 있는지 확인
-    for (const key in currentData) {
-      if (originalData[key] === undefined) {
-        return true; // 새로운 키가 추가됨
-      }
-    }
-    
-    return false; // 변경 없음
   };
 
   // 수정 확인 핸들러
@@ -350,7 +345,7 @@ export default function Editor() { // 메인 페이지
     justWriteServerDB();
     
     // 수정된 데이터를 selectedCurShop에 반영
-    if (selectedCurShop) {
+    if (selectedCurShop && editNewShopDataSet) {
       // 깊은 복사로 새 객체 생성
       const updatedShop = {
         ...selectedCurShop,
@@ -371,13 +366,12 @@ export default function Editor() { // 메인 페이지
       setSelectedCurShop(updatedShop);
       
       // 폼 데이터 업데이트
-      updateFormDataFromShop(updatedShop);
+      const updatedFormData = editUtils.updateFormDataFromShop(updatedShop, formData);
+      setFormData(updatedFormData);
     }
     
-    // 상태 초기화
-    setIsEditCompleted(false);
-    setOriginalShopData(null);
-    setHasChanges(false);
+    // 상태 초기화 - 변경 사항 확정
+    dispatch(editActions.confirmEdit());
   };
 
   // 수정 취소 핸들러
@@ -385,139 +379,15 @@ export default function Editor() { // 메인 페이지
     // 원본 데이터로 되돌리기
     if (originalShopData && selectedCurShop) {
       // 폼 데이터 업데이트
-      updateFormDataFromShop(selectedCurShop);
+      const updatedFormData = editUtils.updateFormDataFromShop(selectedCurShop, formData);
+      setFormData(updatedFormData);
     }
     
-    // 상태 초기화
-    setIsEditCompleted(false);
-    setOriginalShopData(null);
-    setHasChanges(false);
+    // 상태 초기화 - 변경 사항 취소
+    dispatch(editActions.cancelEdit());
   };
   
-  // 상점 데이터로부터 폼 데이터 업데이트하는 헬퍼 함수
-  const updateFormDataFromShop = (shopData) => {
-    if (!shopData) return;
-    
-    const newFormData = {};
-    
-    // 기본 필드 처리
-    Object.keys(formData).forEach(field => {
-      // 특수 필드(pinCoordinates, path) 제외하고 처리
-      if (field !== 'pinCoordinates' && field !== 'path') {
-        let fieldValue = shopData.serverDataset[field];
-        
-        // 배열 처리 (예: businessHours)
-        if (Array.isArray(fieldValue) && field === 'businessHours') {
-          fieldValue = fieldValue.join(', ');
-        }
-        
-        // undefined나 null인 경우 빈 문자열로 설정
-        newFormData[field] = fieldValue !== undefined && fieldValue !== null ? fieldValue : '';
-      }
-    });
-    
-    // 특수 필드 처리 (pin좌표, path)
-    const hasCoordinates = Boolean(shopData.serverDataset.pinCoordinates);
-    newFormData.pinCoordinates = hasCoordinates ? '등록됨' : '';
-    
-    const pathArray = shopData.serverDataset.path;
-    const hasPath = Array.isArray(pathArray) && pathArray.length > 0;
-    newFormData.path = hasPath ? '등록됨' : '';
-    
-    // 폼 데이터 상태 업데이트
-    setFormData(newFormData);
-  };
-  
-  // editNewShopDataSet으로부터 폼 데이터 업데이트하는 헬퍼 함수
-  const updateFormDataFromEditData = () => {
-    if (!editNewShopDataSet) return;
-    
-    const newFormData = {};
-    
-    // 기본 필드 처리
-    Object.keys(formData).forEach(field => {
-      // 특수 필드(pinCoordinates, path) 제외하고 처리
-      if (field !== 'pinCoordinates' && field !== 'path') {
-        let fieldValue = editNewShopDataSet.serverDataset[field];
-        
-        // 배열 처리 (예: businessHours)
-        if (Array.isArray(fieldValue) && field === 'businessHours') {
-          fieldValue = fieldValue.join(', ');
-        }
-        
-        // undefined나 null인 경우 빈 문자열로 설정
-        newFormData[field] = fieldValue !== undefined && fieldValue !== null ? fieldValue : '';
-      }
-    });
-    
-    // 특수 필드 처리 (pin좌표, path)
-    const hasCoordinates = Boolean(editNewShopDataSet.serverDataset.pinCoordinates);
-    newFormData.pinCoordinates = hasCoordinates ? '등록됨' : '';
-    
-    const pathArray = editNewShopDataSet.serverDataset.path;
-    const hasPath = Array.isArray(pathArray) && pathArray.length > 0;
-    newFormData.path = hasPath ? '등록됨' : '';
-    
-    // 폼 데이터 상태 업데이트
-    setFormData(newFormData);
-  };
-
-  // 입력 필드 변경 핸들러 추가
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    
-    if (isEditing) {
-      // 편집 모드에서는 editNewShopDataSet 업데이트
-      let processedValue = value;
-      
-      // 배열 형태로 저장해야 하는 필드 처리
-      if (name === 'businessHours') {
-        processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
-      }
-      
-      // 원래 값과 다른 경우에만 수정된 필드로 표시
-      const originalValue = originalShopData?.serverDataset[name];
-      const isModified = originalValue !== processedValue;
-      
-      // 수정된 필드 상태 업데이트
-      setModifiedFields(prev => ({
-        ...prev,
-        [name]: isModified
-      }));
-      
-      setEditNewShopDataSet(prev => ({
-        ...prev,
-        serverDataset: {
-          ...prev.serverDataset,
-          [name]: processedValue
-        }
-      }));
-    } else {
-      // 일반 모드에서는 기존 로직 유지
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-      
-      if (selectedCurShop && selectedCurShop.serverDataset) {
-        let processedValue = value;
-        
-        if (name === 'businessHours') {
-          processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
-        }
-        
-        setSelectedCurShop({
-          ...selectedCurShop,
-          serverDataset: {
-            ...selectedCurShop.serverDataset,
-            [name]: processedValue
-          }
-        });
-      }
-    }
-  };
-
-  // 개별 필드 편집 버튼 클릭 핸들러
+  // 필드 수정 버튼 클릭 핸들러
   const handleFieldEditButtonClick = (fieldName) => {
     // 해당 필드의 input 요소 찾기
     const inputElement = inputRefs[fieldName]?.current;
@@ -538,8 +408,54 @@ export default function Editor() { // 메인 페이지
       const length = inputElement.value.length;
       inputElement.setSelectionRange(length, length);
     }
+    
+    // 수정된 필드 추적
+    dispatch(editActions.trackFieldChange(fieldName));
   };
-
+  
+  // 입력 필드 변경 핸들러
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    if (isEditing) {
+      // 편집 모드에서는 editNewShopDataSet 업데이트
+      let processedValue = value;
+      
+      // 배열 형태로 저장해야 하는 필드 처리
+      if (name === 'businessHours') {
+        processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
+      }
+      
+      // 필드 데이터 업데이트
+      dispatch(editActions.updateField(name, processedValue));
+    } else {
+      // 일반 모드에서는 formData 업데이트
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+      
+      // selectedCurShop이 있는 경우 해당 필드 업데이트
+      if (selectedCurShop) {
+        let processedValue = value;
+        
+        if (name === 'businessHours') {
+          processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
+        }
+        
+        const updatedShop = {
+          ...selectedCurShop,
+          serverDataset: {
+            ...selectedCurShop.serverDataset,
+            [name]: processedValue
+          }
+        };
+        
+        setSelectedCurShop(updatedShop);
+      }
+    }
+  };
+  
   const updateDataSet = (updates) => {
     console.log('데이터 업데이트 요청:', updates);
     // 기능 제거 - 차후 추가 예정
@@ -996,10 +912,11 @@ export default function Editor() { // 메인 페이지
         googleDataId: detailPlace.place_id || '',
       };
 
-      setEditNewShopDataSet((prev) => ({
-        ...prev,
-        ..._newData,
-      }));
+      // 장소 데이터 업데이트
+      dispatch({
+        type: ActionTypes.EDIT.DATA.UPDATE_PLACE,
+        payload: _newData
+      });
 
       if (detailPlace.geometry.viewport) {
         _mapInstance.fitBounds(detailPlace.geometry.viewport);
@@ -1177,97 +1094,11 @@ export default function Editor() { // 메인 페이지
 
 
 
-  // selectedCurShop이 변경될 때 formData 업데이트 - 편집 모드에서는 폼 데이터 업데이트만 스킵
+  // selectedCurShop 관련 useEffect를 하나로 통합
   useEffect(() => {
-    if (selectedCurShop) {
-      // 1. 좌측 사이드바 아이템 하이라이트 효과
-      const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
-      
-      // 모든 아이템을 기본 클래스로 초기화
-      itemElements.forEach(item => {
-        item.className = styles.item;
-      });
-      
-      // 선택된 아이템 찾기 (storeName으로 비교)
-      const itemName = selectedCurShop.serverDataset ? 
-        selectedCurShop.serverDataset.storeName : 
-        selectedCurShop.storeName;
-        
-      const selectedItemElement = Array.from(itemElements).find(item => {
-        const titleElement = item.querySelector(`.${styles.itemTitle}`);
-        return titleElement && titleElement.textContent.includes(itemName);
-      });
-      
-      if (selectedItemElement) {
-        // 클래스 교체 (item -> selectedItem)
-        selectedItemElement.className = styles.selectedItem;
-        // 스크롤 위치 조정
-        selectedItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      
-      // 2. 지도 이동 및 마커 정보창 표시
-      if (instMap.current) {
-        try {
-          let position = null;
-          
-          // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
-          if (selectedCurShop.serverDataset && selectedCurShop.serverDataset.pinCoordinates) {
-            position = parseCoordinates(selectedCurShop.serverDataset.pinCoordinates);
-          } else if (selectedCurShop.pinCoordinates) {
-            position = parseCoordinates(selectedCurShop.pinCoordinates);
-          }
-
-          if (position) {
-            // 지도 중심 이동
-            instMap.current.setCenter(position);
-            instMap.current.setZoom(18);
-            
-            // 사이드바에서 선택한 경우 클릭된 아이템으로 설정
-            // (마커/폴리곤 클릭 시에는 해당 이벤트 핸들러에서 처리)
-            if (clickedItem !== selectedCurShop) {
-              setClickedItem(selectedCurShop);
-            }
-          }
-        } catch (error) {
-          console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
-        }
-      }
-      
-      // 3. 폼 데이터 업데이트 - 편집 모드에서는 스킵
-      if (!isEditing) {
-        // 새로운 폼 데이터 객체 생성
-        const newFormData = {};
-        
-        // 기본 필드 처리
-        Object.keys(formData).forEach(field => {
-          // 특수 필드(pinCoordinates, path) 제외하고 처리
-          if (field !== 'pinCoordinates' && field !== 'path') {
-            let fieldValue = selectedCurShop.serverDataset[field];
-            
-            // 배열 처리 (예: businessHours)
-            if (Array.isArray(fieldValue) && field === 'businessHours') {
-              fieldValue = fieldValue.join(', ');
-            }
-            
-            // undefined나 null인 경우 빈 문자열로 설정
-            newFormData[field] = fieldValue !== undefined && fieldValue !== null ? fieldValue : '';
-          }
-        });
-        
-        // 특수 필드 처리 (pin좌표, path)
-        const hasCoordinates = Boolean(selectedCurShop.serverDataset.pinCoordinates);
-        newFormData.pinCoordinates = hasCoordinates ? '등록됨' : '';
-        
-        const pathArray = selectedCurShop.serverDataset.path;
-        const hasPath = Array.isArray(pathArray) && pathArray.length > 0;
-        newFormData.path = hasPath ? '등록됨' : '';
-        
-        // 폼 데이터 상태 업데이트
-        setFormData(newFormData);
-      }
-    } else {
-      // selectedCurShop이 없는 경우 폼 초기화 (편집 모드가 아닐 때만)
-      if (!isEditing) {
+    if (!selectedCurShop) {
+      // selectedCurShop이 없는 경우 폼 초기화 (편집 모드나 수정 완료 상태가 아닐 때만)
+      if (!isEditing && !isEditCompleted) {
         setFormData({
           storeName: "",
           storeStyle: "",
@@ -1285,10 +1116,68 @@ export default function Editor() { // 메인 페이지
           googleDataId: "",
         });
       }
+      return;
     }
-  }, [selectedCurShop]); // isEditing 의존성 제거, 내부에서 조건부로 처리
+    
+    // 1. 좌측 사이드바 아이템 하이라이트 효과
+    const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
+    
+    // 모든 아이템을 기본 클래스로 초기화
+    itemElements.forEach(item => {
+      item.className = styles.item;
+    });
+    
+    // 선택된 아이템 찾기 (storeName으로 비교)
+    const itemName = selectedCurShop.serverDataset ? 
+      selectedCurShop.serverDataset.storeName : 
+      selectedCurShop.storeName;
+      
+    const selectedItemElement = Array.from(itemElements).find(item => {
+      const titleElement = item.querySelector(`.${styles.itemTitle}`);
+      return titleElement && titleElement.textContent.includes(itemName);
+    });
+    
+    if (selectedItemElement) {
+      // 클래스 교체 (item -> selectedItem)
+      selectedItemElement.className = styles.selectedItem;
+      // 스크롤 위치 조정
+      selectedItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    // 2. 지도 이동 및 마커 정보창 표시
+    if (instMap.current) {
+      try {
+        let position = null;
+        
+        // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
+        if (selectedCurShop.serverDataset && selectedCurShop.serverDataset.pinCoordinates) {
+          position = parseCoordinates(selectedCurShop.serverDataset.pinCoordinates);
+        } else if (selectedCurShop.pinCoordinates) {
+          position = parseCoordinates(selectedCurShop.pinCoordinates);
+        }
 
-  
+        if (position) {
+          // 지도 중심 이동
+          instMap.current.setCenter(position);
+          instMap.current.setZoom(18);
+          
+          // 사이드바에서 선택한 경우 클릭된 아이템으로 설정
+          // (마커/폴리곤 클릭 시에는 해당 이벤트 핸들러에서 처리)
+          if (clickedItem !== selectedCurShop) {
+            setClickedItem(selectedCurShop);
+          }
+        }
+      } catch (error) {
+        console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
+      }
+    }
+    
+    // 3. 폼 데이터 업데이트 - 편집 모드나 수정 완료 상태에서는 스킵
+    if (!isEditing && !isEditCompleted) {
+      updateFormDataFromShop(selectedCurShop);
+    }
+  }, [selectedCurShop, isEditing, isEditCompleted]);
+
   useEffect(() => { //AT 지역변경 동작[curSectionName
     const loadSectionData = async () => {
       console.log(`섹션 데이터 로드: ${curSectionName}`);
@@ -1345,100 +1234,6 @@ export default function Editor() { // 메인 페이지
     
     loadSectionData();
   }, [curSectionName]);
-
-  // 선택된 상점 정보를 저장하는 상태 변수 추가
-  // const [selectedCurShop, setSelectedCurShop] = useState(null); // 중복 선언 제거
-
-  
-  useEffect(() => { //AT 상점선택 동작 [selectedCurShop
-    if (selectedCurShop) {
-      // 1. 좌측 사이드바 아이템 하이라이트 효과
-      const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
-      
-      // 모든 아이템을 기본 클래스로 초기화
-      itemElements.forEach(item => {
-        item.className = styles.item;
-      });
-      
-      // 선택된 아이템 찾기 (storeName으로 비교)
-      const itemName = selectedCurShop.serverDataset ? 
-        selectedCurShop.serverDataset.storeName : 
-        selectedCurShop.storeName;
-        
-      const selectedItemElement = Array.from(itemElements).find(item => {
-        const titleElement = item.querySelector(`.${styles.itemTitle}`);
-        return titleElement && titleElement.textContent.includes(itemName);
-      });
-      
-      if (selectedItemElement) {
-        // 클래스 교체 (item -> selectedItem)
-        selectedItemElement.className = styles.selectedItem;
-        // 스크롤 위치 조정
-        selectedItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      
-      // 2. 지도 이동 및 마커 정보창 표시
-      if (instMap.current) {
-        try {
-          let position = null;
-          
-          // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
-          if (selectedCurShop.serverDataset && selectedCurShop.serverDataset.pinCoordinates) {
-            position = parseCoordinates(selectedCurShop.serverDataset.pinCoordinates);
-          } else if (selectedCurShop.pinCoordinates) {
-            position = parseCoordinates(selectedCurShop.pinCoordinates);
-          }
-
-          if (position) {
-            // 지도 중심 이동
-            instMap.current.setCenter(position);
-            instMap.current.setZoom(18);
-            
-            // 사이드바에서 선택한 경우 클릭된 아이템으로 설정
-            // (마커/폴리곤 클릭 시에는 해당 이벤트 핸들러에서 처리)
-            if (clickedItem !== selectedCurShop) {
-              setClickedItem(selectedCurShop);
-            }
-          }
-        } catch (error) {
-          console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
-        }
-      }
-      
-      // 3. 폼 데이터 업데이트 - 편집 모드에서는 스킵
-      if (!isEditing) {
-        // 새로운 폼 데이터 객체 생성
-        const newFormData = {};
-        
-        // 기본 필드 처리
-        Object.keys(formData).forEach(field => {
-          // 특수 필드(pinCoordinates, path) 제외하고 처리
-          if (field !== 'pinCoordinates' && field !== 'path') {
-            let fieldValue = selectedCurShop.serverDataset[field];
-            
-            // 배열 처리 (예: businessHours)
-            if (Array.isArray(fieldValue) && field === 'businessHours') {
-              fieldValue = fieldValue.join(', ');
-            }
-            
-            // undefined나 null인 경우 빈 문자열로 설정
-            newFormData[field] = fieldValue !== undefined && fieldValue !== null ? fieldValue : '';
-          }
-        });
-        
-        // 특수 필드 처리 (pin좌표, path)
-        const hasCoordinates = Boolean(selectedCurShop.serverDataset.pinCoordinates);
-        newFormData.pinCoordinates = hasCoordinates ? '등록됨' : '';
-        
-        const pathArray = selectedCurShop.serverDataset.path;
-        const hasPath = Array.isArray(pathArray) && pathArray.length > 0;
-        newFormData.path = hasPath ? '등록됨' : '';
-        
-        // 폼 데이터 상태 업데이트
-        setFormData(newFormData);
-      }
-    }
-  }, [selectedCurShop]);
 
   useEffect(() => {
     const itemListContainer = document.querySelector(`.${styles.itemList}`);
@@ -1643,13 +1438,29 @@ export default function Editor() { // 메인 페이지
   };
 
   // 수정된 필드를 추적하는 상태 추가
-  const [modifiedFields, setModifiedFields] = useState({});
+  // const [modifiedFields, setModifiedFields] = useState({});
 
   // 컴포넌트 내부, 다른 함수들과 함께 정의
   const addNewShopItem = () => {
     // 상점 추가 로직 구현
     console.log('상점 추가 버튼 클릭됨');
     // 필요한 작업 수행
+  };
+
+  // 상점 데이터로부터 폼 데이터 업데이트하는 헬퍼 함수
+  const updateFormDataFromShop = (shopData) => {
+    if (!shopData) return;
+    
+    const updatedFormData = editUtils.updateFormDataFromShop(shopData, formData);
+    setFormData(updatedFormData);
+  };
+  
+  // editNewShopDataSet으로부터 폼 데이터 업데이트하는 헬퍼 함수
+  const updateFormDataFromEditData = () => {
+    if (!editNewShopDataSet) return;
+    
+    const updatedFormData = editUtils.updateFormDataFromEditData(editNewShopDataSet, formData);
+    setFormData(updatedFormData);
   };
 
   return (
@@ -1692,7 +1503,7 @@ export default function Editor() { // 메인 페이지
       <div className={styles.map} id="mapSection">
         {/* 구글 맵이 표시되는 영역 */}
       </div>
-      <div className={styles.rightSidebar}>
+      <div className={`${styles.rightSidebar} ${isPanelVisible ? '' : styles.hidden}`}>
         <div className={styles.editor}>
           {/* 상단 버튼들만 숨김 처리 */}
           <div style={{ display: 'none' }}>
@@ -1702,24 +1513,44 @@ export default function Editor() { // 메인 페이지
           </div>
           <div className={styles.divider}>
             {!isEditing && !isEditCompleted ? (
-              <button 
-                className={`${styles.emptyButton} ${styles.addShopButton}`}
-                onClick={addNewShopItem}
-              >
-                +상점추가
-              </button>
+              <div className={styles.editorHeader}>
+                <button 
+                  className={`${styles.emptyButton} ${styles.addShopButton}`}
+                  onClick={addNewShopItem}
+                >
+                  +상점추가
+                </button>
+                <button 
+                  className={styles.togglePanelButton}
+                  onClick={toggleEditPanel}
+                  title={isPanelVisible ? "패널 숨기기" : "패널 표시하기"}
+                >
+                  {isPanelVisible ? "◀" : "▶"}
+                </button>
+              </div>
             ) : isEditing ? (
-              <div className={styles.editingStatusText}>
-                {editNewShopDataSet.serverDataset.storeName || '새 상점'}을 수정중...
+              <div className={styles.editorHeader}>
+                <div className={styles.editingStatusText}>
+                  {editNewShopDataSet.serverDataset.storeName || '새 상점'}을 수정중...
+                </div>
+                <button 
+                  className={styles.togglePanelButton}
+                  onClick={toggleEditPanel}
+                  title={isPanelVisible ? "패널 숨기기" : "패널 표시하기"}
+                >
+                  {isPanelVisible ? "◀" : "▶"}
+                </button>
               </div>
             ) : (
-              <>
-                <div className={styles.editingStatusText}>
+              <div className={styles.editorHeader}>
+                <div className={styles.editingStatusText} title={hasChanges && editNewShopDataSet.serverDataset.storeName ? editNewShopDataSet.serverDataset.storeName : ""}>
                   {hasChanges 
-                    ? `${editNewShopDataSet.serverDataset.storeName || '상점'} 수정완료.` 
+                    ? `${(editNewShopDataSet.serverDataset.storeName || '상점').length > 10 
+                        ? (editNewShopDataSet.serverDataset.storeName || '상점').substring(0, 10) + '...' 
+                        : (editNewShopDataSet.serverDataset.storeName || '상점')}` + ' 수정완료.' 
                     : "수정사항 없음"}
                 </div>
-                {hasChanges ? (
+                {hasChanges && (
                   <div className={styles.editActionButtons}>
                     <button 
                       className={styles.cancelButton}
@@ -1734,7 +1565,8 @@ export default function Editor() { // 메인 페이지
                       확인
                     </button>
                   </div>
-                ) : (
+                )}
+                {!hasChanges && (
                   <button 
                     className={`${styles.emptyButton} ${styles.addShopButton}`}
                     onClick={addNewShopItem}
@@ -1743,20 +1575,45 @@ export default function Editor() { // 메인 페이지
                     +상점추가
                   </button>
                 )}
-              </>
+                <button 
+                  className={styles.togglePanelButton}
+                  onClick={toggleEditPanel}
+                  title={isPanelVisible ? "패널 숨기기" : "패널 표시하기"}
+                >
+                  {isPanelVisible ? "◀" : "▶"}
+                </button>
+              </div>
             )}
           </div>
         </div>
         <div className={`${styles.card} ${isEditing ? styles.cardEditing : ''}`}>
           <h3>상점 Data
             <div className={styles.buttonContainer}>
-              <button 
-                onClick={handleEditFoamCardButton} 
-                className={styles.menuButton}
-                title={isEditing ? '수정을 마침. 이후 수정내용 확정 및 취소 가능' : '현재 상점 자료 편집'}
-              >
-                {isEditing ? '완료' : '수정'}
-              </button>
+              {isEditing ? (
+                <button 
+                  onClick={handleEditFoamCardButton} 
+                  className={styles.menuButton}
+                  title="수정을 마침. 이후 수정내용 확정 및 취소 가능"
+                >
+                  완료
+                </button>
+              ) : isEditCompleted ? (
+                <button 
+                  onClick={handleEditFoamCardButton} 
+                  className={styles.menuButton}
+                  title="수정된 내용을 다시 편집"
+                >
+                  재수정
+                </button>
+              ) : (
+                <button 
+                  onClick={handleEditFoamCardButton} 
+                  className={styles.menuButton}
+                  title="현재 상점 자료 편집"
+                >
+                  수정
+                </button>
+              )}
               <span 
                 className={styles.tooltipIcon} 
                 title="상점에 대한 데이터 편집. 수정 완료 후 최종 확인을 한번 더 해야 합니다"
@@ -1779,6 +1636,7 @@ export default function Editor() { // 메인 페이지
                   ${Boolean(isEditing ? editNewShopDataSet.serverDataset.storeName : formData.storeName) ? styles.filledInput : styles.emptyInput}
                   ${modifiedFields.storeName ? styles.modifiedInput : ''}
                 `}
+                title={isEditing ? editNewShopDataSet.serverDataset.storeName : formData.storeName}
               />
               {isEditing && Boolean(formData.storeName) && (
                 <button 
@@ -2112,6 +1970,16 @@ export default function Editor() { // 메인 페이지
           </form>
         </div>
       </div>
+      {/* 패널이 숨겨진 상태에서 표시할 토글 버튼 */}
+      {!isPanelVisible && (
+        <button 
+          className={styles.floatingToggleButton}
+          onClick={toggleEditPanel}
+          title="패널 표시하기"
+        >
+          ▶
+        </button>
+      )}
       <form ref={searchformRef} onSubmit={(e) => e.preventDefault()} className={styles.searchForm}>
         {!isSidebarVisible && (
           <button className={styles.headerButton} onClick={toggleSidebar}>

@@ -13,7 +13,7 @@
 }
 
 .rightSidebar {
-  width: 550px;
+  width: 300px;
   background-color: #f9f9f9;
   overflow-y: auto;
   box-shadow: -2px 0 5px rgba(0,0,0,0.1);
@@ -21,6 +21,8 @@
   flex-direction: column;
   padding: 10px;
   padding-top: 0; /* 상단 패딩 제거 */
+  position: relative; /* absolute에서 relative로 변경 */
+  z-index: 1; /* z-index 값 낮춤 */
 }
 
 /* 모바일 화면에서도 우측 사이드바 표시 */
@@ -128,15 +130,16 @@
   border-radius: 10px;
 }
 
-.map {
-  width: 100%;
-  height: 600px;
+.mapContainer {
+  flex: 1;
   position: relative;
+  overflow: hidden;
 }
 
-.editor {
-  
- 
+.map {
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
 .editor .menuButton {
@@ -211,10 +214,12 @@
 }
 
 .card {
-  padding: 10px;
+  padding: 15px;
   border: 1px solid #ddd;
-  border-radius: 10px;
-  background-color: #f9f9f9;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  margin-bottom: 15px;
 }
 
 .card h3 {
@@ -222,7 +227,7 @@
   margin-top: 0px;
   font-size: 18px;
   font-weight: bold;
-  text-align: center;
+  color: #333;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -231,70 +236,103 @@
 .form {
   display: flex;
   flex-direction: column;
+  margin-top: 10px;
 }
 
 .formRow {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   align-items: center;
   position: relative;
 }
 
 .formRow span {
-  flex: 1.7;
-  font-size: 16px;
+  flex: 1.0;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
   max-width: 100%;
+  color: #555;
+  font-weight: 500;
 }
 
 .formRow input {
-  flex: 3;
-  padding: 5px;
-  border: 1px solid #f9f9f9;
-  border-radius: 5px;
-  min-width: 0;
-  /* background-color: #f9f9f9; */
-  pointer-events: none;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: #fff;
+  transition: all 0.2s ease;
 }
 
-
 .formRow input[readonly] {
-  background-color: #e0e0e0; /* readOnly 상태일 때의 배경색 */
-  border-color: #aaa; /* readOnly 상태일 때의 테두리 색 */
+  background-color: #f5f5f5;
+  border-color: #ddd;
+  color: #666;
+  cursor: default;
+  pointer-events: none; /* 읽기 전용 필드는 클릭 이벤트 비활성화 */
+}
+
+.formRow input:not([readonly]) {
+  background-color: #fff;
+  border-color: #4dabf7;
+  color: #333;
+  cursor: text;
+  pointer-events: auto; /* 편집 가능 필드는 클릭 이벤트 활성화 */
+}
+
+.formRow input:focus {
+  border-color: #4dabf7;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.2);
+  background-color: #fff !important;
 }
 
 .divider {
-  border-bottom: 1px solid #ddd;
-  margin: 10px 0;
-  padding-bottom: 5px;
+  border-bottom: 1px solid #eee;
+  margin: 12px 0;
+  padding-bottom: 0;
 }
 
 /* 값이 있는 필드와 없는 필드의 스타일 */
 .filledInput {
-  background-color: #e0e0e0 !important; /* 값이 있는 필드의 배경색 */
-  border-color: #aaa !important; /* 값이 있는 필드의 테두리 색 */
+  background-color: #f5f5f5 !important;
+  border-color: #ddd !important;
+  color: #333 !important;
 }
 
 .emptyInput {
-  background-color: #ffffff !important; /* 값이 없는 필드의 배경색 */
-  border-color: #ddd !important; /* 값이 없는 필드의 테두리 색 */
+  background-color: #ffffff !important;
+  border-color: #ddd !important;
+  color: #999 !important;
 }
 
 /* 편집 모드에서 활성화된 필드 스타일 수정 */
 .emptyInput:not([readonly]) {
-  pointer-events: auto !important;
   background-color: #ffffff !important;
-  border-color: #ddd !important; /* 일반 테두리 색상으로 변경 */
+  border-color: #4dabf7 !important;
+  color: #333 !important;
+  cursor: text !important;
+  pointer-events: auto !important;
 }
 
 .filledInput:not([readonly]) {
+  background-color: #ffffff !important;
+  border-color: #4dabf7 !important;
+  color: #333 !important;
+  cursor: text !important;
   pointer-events: auto !important;
-  background-color: #f0f8ff !important; /* 편집 중인 값이 있는 필드의 배경색 */
-  border-color: #ddd !important; /* 일반 테두리 색상으로 변경 */
+}
+
+/* 수정된 필드 스타일 (있는 경우) */
+.modifiedInput {
+  background-color: #e8f4fe !important;
+  border-color: #4dabf7 !important;
+  color: #0062cc !important;
 }
 
 .disabledButton {
@@ -303,25 +341,31 @@
   opacity: 0.6; /* 비활성화된 상태의 투명도 */
 }
 
-
-
-
-
 .inputOverlayButton {
   position: absolute;
+  right: 5px;
   top: 50%;
-  right: 10px;
   transform: translateY(-50%);
-  color: black;
+  background: none;
+  color: #666;
   border: none;
-  border-radius: 5px;
-  padding: 5px 10px;
+  border-radius: 3px;
+  padding: 2px 5px;
   cursor: pointer;
+  font-size: 14px;
   z-index: 1;
+  transition: all 0.2s;
+  /* display: none; 기본적으로 숨김 - 인라인 스타일로 대체 */
+}
+
+/* 편집 모드에서 값이 있는 필드에 호버했을 때 편집 버튼 표시 */
+.inputContainer:hover .inputOverlayButton {
+  background-color: #f0f0f0;
 }
 
 .inputOverlayButton:hover {
-  background-color: #0056b3;
+  color: #333;
+  background-color: #e0e0e0;
 }
 
 .menuButton.strikethrough {
@@ -329,16 +373,17 @@
 }
 
 .headerButton {
-  display: block;
-  margin: 10px auto;
-  padding: 10px 20px;
+  display: inline-block;
+  margin: 5px;
+  padding: 8px 15px;
   background-color: #007bff;
   color: #fff;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   text-align: center;
+  transition: background-color 0.2s;
 }
 
 .headerButton:hover {
@@ -514,22 +559,28 @@
 
 /* 수정 중인 카드 스타일 */
 .cardEditing {
-  border: 2px solid #333 !important; /* 검은색 굵은 테두리 */
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important; /* 강한 그림자 효과로 떠 있는 느낌 */
-  transform: translateY(-3px) !important; /* 약간 위로 이동하여 떠 있는 느낌 강화 */
-  
-  position: relative; /* 위치 상대적 설정 */
-  z-index: 1; /* 다른 요소보다 위에 표시 */
+  border: 2px solid #1976d2 !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+  background-color: #fafafa !important;
 }
 
 /* 수정 중인 카드의 제목 스타일 */
 .cardEditing h3 {
-  font-weight: bold; /* 제목 굵게 */
+  color: #1976d2;
+}
+
+.inputContainer {
+  flex: 1.7;
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .buttonContainer {
-  display: inline-flex;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  margin-bottom: 10px;
 }
 
 .tooltipIcon {
@@ -559,79 +610,97 @@
 }
 
 .addShopButton {
-  font-size: 12px;
-  padding: 5px 10px;
-  margin-bottom: 8px;
+  font-size: 13px;
+  padding: 6px 12px;
+  margin: 5px;
   height: auto;
-  min-height: 28px;
+  min-height: 30px;
   border-radius: 4px;
   background-color: #f8f8f8;
   border: 1px solid #ddd;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .addShopButton:hover {
-  background-color: #f0f0f0;
+  background-color: #e9e9e9;
   border-color: #ccc;
 }
 
-.editingStatusText {
-  font-size: 12px;
-  padding: 5px 10px;
-  
-  color: #333;
-  font-weight: bold;
-  display: inline-block; /* 인라인 블록으로 변경 */
-  max-width: 200px; /* 최대 너비 설정 */
-  white-space: nowrap; /* 텍스트 줄바꿈 방지 */
-  overflow: hidden; /* 넘치는 텍스트 숨김 */
-  text-overflow: ellipsis; /* 넘치는 텍스트에 ... 표시 */
-  cursor: default; /* 기본 커서 */
-  vertical-align: middle; /* 수직 정렬 추가 */
+.statusMessage {
+  flex: 1;
+  padding: 0 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
 }
 
-.editingStatusText:hover {
-  text-decoration: underline; /* 호버 시 밑줄 표시 */
-  cursor: help; /* 도움말 커서로 변경 */
+.statusMessage .editingStatusText {
+  margin: 0;
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background-color: #fff3cd;
+  border: 1px solid #ffeeba;
+  color: #856404;
+}
+
+/* 기존 editingStatusText 스타일 유지 */
+.editingStatusText {
+  font-size: 13px;
+  padding: 8px 12px;
+  margin: 5px 0 10px 0;
+  background-color: #fff3cd;
+  border: 1px solid #ffeeba;
+  border-radius: 4px;
+  color: #856404;
+  font-weight: normal;
+  display: block;
+  text-align: center;
 }
 
 .editActionButtons {
-  display: inline-flex; /* 인라인 플렉스로 변경 */
-  gap: 8px;
-  margin-left: 10px; /* 텍스트와의 간격 */
-  vertical-align: middle; /* 수직 정렬 */
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 15px;
 }
 
 .cancelButton, .confirmButton {
-  font-size: 12px;
-  padding: 5px 10px;
+  font-size: 13px;
+  padding: 6px 15px;
   height: auto;
-  min-height: 28px;
+  min-height: 30px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
+  font-weight: bold;
 }
 
 .cancelButton {
-  background-color: #ffebee; /* 연한 빨간색 배경 */
+  background-color: #ffebee;
   border: 1px solid #ffcdd2;
-  color: #d32f2f; /* 빨간색 텍스트 */
+  color: #d32f2f;
 }
 
 .cancelButton:hover {
-  background-color: #ffcdd2; /* 호버 시 약간 더 진한 빨간색 */
+  background-color: #ffcdd2;
   border-color: #ef9a9a;
 }
 
 .confirmButton {
-  background-color: #007bff;
-  border: 1px solid #0069d9;
-  color: white;
+  background-color: #e3f2fd;
+  border: 1px solid #bbdefb;
+  color: #1976d2;
 }
 
 .confirmButton:hover {
-  background-color: #0069d9;
+  background-color: #bbdefb;
+  border-color: #90caf9;
 }
 
 /* 에디터 헤더 스타일 */
@@ -640,9 +709,35 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #eee;
+}
+
+.sidebarTitle {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  margin: 0;
+  padding: 10px 0;
 }
 
 /* 기존 hidden 클래스가 없다면 추가 */
 .hidden {
   display: none !important;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.buttonGroup .cancelButton,
+.buttonGroup .confirmButton,
+.buttonGroup .headerButton {
+  margin: 0;
+  font-size: 13px;
+  padding: 6px 12px;
+  height: auto;
 }

@@ -1,7 +1,11 @@
 // 맵 관련 유틸리티 함수들
 import { OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates } from './dataModels';
 
-// 인포윈도우 내용 생성 함수
+/**
+ * 인포윈도우 내용 생성 함수
+ * @param {import('./dataModels').ShopDataSet} shopItem - 상점 데이터
+ * @returns {string} HTML 형식의 인포윈도우 내용
+ */
 export const createInfoWindowContent = (shopItem) => {
   const name = shopItem.serverDataset?.storeName || shopItem.storeName || '이름 없음';
   const style = shopItem.serverDataset?.storeStyle || shopItem.storeStyle || '';
@@ -16,12 +20,22 @@ export const createInfoWindowContent = (shopItem) => {
   `;
 };
 
-// 인포윈도우 표시 함수
+/**
+ * 인포윈도우 표시 함수
+ * @param {import('./dataModels').ShopDataSet} shopItem - 상점 데이터
+ * @param {google.maps.Map} mapInst - 구글 맵 인스턴스
+ * @param {google.maps.InfoWindow|React.MutableRefObject<google.maps.InfoWindow>} sharedInfoWindow - 공유 인포윈도우 객체 또는 ref
+ * @param {google.maps.Marker} [anchor=null] - 인포윈도우를 연결할 마커
+ */
 export const showInfoWindow = (shopItem, mapInst, sharedInfoWindow, anchor = null) => {
-  if (!sharedInfoWindow || !shopItem) return;
+  if (!shopItem) return;
+  
+  // sharedInfoWindow가 ref 객체인 경우 current 속성 사용
+  const infoWindow = sharedInfoWindow?.current || sharedInfoWindow;
+  if (!infoWindow) return;
   
   // 인포윈도우 내용 설정
-  sharedInfoWindow.setContent(createInfoWindowContent(shopItem));
+  infoWindow.setContent(createInfoWindowContent(shopItem));
   
   // 위치 설정
   const pinPosition = parseCoordinates(
@@ -30,15 +44,26 @@ export const showInfoWindow = (shopItem, mapInst, sharedInfoWindow, anchor = nul
   
   if (anchor) {
     // 마커에 연결
-    sharedInfoWindow.open(mapInst, anchor);
+    infoWindow.open(mapInst, anchor);
   } else if (pinPosition) {
     // 위치만 설정
-    sharedInfoWindow.setPosition(pinPosition);
-    sharedInfoWindow.open(mapInst);
+    infoWindow.setPosition(pinPosition);
+    infoWindow.open(mapInst);
   }
 };
 
-// 마커 생성 함수
+/**
+ * 마커 생성 함수
+ * @param {{lat: number, lng: number}} coordinates - 마커 좌표
+ * @param {google.maps.Map} mapInst - 구글 맵 인스턴스
+ * @param {import('./dataModels').ShopDataSet} shopItem - 상점 데이터
+ * @param {google.maps.MarkerOptions} optionsMarker - 마커 옵션
+ * @param {google.maps.InfoWindow|React.MutableRefObject<google.maps.InfoWindow>} sharedInfoWindow - 공유 인포윈도우 객체 또는 ref
+ * @param {Function} setSelectedCurShop - 선택된 상점 설정 함수
+ * @param {Function} setClickedItem - 클릭된 아이템 설정 함수
+ * @param {Function} setHoveredItem - 마우스 오버 중인 아이템 설정 함수
+ * @returns {google.maps.Marker} 생성된 마커 객체
+ */
 export const factoryMakers = (coordinates, mapInst, shopItem, optionsMarker, sharedInfoWindow, setSelectedCurShop, setClickedItem, setHoveredItem) => {
   const _markerOptions = Object.assign({}, optionsMarker, { position: coordinates });
   const _marker = new window.google.maps.Marker(_markerOptions);
@@ -47,8 +72,13 @@ export const factoryMakers = (coordinates, mapInst, shopItem, optionsMarker, sha
   _marker.setMap(mapInst);
 
   // 공유 인포윈도우 초기화 (아직 생성되지 않은 경우)
-  if (!sharedInfoWindow && window.google && window.google.maps) {
-    sharedInfoWindow = new window.google.maps.InfoWindow();
+  // sharedInfoWindow가 ref 객체인 경우 current 속성 사용
+  const infoWindow = sharedInfoWindow?.current || sharedInfoWindow;
+  if (!infoWindow && window.google && window.google.maps) {
+    // 새 인포윈도우 생성 (필요한 경우)
+    if (sharedInfoWindow && typeof sharedInfoWindow === 'object' && 'current' in sharedInfoWindow) {
+      sharedInfoWindow.current = new window.google.maps.InfoWindow();
+    }
   }
 
   const handleOverlayClick = () => {
@@ -77,7 +107,18 @@ export const factoryMakers = (coordinates, mapInst, shopItem, optionsMarker, sha
   return _marker;
 };
 
-// 폴리곤 생성 함수
+/**
+ * 폴리곤 생성 함수
+ * @param {Array<{lat: number, lng: number}>} paths - 폴리곤 경로 좌표 배열
+ * @param {google.maps.Map} mapInst - 구글 맵 인스턴스
+ * @param {import('./dataModels').ShopDataSet} shopItem - 상점 데이터
+ * @param {google.maps.PolygonOptions} optionsPolygon - 폴리곤 옵션
+ * @param {google.maps.InfoWindow|React.MutableRefObject<google.maps.InfoWindow>} sharedInfoWindow - 공유 인포윈도우 객체 또는 ref
+ * @param {Function} setSelectedCurShop - 선택된 상점 설정 함수
+ * @param {Function} setClickedItem - 클릭된 아이템 설정 함수
+ * @param {Function} setHoveredItem - 마우스 오버 중인 아이템 설정 함수
+ * @returns {google.maps.Polygon} 생성된 폴리곤 객체
+ */
 export const factoryPolygon = (paths, mapInst, shopItem, optionsPolygon, sharedInfoWindow, setSelectedCurShop, setClickedItem, setHoveredItem) => {
   const _polygonOptions = Object.assign({}, optionsPolygon, { 
     paths: paths,
@@ -93,8 +134,13 @@ export const factoryPolygon = (paths, mapInst, shopItem, optionsPolygon, sharedI
   _polygon.setMap(mapInst);
 
   // 공유 인포윈도우 초기화 (아직 생성되지 않은 경우)
-  if (!sharedInfoWindow && window.google && window.google.maps) {
-    sharedInfoWindow = new window.google.maps.InfoWindow();
+  // sharedInfoWindow가 ref 객체인 경우 current 속성 사용
+  const infoWindow = sharedInfoWindow?.current || sharedInfoWindow;
+  if (!infoWindow && window.google && window.google.maps) {
+    // 새 인포윈도우 생성 (필요한 경우)
+    if (sharedInfoWindow && typeof sharedInfoWindow === 'object' && 'current' in sharedInfoWindow) {
+      sharedInfoWindow.current = new window.google.maps.InfoWindow();
+    }
   }
 
   const handleOverlayClick = () => {
@@ -129,7 +175,10 @@ export const factoryPolygon = (paths, mapInst, shopItem, optionsPolygon, sharedI
   return _polygon;
 };
 
-// 프로토타입 오버레이 설정 함수
+/**
+ * 프로토타입 오버레이 설정 함수
+ * @returns {{ optionsMarker: google.maps.MarkerOptions, optionsPolygon: google.maps.PolygonOptions }} 마커와 폴리곤 옵션
+ */
 export const setProtoOverlays = () => {
   const _optionsMarker = {
     icon: {
@@ -161,7 +210,11 @@ export const setProtoOverlays = () => {
   return { optionsMarker: _optionsMarker, optionsPolygon: _optionsPolygon };
 };
 
-// 폴리곤 가시성 업데이트 함수
+/**
+ * 폴리곤 가시성 업데이트 함수
+ * @param {google.maps.Map} map - 구글 맵 인스턴스
+ * @param {Array<import('./dataModels').ShopDataSet>} currentItems - 현재 섹션의 아이템 목록
+ */
 export const updatePolygonVisibility = (map, currentItems) => {
   if (!map) return;
   

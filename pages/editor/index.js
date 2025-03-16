@@ -8,7 +8,7 @@ import Image from 'next/image';
 import styles from './styles.module.css';
 import { ActionTypes, initialEditState, editReducer, editActions, editUtils } from './editActions';
 import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from './dataModels';
-import { createInfoWindowContent as createInfoWindowContentUtil, showInfoWindow as showInfoWindowUtil, factoryMakers, factoryPolygon, setProtoOverlays, updatePolygonVisibility } from './mapUtils';
+import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData } from './serverUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
@@ -17,8 +17,10 @@ import RightSidebar from './components/RightSidebar';
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
 /**
- * sectionsDB를 관리하는 객체
- * 섹션 데이터를 로드하고 캐싱하는 기능 제공
+ * 인메모리 DB인 sectionsDB를 관리하는 객체. 
+ * 섹션별로 데이터를 캐싱해서 제공
+ * 로컬,서버관리하는 모듈의 getSectionData 인터페이스 이용 -> sectionDB용 서버데이터셋 로드 -> 클라이언트데이터셋 변환 
+ * cache에서 반환시 마커,오버레이 포함 
  */
 const SectionsDBManager = {
   // 섹션 데이터 캐시 (Map 객체)
@@ -27,11 +29,9 @@ const SectionsDBManager = {
   /**
    * 섹션 데이터 가져오기 (캐시 -> 로컬 스토리지 -> 서버 순으로 시도)
    * @param {string} sectionName - 가져올 섹션 이름
-   * @param {object} mapInstance - 구글 맵 인스턴스 (마커/폴리곤 생성용)
-   * @param {object} options - 추가 옵션 (마커/폴리곤 생성 관련)
    * @returns {Promise<Array>} - 변환된 아이템 리스트 (protoShopDataSet 형태)
    */
-  getSectionItems: async function(sectionName, mapInstance = null, options = {}) {
+  getSectionItems: async function(sectionName) {
     // 1. 캐시에서 먼저 확인
     if (this._cache.has(sectionName)) {
       console.log(`SectionsDBManager: 캐시에서 ${sectionName} 데이터 로드 (${this._cache.get(sectionName).length}개 항목)`);
@@ -43,7 +43,7 @@ const SectionsDBManager = {
       const serverItems = await getSectionData(sectionName);
       
       // 3. 서버 형식(protoServerDataset)에서 클라이언트 형식(protoShopDataSet)으로 변환
-      const clientItems = this._transformToClientFormat(serverItems, mapInstance, options);
+      const clientItems = this._transformToClientFormat(serverItems);
       
       // 4. 캐시에 저장
       this._cache.set(sectionName, clientItems);
@@ -68,67 +68,23 @@ const SectionsDBManager = {
   /**
    * 서버 형식에서 클라이언트 형식으로 데이터 변환
    * @param {Array} serverItems - 서버 형식 아이템 리스트 (protoServerDataset 형태)
-   * @param {object} mapInstance - 구글 맵 인스턴스 (마커/폴리곤 생성용)
-   * @param {object} options - 추가 옵션 (마커/폴리곤 생성 관련)
    * @returns {Array} - 변환된 아이템 리스트 (protoShopDataSet 형태)
    */
-  _transformToClientFormat: function(serverItems, mapInstance, options) {
+  _transformToClientFormat: function(serverItems) {
     return serverItems.map(item => {
-      // 기본 구조 생성
       const clientItem = {
         ...protoShopDataSet,
-        serverDataset: { ...protoServerDataset, ...item },
-        distance: item.distance || "", // TODO 추후 distance자료형 수정 
-        itemMarker: null,
-        itemPolygon: null
+        serverDataset: { ...item }
       };
       
-      // 맵 인스턴스가 제공된 경우 마커와 폴리곤 생성
-      if (mapInstance) {
-        // 마커 생성
-        if (clientItem.serverDataset.pinCoordinates) {
-          const coordinates = parseCoordinates(clientItem.serverDataset.pinCoordinates);
-          if (coordinates) {
-            const marker = options.factoryMakers ? 
-              options.factoryMakers(
-                coordinates, 
-                mapInstance, 
-                clientItem, 
-                options.markerOptions,
-                options.sharedInfoWindow,
-                options.setSelectedCurShop,
-                options.setClickedItem
-              ) :
-              null;
-            
-            // 마커를 맵에 표시
-            if (marker) {
-              marker.setMap(mapInstance);
-              clientItem.itemMarker = marker;
-            }
-          }
-        }
-        
-        // 폴리곤 생성
-        if (clientItem.serverDataset.path && clientItem.serverDataset.path.length > 0) {
-          const polygon = options.factoryPolygon ?
-            options.factoryPolygon(
-              clientItem.serverDataset.path, 
-              mapInstance, 
-              clientItem, 
-              options.polygonOptions,
-              options.sharedInfoWindow,
-              options.setSelectedCurShop,
-              options.setClickedItem
-            ) :
-            null;
-          
-          // 폴리곤을 맵에 표시
-          if (polygon) {
-            polygon.setMap(mapInstance);
-            clientItem.itemPolygon = polygon;
-          }
-        }
+      // 마커와 폴리곤 생성 - 새로운 mapUtils 인터페이스 사용
+      try {
+        // 새로운 mapUtils.createOverlaysFromItem 사용
+        const overlays = mapUtils.createOverlaysFromItem(clientItem);
+        clientItem.itemMarker = overlays.marker;
+        clientItem.itemPolygon = overlays.polygon;
+      } catch (error) {
+        console.error('오버레이 생성 중 오류 발생:', error);
       }
       
       return clientItem;
@@ -182,14 +138,19 @@ export default function Editor() { // 메인 페이지
 
   // sectionsDB 참조 제거 (SectionsDBManager로 완전히 대체)
   
-  const [curLocalItemlist, setCurLocalItemlist] = useState([]);
-  const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
+  const [curItemListInCurSection, setCurItemListInCurSection] = useState([]);
+  // 이전 아이템 리스트를 useRef로 변경
+  const prevItemListforRelieveOverlays = useRef([]);
+  // 현재 아이템 리스트의 참조를 저장하는 ref - 이벤트 핸들러에서 최신 상태 접근용
+  const currentItemListRef = useRef([]);
+  // presentMakers 배열은 사용되지 않으므로 제거
+  // const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
 
   // curSectionName을 상태로 관리 - 초기값을 null로 설정
   const [curSectionName, setCurSectionName] = useState(null);
   
   // 선택된 상점 정보를 저장하는 상태 변수 추가 - 코드 순서 변경
-  const [selectedCurShop, setSelectedCurShop] = useState(null);
+  const [curSelectedShop, setCurSelectedShop] = useState(null);
   
   // 폼 데이터를 관리하는 상태 추가
   const [formData, setFormData] = useState({
@@ -210,7 +171,7 @@ export default function Editor() { // 메인 페이지
   });
   
   // 현재 선택된 섹션의 아이템 리스트를 가져오는 함수
-  const getCurLocalItemlist = async (sectionName = curSectionName) => {
+  const getCurLocalItemlist = async (sectionName = curSectionName) => { 
     if (!sectionName) {
       console.error('섹션 이름이 지정되지 않았습니다.');
       return [];
@@ -219,32 +180,7 @@ export default function Editor() { // 메인 페이지
     console.log(`getCurLocalItemlist: ${sectionName} 데이터 로드 시도`);
     
     // SectionsDBManager를 통해 데이터 가져오기
-    const mapOptions = instMap.current ? {
-      factoryMakers, // mapUtils에서 import한 함수 사용
-      factoryPolygon,
-      markerOptions: optionsMarker,
-      polygonOptions: optionsPolygon,
-      sharedInfoWindow, // 공유 인포윈도우 전달
-      setSelectedCurShop,
-      setClickedItem
-    } : {};
-    
-    // 옵션 로깅
-    if (instMap.current) {
-      console.log('getCurLocalItemlist: 맵 옵션 설정됨', {
-        hasFactoryMakers: !!mapOptions.factoryMakers,
-        hasFactoryPolygon: !!mapOptions.factoryPolygon,
-        hasMarkerOptions: !!mapOptions.markerOptions,
-        hasPolygonOptions: !!mapOptions.polygonOptions,
-        hasSharedInfoWindow: !!mapOptions.sharedInfoWindow
-      });
-    }
-    
-    return await SectionsDBManager.getSectionItems(
-      sectionName, 
-      instMap.current,
-      mapOptions
-    );
+    return await SectionsDBManager.getSectionItems(sectionName);
   };
 
   // 로컬 저장소에서 sectionsDB 저장 함수는 serverUtils.js로 이동했습니다.
@@ -318,8 +254,8 @@ export default function Editor() { // 메인 페이지
       // 원본 데이터 저장 및 편집 시작
       dispatch(
         editActions.beginEdit({
-          originalShopData: selectedCurShop, // 원본 데이터 저장
-          editNewShopDataSet: selectedCurShop, // 편집할 데이터 설정
+          originalShopData: curSelectedShop, // 원본 데이터 저장
+          editNewShopDataSet: curSelectedShop, // 편집할 데이터 설정
         })
       );
     } 
@@ -329,7 +265,7 @@ export default function Editor() { // 메인 페이지
       dispatch(
         editActions.beginEdit({
           originalShopData: editState.originalShopData, // 원본 데이터 유지
-          editNewShopDataSet: selectedCurShop, // 현재 선택된 데이터로 편집 시작
+          editNewShopDataSet: curSelectedShop, // 현재 선택된 데이터로 편집 시작
         })
       );
     }
@@ -337,13 +273,13 @@ export default function Editor() { // 메인 페이지
 
   // 수정 확인 핸들러
   const handleConfirmEdit = () => {
-    if (!editNewShopDataSet || !selectedCurShop) return;
+    if (!editNewShopDataSet || !curSelectedShop) return;
     
     // 서버 데이터 업데이트 로직
     console.log('수정 확인:', editNewShopDataSet);
     
     // 현재 선택된 상점 업데이트
-    setSelectedCurShop(editNewShopDataSet);
+    setCurSelectedShop(editNewShopDataSet);
     
     // 상태 초기화
     dispatch(editActions.confirmEdit());
@@ -352,8 +288,8 @@ export default function Editor() { // 메인 페이지
   // 수정 취소 핸들러
   const handleCancelEdit = () => {
     // 원본 데이터로 폼 데이터 복원
-    if (selectedCurShop) {
-      updateFormDataFromShop(selectedCurShop);
+    if (curSelectedShop) {
+      updateFormDataFromShop(curSelectedShop);
     }
     
     // 상태 초기화
@@ -411,7 +347,7 @@ export default function Editor() { // 메인 페이지
       dispatch(editActions.trackFieldChange(name));
     } else {
       // 일반 모드에서는 selectedCurShop 업데이트
-      if (selectedCurShop) {
+      if (curSelectedShop) {
         let processedValue = value;
         
         if (name === 'businessHours') {
@@ -419,14 +355,14 @@ export default function Editor() { // 메인 페이지
         }
         
         const updatedShop = {
-          ...selectedCurShop,
+          ...curSelectedShop,
           serverDataset: {
-            ...selectedCurShop.serverDataset,
+            ...curSelectedShop.serverDataset,
             [name]: processedValue
           }
         };
         
-        setSelectedCurShop(updatedShop);
+        setCurSelectedShop(updatedShop);
       }
     }
   };
@@ -457,15 +393,18 @@ export default function Editor() { // 메인 페이지
 
   // 마커와 폴리곤 옵션 초기화 함수
   const initMarker = () => { 
-    // mapUtils에서 import한 setProtoOverlays 함수 사용
-    ({ optionsMarker, optionsPolygon } = setProtoOverlays());
-    
+
+     // MapUtils 초기화 (684라인)
+     if (!mapUtils.initialize()) {
+      console.error('MapUtils 초기화 실패');
+      return;
+     }
     // 공유 인포윈도우 초기화 (필요한 경우)
     if (!sharedInfoWindow.current && window.google && window.google.maps) {
       sharedInfoWindow.current = new window.google.maps.InfoWindow();
-  }
-    
-    console.log('마커 및 폴리곤 옵션 초기화 완료');
+    }
+
+
   }
   
   //AT 마커와 폴리곤, 공통 이벤트 바인딩 InitMarker 
@@ -481,11 +420,11 @@ export default function Editor() { // 메인 페이지
     
     // 마커에 애니메이션 효과 적용
     clickedItem.itemMarker.setAnimation(window.google.maps.Animation.BOUNCE);
-    
+      
     // 2초 후 애니메이션 중지
     const timer = setTimeout(() => {
       if (clickedItem.itemMarker) {
-        clickedItem.itemMarker.setAnimation(null);
+          clickedItem.itemMarker.setAnimation(null);
       }
     }, 2000);
     
@@ -505,6 +444,11 @@ export default function Editor() { // 메인 페이지
     const mapClickListener = window.google.maps.event.addListener(instMap.current, 'click', () => {
       // 지도 빈 영역 클릭 시 클릭된 아이템 초기화
       setClickedItem(null);
+      
+      // 인포윈도우 닫기
+      if (sharedInfoWindow.current) {
+        sharedInfoWindow.current.close();
+      }
     });
     
     return () => {
@@ -520,59 +464,11 @@ export default function Editor() { // 메인 페이지
   // Firebase와 데이터 동기화 함수는 serverUtils.js로 이동했습니다.
 
   // FB와 연동 - 초기화 방식으로 수정
-  const initShopList = async (_mapInstance) => { // AT initShoplist 
-    // curSectionName이 없으면 "반월당"으로 설정
+  const initShopList = async (_mapInstance) => { //AT initShoplist 
     if (!curSectionName) {
-      setCurSectionName("반월당");
-      return; // curSectionName이 변경되면 useEffect에서 다시 호출됨
-    }
-    
-    // 지도 인스턴스가 없으면 종료
-    if (!_mapInstance) {
-      console.error('지도 인스턴스가 없습니다.');
+      setCurSectionName("반월당"); // TODO 앱 초기화면에서  지역명 입력전 처리방법 추가,    
+      // curSectionName이 변경되면 useEffect에서 데이터 로드 및 UI 업데이트가 자동으로 처리됨
       return;
-    }
-    
-    console.log(`initShopList: ${curSectionName} 섹션 데이터 로드 시작`);
-    
-    try {
-      // 섹션 데이터 로드
-      const items = await getCurLocalItemlist(curSectionName);
-      console.log(`initShopList: ${curSectionName} 섹션 데이터 로드 완료 (${items.length}개 항목)`);
-      
-      // 마커와 폴리곤이 제대로 생성되었는지 확인
-      let markerCount = 0;
-      let polygonCount = 0;
-      
-      items.forEach(item => {
-        // 마커 확인 및 설정
-        if (item.itemMarker) {
-          markerCount++;
-          // 마커가 맵에 표시되어 있지 않으면 표시
-          if (item.itemMarker.getMap() !== _mapInstance) {
-            item.itemMarker.setMap(_mapInstance);
-          }
-        }
-        
-        // 폴리곤 확인 및 설정
-        if (item.itemPolygon) {
-          polygonCount++;
-          // 폴리곤이 맵에 표시되어 있지 않으면 표시
-          if (item.itemPolygon.getMap() !== _mapInstance) {
-            item.itemPolygon.setMap(_mapInstance);
-          }
-        }
-      });
-      
-      console.log(`initShopList: 마커 ${markerCount}개, 폴리곤 ${polygonCount}개 생성됨`);
-      
-      // 폴리곤 가시성 업데이트 (폴리곤이 있는 경우에만)
-      if (polygonCount > 0) {
-        console.log('initShopList: 폴리곤 가시성 업데이트 호출...');
-        updatePolygonVisibility(_mapInstance, items);
-      }
-    } catch (error) {
-      console.error('initShopList 오류:', error);
     }
   };
 
@@ -715,19 +611,17 @@ export default function Editor() { // 메인 페이지
 
   // 지도 초기화 함수 수정
   const initGoogleMapPage = () => {
-    // console.log('initPage');
-
+    // 여기는 window.google과 window.google.maps객체가 로딩 확정된 시점에서 실행되는 지점점
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
         setCurrentPosition({ lat: latitude, lng: longitude });
-        // console.log('현재 위치 : ', latitude, longitude);
       },
         (error) => {
           // console.log('geolocation 에러 : ',error);
         });
     } else {
-      console.log('geolocation 지원 안되는 중');
+      console.error('geolocation 지원 안되는 중');
     }
 
     //-- g맵 인스턴스 생성
@@ -741,33 +635,36 @@ export default function Editor() { // 메인 페이지
     //-- g맵 인스턴스 생성 끝끝
 
     // 줌 변경 이벤트 리스너 추가
-    window.google.maps.event.addListener(_mapInstance, 'zoom_changed', () => {
-      // SectionsDBManager에서 현재 섹션 데이터 가져오기
-      const items = SectionsDBManager.getCachedItems(curSectionName);
+    //TODO: 추후 이 부분을 모듈화/캡슐화하여 별도 함수나 훅으로 분리할 것
+    // - 이벤트 핸들러 등록/제거 로직
+    // - 폴리곤 가시성 제어 로직 
+    // - 기타 줌 레벨에 따른 UI 변경 로직을 캡슐화
+    window.google.maps.event.addListener(_mapInstance, 'zoom_changed', () => { //AT 지도줌변경 이벤트 바인딩
+      // 최신 아이템 리스트를 useRef에서 가져옴 (클로저 문제 해결)
+      const itemList = currentItemListRef.current;
+      if (!itemList || itemList.length === 0) return;
       
-      // 아이템이 없으면 종료
-      if (!items || items.length === 0) return;
-      
-      // 폴리곤이 있는지 확인
-      const hasPolygons = items.some(item => item.itemPolygon);
-      
+      const hasPolygons = itemList.some(item => item.itemPolygon);
       if (hasPolygons) {
-        console.log('zoom_changed: 폴리곤 가시성 업데이트 호출');
-        updatePolygonVisibility(_mapInstance, items);
+        const currentZoom = _mapInstance.getZoom();
+        const shouldShowPolygons = currentZoom >= 17;
+        itemList.forEach(item => {
+          if (item.itemPolygon) {
+            item.itemPolygon.setVisible(shouldShowPolygons);
+          }
+        });
       }
     });
 
-    // g맵용 로드 완료시 동작 //AT 구글맵Idle바인딩 
+    // g맵용 로드 완료시 동작 //AT 구글맵Idle바인딩  
     window.google.maps.event.addListenerOnce(_mapInstance, 'idle', () => { 
-      // 현재 초기화 순서는 세팅된대로 진행되어야 함. 
-      initDrawingManager(_mapInstance);
+      // 여기는 구글맵 인스턴스가 확정된 시점
+      // ** 아래 순서는 수정 금지
+      initDrawingManager(_mapInstance); 
       initSearchInput(_mapInstance);
-      initMarker();
-      initShopList(_mapInstance);
-      
-      console.log('구글맵 초기화 완료');
+      initMarker(); 
+      initShopList();
     });
-
     instMap.current = _mapInstance;
   } // initializeGoogleMapPage 마침
 
@@ -780,7 +677,7 @@ export default function Editor() { // 메인 페이지
         clearInterval(_intervalId);
         _intervalId = setInterval(() => {
           if (window.google.maps.Map) { // window.google.maps.Marker도 체크 해줘야 하나.. 
-            initGoogleMapPage();
+            initGoogleMapPage();// 여기는 window.google과 window.google.maps객체가 로딩 확정된 시점이다 
             clearInterval(_intervalId);
           } else {
             if (_cnt++ > 10) { clearInterval(_intervalId); console.error('구글맵 로딩 오류'); }
@@ -798,7 +695,7 @@ export default function Editor() { // 메인 페이지
   // selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
   // selectedCurShop 업데이트시, 파생 동작들 일괄적으로 작동되어야 함. 
   useEffect(() => { // AT [selectedCurShop]  
-    if (!selectedCurShop) {
+    if (!curSelectedShop) {
       // selectedCurShop이 없는 경우 폼 초기화 (updateFormDataFromShop 함수 내부에서 처리)
       updateFormDataFromShop(null);
       return;
@@ -813,9 +710,9 @@ export default function Editor() { // 메인 페이지
     });
     
     // 선택된 아이템 찾기 (storeName으로 비교)
-    const itemName = selectedCurShop.serverDataset ? 
-      selectedCurShop.serverDataset.storeName : 
-      selectedCurShop.storeName;
+    const itemName = curSelectedShop.serverDataset ? 
+      curSelectedShop.serverDataset.storeName : 
+      curSelectedShop.storeName;
       
     const selectedItemElement = Array.from(itemElements).find(item => {
       const titleElement = item.querySelector(`.${styles.itemTitle}`);
@@ -835,10 +732,10 @@ export default function Editor() { // 메인 페이지
         let position = null;
         
         // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
-        if (selectedCurShop.serverDataset && selectedCurShop.serverDataset.pinCoordinates) {
-          position = parseCoordinates(selectedCurShop.serverDataset.pinCoordinates);
-        } else if (selectedCurShop.pinCoordinates) {
-          position = parseCoordinates(selectedCurShop.pinCoordinates);
+        if (curSelectedShop.serverDataset && curSelectedShop.serverDataset.pinCoordinates) {
+          position = parseCoordinates(curSelectedShop.serverDataset.pinCoordinates);
+        } else if (curSelectedShop.pinCoordinates) {
+          position = parseCoordinates(curSelectedShop.pinCoordinates);
         }
 
         if (position) {
@@ -848,8 +745,8 @@ export default function Editor() { // 메인 페이지
           
           // 사이드바에서 선택한 경우 클릭된 아이템으로 설정
           // (마커/폴리곤 클릭 시에는 해당 이벤트 핸들러에서 처리)
-          if (clickedItem !== selectedCurShop) {
-            setClickedItem(selectedCurShop);
+          if (clickedItem !== curSelectedShop) {
+            setClickedItem(curSelectedShop);
           }
         }
       } catch (error) {
@@ -858,63 +755,104 @@ export default function Editor() { // 메인 페이지
     }
     
     // 3. 폼 데이터 업데이트 - updateFormDataFromShop 함수 내부에서 편집 모드 체크
-      updateFormDataFromShop(selectedCurShop);
+      updateFormDataFromShop(curSelectedShop);
 
-  }, [selectedCurShop]); // selectedCurShop만 종속성으로 유지
+  }, [curSelectedShop]); // 중요: selectedCurShop만 종속성으로 유지. 추가하지말것것
 
-  // curSectionName이 변경될 때 해당 섹션의 데이터를 가져와 상태 업데이트
-  useEffect(() => { // AT [curSectionName]  
-    if (!curSectionName) return; // curSectionName이 null이면 아무것도 하지 않음
+  
+  useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
+    if (!curSectionName) return;
+
+    getCurLocalItemlist(curSectionName).then(_sectionItemListfromDB => {
+      if (_sectionItemListfromDB.length > 0) {
+        // 현재 아이템 리스트를 이전 값으로 저장 (useRef 사용)
+        prevItemListforRelieveOverlays.current = curItemListInCurSection;
+        // 새 아이템 리스트로 업데이트
+        setCurItemListInCurSection(_sectionItemListfromDB);
+        // 현재 아이템 리스트 참조 업데이트
+        currentItemListRef.current = _sectionItemListfromDB;
+      } else console.error('DB에 데이터가 없음'); // 이 경우는 발생 불가. 
+    });
+  }, [curSectionName]); // 중요: curSectionName만 종속성으로 유지. 추가하지말것것
+
+  useEffect(() => { // AT [curItemListInCurSection] 지역변경으로 리스트 변경될 때 UI 업데이트
+    // 현재 아이템 리스트 참조 업데이트
+    currentItemListRef.current = curItemListInCurSection;
     
-    // 비동기 함수 정의
-    const loadSectionData = async () => {
-      console.log(`curSectionName 변경됨: ${curSectionName}, 데이터 로드 시작`);
+    if(!instMap.current) return;  // 최초 curItemListInCurSection초기화시 1회 이탈
+
+    if (!curItemListInCurSection.length) {
+      console.log('아이템 리스트가 비어 있습니다.');
+      return; 
+    }
+    
+    console.log(`아이템 리스트 업데이트: ${curItemListInCurSection.length}개 항목`);
+    
+    // 이전 오버레이 제거 (useRef.current 사용)
+    if (prevItemListforRelieveOverlays.current && prevItemListforRelieveOverlays.current.length > 0) {
+      console.log(`이전 오버레이 제거: ${prevItemListforRelieveOverlays.current.length}개`);
       
-      // 기존 마커와 폴리곤 제거
-      presentMakers.forEach(marker => {
-        if (marker) marker.setMap(null);
-      });
-      presentMakers.length = 0;
-      
-      // SectionsDBManager를 통해 섹션 데이터 가져오기
-      const sectionData = await getCurLocalItemlist(curSectionName);
-      
-      // curLocalItemlist 상태 업데이트
-      setCurLocalItemlist(sectionData);
-      
-      // 마커와 폴리곤이 제대로 생성되었는지 확인
-      let markerCount = 0;
-      let polygonCount = 0;
-      
-      sectionData.forEach(item => {
+      prevItemListforRelieveOverlays.current.forEach(item => {
         if (item.itemMarker) {
-          markerCount++;
-          // 마커가 맵에 표시되었는지 확인
-          if (item.itemMarker.getMap() !== instMap.current) {
-            console.log(`마커 맵 설정 필요: ${item.serverDataset?.storeName || '이름 없음'}`);
-            item.itemMarker.setMap(instMap.current);
-          }
+          item.itemMarker.setMap(null);
         }
-        
         if (item.itemPolygon) {
-          polygonCount++;
-          // 폴리곤이 맵에 표시되었는지 확인
-          if (item.itemPolygon.getMap() !== instMap.current) {
-            console.log(`폴리곤 맵 설정 필요: ${item.serverDataset?.storeName || '이름 없음'}`);
-            item.itemPolygon.setMap(instMap.current);
-          }
+          item.itemPolygon.setMap(null);
         }
       });
-      
-      console.log(`${curSectionName} 데이터 로드 완료, 아이템 수: ${sectionData.length}, 마커: ${markerCount}, 폴리곤: ${polygonCount}`);
-      
-      // 폴리곤 가시성 업데이트 (폴리곤이 있는 경우에만)
-      if (polygonCount > 0) {
-        console.log('curSectionName useEffect: 폴리곤 가시성 업데이트 호출');
-        updatePolygonVisibility(instMap.current, sectionData);
+    }
+    
+    // 마커와 폴리곤이 제대로 생성되었는지 확인
+    let markerCount = 0;
+    let polygonCount = 0;
+    
+    // 새 오버레이 표시
+    curItemListInCurSection.forEach(item => {
+      // 마커 처리
+      if (item.itemMarker) {
+        markerCount++;
+        // 마커가 맵에 표시되었는지 확인
+        if (item.itemMarker.getMap() !== instMap.current) {
+          item.itemMarker.setMap(instMap.current);
+        }
       }
       
-      // curLocalItemlist 관련 UI 업데이트 로직 (기존 useEffect에서 이동)
+      // 폴리곤 처리
+      if (item.itemPolygon) {
+        polygonCount++;
+        // 폴리곤이 맵에 표시되었는지 확인
+        if (item.itemPolygon.getMap() !== instMap.current) {
+          item.itemPolygon.setMap(instMap.current);
+        }
+      }
+    });
+    
+    // mapUtils를 사용하여 이벤트 등록
+    mapUtils.registerAllItemsEvents(
+      curItemListInCurSection,
+      instMap.current,
+      sharedInfoWindow.current,
+      {
+        onItemSelect: setCurSelectedShop,
+        onItemClick: setClickedItem,
+        isItemSelected: (item) => item === clickedItem
+      }
+    );
+    
+    console.log(`마커: ${markerCount}개, 폴리곤: ${polygonCount}개 표시됨`);
+    
+    // 폴리곤 가시성 업데이트 (폴리곤이 있는 경우에만)
+    if (polygonCount > 0) {
+      const currentZoom = instMap.current.getZoom();
+      const shouldShowPolygons = currentZoom >= 15;
+      curItemListInCurSection.forEach(item => {
+        if (item.itemPolygon) item.itemPolygon.setVisible(shouldShowPolygons);
+      });
+      
+      console.log(`폴리곤 가시성: ${shouldShowPolygons ? '표시' : '숨김'}, 현재 줌: ${currentZoom}`);
+    }
+    
+    // 좌측 사이드바 아이템 리스트 업데이트
     const itemListContainer = document.querySelector(`.${styles.itemList}`);
     if (!itemListContainer) {
       console.error('Item list container not found');
@@ -924,8 +862,9 @@ export default function Editor() { // 메인 페이지
     // 기존 아이템 제거
     itemListContainer.innerHTML = '';
 
-    // curLocalItemlist의 아이템을 순회하여 사이드바에 추가
-      sectionData.forEach((item) => {
+    // curItemListInCurSectionName의 아이템을 순회하여 사이드바에 추가
+    //TODO 사이드바 모듈 추가 
+    curItemListInCurSection.forEach((item) => {
       const listItem = document.createElement('li');
       listItem.className = styles.item;
 
@@ -979,8 +918,6 @@ export default function Editor() { // 메인 페이지
       link.addEventListener('click', (e) => {
         e.preventDefault();
         
-        // 선택된 상점 정보 업데이트
-        
         // serverDataset 확인 및 생성
         if (!item.serverDataset) {
           // serverDataset이 없는 경우 생성
@@ -997,7 +934,9 @@ export default function Editor() { // 메인 페이지
           item.serverDataset = newServerDataset;
         }
         
-        setSelectedCurShop(item);
+        // 두 상태를 동시에 업데이트
+        setCurSelectedShop(item);
+        setClickedItem(item);
         
         // 지도 중심 이동
         if (instMap.current) {
@@ -1032,11 +971,7 @@ export default function Editor() { // 메인 페이지
       listItem.appendChild(link);
       itemListContainer.appendChild(listItem);
     });
-    };
-
-    // 비동기 함수 실행
-    loadSectionData();
-  }, [curSectionName]); // curSectionName이 변경될 때만 실행. curSEctionName에 대한 useEffect오직 1개. 
+  }, [curItemListInCurSection]); // 중요: 종속성은curItemListInCurSection만유일, 추가 하지 말것
 
   const toggleSidebar = () => {
     setIsSidebarVisible(!isSidebarVisible); // 사이드바 가시성 토글
@@ -1057,8 +992,10 @@ export default function Editor() { // 메인 페이지
     // 기능 제거 - 차후 추가 예정
   };
 
+
+
   // 상점 데이터로부터 폼 데이터 업데이트하는 헬퍼 함수
-  const updateFormDataFromShop = (shopData) => {
+    const updateFormDataFromShop = (shopData) => {
     // 편집 모드나 수정 완료 상태에서는 폼 데이터 업데이트 스킵
     if (isEditing || isEditCompleted) return;
     
@@ -1101,6 +1038,7 @@ export default function Editor() { // 메인 페이지
     console.log('상점 추가 버튼 클릭됨');
     // 필요한 작업 수행
   };
+
 
   return (
     <div className={styles.container}>

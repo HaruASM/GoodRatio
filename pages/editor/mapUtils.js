@@ -189,7 +189,7 @@ const mapUtils = {
     if (!item || !mapInst || !infoWindow) return;
     
     // 콜백 함수 확인
-    const { onItemSelect, onItemClick, isItemSelected } = callbacks || {};
+    const { onItemSelect, isItemSelected, keepInfoWindowOpen } = callbacks || {};
     
     // 인포윈도우 표시 함수 (내부용)
     const showInfo = (target) => {
@@ -202,19 +202,21 @@ const mapUtils = {
     if (item.itemMarker) {
       // 클릭 이벤트
       item.itemMarker.addListener('click', () => {
-        if (onItemClick) onItemClick(item);
         if (onItemSelect) onItemSelect(item);
         showInfo(item.itemMarker);
       });
       
       // 마우스오버 이벤트
       item.itemMarker.addListener('mouseover', () => {
-        showInfo(item.itemMarker);
+        // 선택된 아이템이 아닐 때만 인포윈도우 표시
+        if (!isItemSelected || !isItemSelected(item)) {
+          showInfo(item.itemMarker);
+        }
       });
       
       // 마우스아웃 이벤트
       item.itemMarker.addListener('mouseout', () => {
-        // 현재 선택된 아이템이 아닐 경우에만 닫기
+        // 선택된 아이템이 아닐 때만 인포윈도우 닫기
         if (!isItemSelected || !isItemSelected(item)) {
           infoWindow.close();
         }
@@ -224,20 +226,28 @@ const mapUtils = {
     // 폴리곤 이벤트 등록 (마커와 유사)
     if (item.itemPolygon) {
       item.itemPolygon.addListener('click', () => {
-        if (onItemClick) onItemClick(item);
         if (onItemSelect) onItemSelect(item);
         showInfo(item.itemMarker || null);
       });
       
       item.itemPolygon.addListener('mouseover', () => {
-        showInfo(item.itemMarker || null);
+        // 선택된 아이템이 아닐 때만 인포윈도우 표시
+        if (!isItemSelected || !isItemSelected(item)) {
+          showInfo(item.itemMarker || null);
+        }
       });
       
       item.itemPolygon.addListener('mouseout', () => {
+        // 선택된 아이템이 아닐 때만 인포윈도우 닫기
         if (!isItemSelected || !isItemSelected(item)) {
           infoWindow.close();
         }
       });
+    }
+
+    // 선택된 아이템이면 인포윈도우 표시
+    if (isItemSelected && isItemSelected(item) && keepInfoWindowOpen) {
+      showInfo(item.itemMarker || null);
     }
   },
 

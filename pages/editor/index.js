@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useReducer, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
@@ -6,13 +7,22 @@ import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
-import { ActionTypes, initialEditState, editReducer, editActions, editUtils } from './editActions';
+import { ActionTypes, editUtils } from './editActions';
 import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from './dataModels';
 import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData } from './serverUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
-import RightSidebar from './components/RightSidebar';
+import RightSidebarWithRedux from './components/RightSidebarWithRedux';
+// Redux 선택자 가져오기
+import {
+  selectIsPanelVisible,
+  selectIsEditing,
+  selectIsConfirming,
+  selectHasChanges,
+  selectEditNewShopDataSet,
+  selectModifiedFields
+} from './store/slices/rightSidebarSlice';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -187,11 +197,14 @@ export default function Editor() { // 메인 페이지
 
   // protoServerDataset과 protoShopDataSet은 dataModels.js로 이동했습니다.
   
-  // 기존 상태들을 useReducer로 대체
-  const [editState, dispatch] = useReducer(editReducer, initialEditState);
-  
-  // 기존 상태 변수들을 editState에서 추출
-  const { isPanelVisible, isEditing, isEditCompleted, hasChanges, editNewShopDataSet, modifiedFields } = editState;
+  // Redux 상태 및 디스패치 가져오기
+  const dispatch = useDispatch();
+  const isPanelVisible = useSelector(selectIsPanelVisible);
+  const isEditing = useSelector(selectIsEditing);
+  const isEditCompleted = useSelector(selectIsConfirming); // 이름 변경됨
+  const hasChanges = useSelector(selectHasChanges);
+  const editNewShopDataSet = useSelector(selectEditNewShopDataSet);
+  const modifiedFields = useSelector(selectModifiedFields);
   
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
@@ -221,27 +234,25 @@ export default function Editor() { // 메인 페이지
     e.stopPropagation();
 
     // 완료 버튼 클릭 시
-    if (editState.isEditing) {
+    if (isEditing) {
       // 변경 사항이 있는지 확인 (원본 데이터와 비교)
       const hasChanges = editUtils.compareShopData(
-        editState.originalShopData, // 원본 데이터와 비교
-        editState.editNewShopDataSet
+        curSelectedShop, // 원본 데이터와 비교
+        editNewShopDataSet
       );
 
       console.log('변경 사항 확인:', { 
         hasChanges, 
-        originalData: editState.originalShopData,
-        editData: editState.editNewShopDataSet 
+        originalData: curSelectedShop,
+        editData: editNewShopDataSet 
       });
 
       if (!hasChanges) {
         // 변경 사항이 없으면 편집 취소
         dispatch(editActions.cancelEdit());
         // 폼 데이터 업데이트
-        if (editState.originalShopData) {
-          const updatedFormData = editActions.updateFormDataFromShop(
-            editState.originalShopData
-          );
+        if (curSelectedShop) {
+          const updatedFormData = editUtils.updateFormDataFromShop(curSelectedShop, formData);
           setFormData(updatedFormData);
         }
       } else {
@@ -250,7 +261,7 @@ export default function Editor() { // 메인 페이지
       }
     } 
     // 수정 버튼 클릭 시
-    else if (!editState.isEditing && !editState.isConfirming) {
+    else if (!isEditing && !isEditCompleted) {
       // 원본 데이터 저장 및 편집 시작
       dispatch(
         editActions.beginEdit({
@@ -260,11 +271,11 @@ export default function Editor() { // 메인 페이지
       );
     } 
     // 재수정 버튼 클릭 시
-    else if (!editState.isEditing && editState.isConfirming) {
+    else if (!isEditing && isEditCompleted) {
       // 원본 데이터는 유지하고 편집 상태로 전환
       dispatch(
         editActions.beginEdit({
-          originalShopData: editState.originalShopData, // 원본 데이터 유지
+          originalShopData: curSelectedShop, // 원본 데이터 유지
           editNewShopDataSet: curSelectedShop, // 현재 선택된 데이터로 편집 시작
         })
       );
@@ -694,10 +705,13 @@ export default function Editor() { // 메인 페이지
 
   // selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
   // selectedCurShop 업데이트시, 파생 동작들 일괄적으로 작동되어야 함. 
-  useEffect(() => { // AT [selectedCurShop]  
+  useEffect(() => { // AT [curSelectedShop]  
     if (!curSelectedShop) {
-      // selectedCurShop이 없는 경우 폼 초기화 (updateFormDataFromShop 함수 내부에서 처리)
+      // selectedCurShop이 없는 경우 폼 초기화
       updateFormDataFromShop(null);
+      if (sharedInfoWindow.current) {
+        sharedInfoWindow.current.close();
+      }
       return;
     }
     
@@ -742,11 +756,48 @@ export default function Editor() { // 메인 페이지
           // 지도 중심 이동
           instMap.current.setCenter(position);
           instMap.current.setZoom(18);
-          
-          // 사이드바에서 선택한 경우 클릭된 아이템으로 설정
-          // (마커/폴리곤 클릭 시에는 해당 이벤트 핸들러에서 처리)
-          if (clickedItem !== curSelectedShop) {
-            setClickedItem(curSelectedShop);
+
+          // 3. 인포윈도우 표시 및 애니메이션 적용
+          if (sharedInfoWindow.current && curSelectedShop.itemMarker) {
+            // 인포윈도우 컨텐츠 생성
+            const content = createInfoWindowContent(curSelectedShop);
+            
+            // 애니메이션이 적용된 컨테이너로 감싸기
+            const animatedContent = `
+              <div class="info-window-content" 
+                   style="animation: fadeInScale 0.3s ease-out; transform-origin: bottom center;">
+                ${content}
+              </div>
+              <style>
+                @keyframes fadeInScale {
+                  from {
+                    opacity: 0;
+                    transform: scale(0.8) translateY(10px);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: scale(1) translateY(0);
+                  }
+                }
+                .info-window-content {
+                  padding: 5px;
+                  border-radius: 8px;
+                  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                }
+              </style>
+            `;
+            
+            // 인포윈도우 설정 및 표시
+            sharedInfoWindow.current.setContent(animatedContent);
+            sharedInfoWindow.current.open(instMap.current, curSelectedShop.itemMarker);
+
+            // 마커 바운스 애니메이션 적용
+            curSelectedShop.itemMarker.setAnimation(window.google.maps.Animation.BOUNCE);
+            setTimeout(() => {
+              if (curSelectedShop.itemMarker) {
+                curSelectedShop.itemMarker.setAnimation(null);
+              }
+            }, 750); // 바운스 1-2회 후 중지
           }
         }
       } catch (error) {
@@ -754,10 +805,10 @@ export default function Editor() { // 메인 페이지
       }
     }
     
-    // 3. 폼 데이터 업데이트 - updateFormDataFromShop 함수 내부에서 편집 모드 체크
-      updateFormDataFromShop(curSelectedShop);
+    // 4. 폼 데이터 업데이트 //FIXHERE redux상태관리에 문제 생성성
+    updateFormDataFromShop(curSelectedShop);
 
-  }, [curSelectedShop]); // 중요: selectedCurShop만 종속성으로 유지. 추가하지말것것
+  }, [curSelectedShop]); // 중요: curSelectedShop 종속성으로 유지, 다른 상태변수 삽입 금지
 
   
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
@@ -834,8 +885,8 @@ export default function Editor() { // 메인 페이지
       sharedInfoWindow.current,
       {
         onItemSelect: setCurSelectedShop,
-        onItemClick: setClickedItem,
-        isItemSelected: (item) => item === clickedItem
+        isItemSelected: (item) => item === curSelectedShop,
+        keepInfoWindowOpen: true // 선택된 아이템의 InfoWindow를 계속 표시하기 위한 옵션
       }
     );
     
@@ -918,32 +969,21 @@ export default function Editor() { // 메인 페이지
       link.addEventListener('click', (e) => {
         e.preventDefault();
         
-        // serverDataset 확인 및 생성
         if (!item.serverDataset) {
-          // serverDataset이 없는 경우 생성
           const newServerDataset = { ...protoServerDataset };
-          
-          // 기존 필드 복사
           Object.keys(protoServerDataset).forEach(field => {
             if (item[field] !== undefined) {
               newServerDataset[field] = item[field];
             }
           });
-          
-          // 아이템 업데이트
           item.serverDataset = newServerDataset;
         }
         
-        // 두 상태를 동시에 업데이트
         setCurSelectedShop(item);
-        setClickedItem(item);
         
-        // 지도 중심 이동
         if (instMap.current) {
           try {
             let position = null;
-            
-            // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
             if (item.serverDataset && item.serverDataset.pinCoordinates) {
               position = parseCoordinates(item.serverDataset.pinCoordinates);
             } else if (item.pinCoordinates) {
@@ -995,8 +1035,9 @@ export default function Editor() { // 메인 페이지
 
 
   // 상점 데이터로부터 폼 데이터 업데이트하는 헬퍼 함수
+  // 편집 모드나 수정 완료 상태에서는 폼 데이터 업데이트 스킵. [selectedCurShop]->FormDataFromShop->setFormData
     const updateFormDataFromShop = (shopData) => {
-    // 편집 모드나 수정 완료 상태에서는 폼 데이터 업데이트 스킵
+    
     if (isEditing || isEditCompleted) return;
     
     if (!shopData) {
@@ -1096,39 +1137,22 @@ export default function Editor() { // 메인 페이지
             </div>
               </div>
               
-      {/* 오른쪽 사이드바 컴포넌트 사용 */}
-      <RightSidebar 
-        isPanelVisible={isPanelVisible}
-        isEditing={isEditing}
-        isEditCompleted={isEditCompleted}
-        hasChanges={hasChanges}
-        editNewShopDataSet={editNewShopDataSet}
-        formData={formData}
-        modifiedFields={modifiedFields}
-        inputRefs={inputRefs}
-        handleEditFoamCardButton={handleEditFoamCardButton}
-        handleConfirmEdit={handleConfirmEdit}
-        handleCancelEdit={handleCancelEdit}
-        handleFieldEditButtonClick={handleFieldEditButtonClick}
-        handleInputChange={handleInputChange}
+      {/* 오른쪽 사이드바 */}
+      <RightSidebarWithRedux
         addNewShopItem={addNewShopItem}
-        handlePinCoordinatesButtonClick={handlePinCoordinatesButtonClick}
-        handlePathButtonClick={handlePathButtonClick}
-        handleCommentButtonClick={handleCommentButtonClick}
         moveToCurrentLocation={moveToCurrentLocation}
         handlerfunc25={handlerfunc25}
+        curSelectedShop={curSelectedShop ? curSelectedShop.serverDataset : null}
+        onShopUpdate={(updatedShop) => {
+          if (curSelectedShop) {
+            // 원래 객체 구조 유지하면서 serverDataset만 업데이트
+            setCurSelectedShop({
+              ...curSelectedShop,
+              serverDataset: updatedShop
+            });
+          }
+        }}
       />
-      
-      {/* 플로팅 패널 토글 버튼 */}
-      {!isPanelVisible && (
-        <button 
-          className={styles.floatingPanelToggle}
-          onClick={() => dispatch({ type: ActionTypes.EDIT.PANEL.ON })}
-          title="패널 표시"
-        >
-          ≫
-        </button>
-      )}
       
       {/* 구글 맵 스크립트 */}
       <Script

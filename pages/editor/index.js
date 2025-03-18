@@ -7,13 +7,12 @@ import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
-import { ActionTypes, editUtils } from './editActions';
 import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from './dataModels';
 import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData } from './serverUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
-import RightSidebarWithRedux from './components/RightSidebarWithRedux';
+import RightSidebar from './components/RightSidebar';
 // Redux 선택자 가져오기
 import {
   selectIsPanelVisible,
@@ -21,8 +20,16 @@ import {
   selectIsConfirming,
   selectHasChanges,
   selectEditNewShopDataSet,
-  selectModifiedFields
+  selectModifiedFields,
+  updateFormData,
+  cancelEdit,
+  completeEdit,
+  startEdit,
+  confirmEdit,
+  trackField,
+  updateField
 } from './store/slices/rightSidebarSlice';
+import { updateFormDataFromShop as utilsUpdateFormDataFromShop, compareShopData } from './store/utils/rightSidebarUtils';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -235,49 +242,23 @@ export default function Editor() { // 메인 페이지
 
     // 완료 버튼 클릭 시
     if (isEditing) {
-      // 변경 사항이 있는지 확인 (원본 데이터와 비교)
-      const hasChanges = editUtils.compareShopData(
-        curSelectedShop, // 원본 데이터와 비교
-        editNewShopDataSet
-      );
-
-      console.log('변경 사항 확인:', { 
-        hasChanges, 
-        originalData: curSelectedShop,
-        editData: editNewShopDataSet 
-      });
-
-      if (!hasChanges) {
-        // 변경 사항이 없으면 편집 취소
-        dispatch(editActions.cancelEdit());
-        // 폼 데이터 업데이트
-        if (curSelectedShop) {
-          const updatedFormData = editUtils.updateFormDataFromShop(curSelectedShop, formData);
-          setFormData(updatedFormData);
-        }
-      } else {
-        // 변경 사항이 있으면 확인 단계로 전환
-        dispatch(editActions.completeEdit());
-      }
+      // 변경 사항 확인
+      // 변경 사항 체크는 Redux가 자동으로 처리하므로 여기서 compareShopData 필요 없음
+      
+      dispatch(completeEdit());
     } 
     // 수정 버튼 클릭 시
     else if (!isEditing && !isEditCompleted) {
       // 원본 데이터 저장 및 편집 시작
       dispatch(
-        editActions.beginEdit({
-          originalShopData: curSelectedShop, // 원본 데이터 저장
-          editNewShopDataSet: curSelectedShop, // 편집할 데이터 설정
-        })
+        startEdit({ shopData: curSelectedShop })
       );
     } 
     // 재수정 버튼 클릭 시
     else if (!isEditing && isEditCompleted) {
       // 원본 데이터는 유지하고 편집 상태로 전환
       dispatch(
-        editActions.beginEdit({
-          originalShopData: curSelectedShop, // 원본 데이터 유지
-          editNewShopDataSet: curSelectedShop, // 현재 선택된 데이터로 편집 시작
-        })
+        startEdit({ shopData: curSelectedShop })
       );
     }
   };
@@ -293,18 +274,15 @@ export default function Editor() { // 메인 페이지
     setCurSelectedShop(editNewShopDataSet);
     
     // 상태 초기화
-    dispatch(editActions.confirmEdit());
+    dispatch(confirmEdit());
   };
 
   // 수정 취소 핸들러
   const handleCancelEdit = () => {
-    // 원본 데이터로 폼 데이터 복원
-    if (curSelectedShop) {
-      updateFormDataFromShop(curSelectedShop);
-    }
+    // 원본 데이터로 폼 데이터 복원 - Redux가 처리하므로 여기서 추가 처리 불필요
     
     // 상태 초기화
-    dispatch(editActions.cancelEdit());
+    dispatch(cancelEdit());
   };
   
   // 필드 편집 버튼 클릭 핸들러
@@ -329,52 +307,35 @@ export default function Editor() { // 메인 페이지
     }
     
     // 수정된 필드 추적
-    dispatch(editActions.trackFieldChange(fieldName));
+    dispatch(trackField({ field: fieldName }));
   };
   
   // 입력 필드 변경 핸들러
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
     
-    // 항상 formData 업데이트 (편집 모드와 상관없이)
+    // formData 업데이트
     setFormData({
       ...formData,
       [name]: value
     });
     
+    // 편집 모드일 때만 처리 (확인 모드에서는 편집 불가)
     if (isEditing) {
-      // 편집 모드에서는 editNewShopDataSet 업데이트
+      // 처리된 값 (비즈니스 시간은 배열로 변환)
       let processedValue = value;
-      
-      // 배열 형태로 저장해야 하는 필드 처리
-      if (name === 'businessHours') {
-        processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
+      if (name === 'businessHours' && value.trim() !== '') {
+        processedValue = value.split(',').map(v => v.trim());
       }
       
       // 필드 데이터 업데이트
-      dispatch(editActions.updateField(name, processedValue));
+      dispatch(updateField({ field: name, value: processedValue }));
       
       // 수정된 필드 추적
-      dispatch(editActions.trackFieldChange(name));
+      dispatch(trackField({ field: name }));
     } else {
       // 일반 모드에서는 selectedCurShop 업데이트
-      if (curSelectedShop) {
-        let processedValue = value;
-        
-        if (name === 'businessHours') {
-          processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
-        }
-        
-        const updatedShop = {
-          ...curSelectedShop,
-          serverDataset: {
-            ...curSelectedShop.serverDataset,
-            [name]: processedValue
-          }
-        };
-        
-        setCurSelectedShop(updatedShop);
-      }
+      console.log('편집 모드가 아닙니다.');
     }
   };
   
@@ -521,11 +482,8 @@ export default function Editor() { // 메인 페이지
         googleDataId: detailPlace.place_id || '',
       };
 
-      // 장소 데이터 업데이트
-      dispatch({
-        type: ActionTypes.EDIT.DATA.UPDATE_PLACE,
-        payload: _newData
-      });
+      // 장소 데이터 업데이트 (Redux 액션 사용)
+      dispatch(updateFormData(_newData));
 
       if (detailPlace.geometry.viewport) {
         _mapInstance.fitBounds(detailPlace.geometry.viewport);
@@ -805,10 +763,13 @@ export default function Editor() { // 메인 페이지
       }
     }
     
-    // 4. 폼 데이터 업데이트 //FIXHERE redux상태관리에 문제 생성성
-    updateFormDataFromShop(curSelectedShop);
+    // 4. 폼 데이터 업데이트 
+    // Redux 스토어와 로컬 상태를 일관되게 유지
+    if (!isEditing && !isEditCompleted) {
+      updateFormDataFromShop(curSelectedShop);
+    }
 
-  }, [curSelectedShop]); // 중요: curSelectedShop 종속성으로 유지, 다른 상태변수 삽입 금지
+  }, [curSelectedShop, isEditing, isEditCompleted]); // curSelectedShop이 변경되거나 편집 상태가 변경될 때만 실행
 
   
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
@@ -1035,42 +996,31 @@ export default function Editor() { // 메인 페이지
 
 
   // 상점 데이터로부터 폼 데이터 업데이트하는 헬퍼 함수
-  // 편집 모드나 수정 완료 상태에서는 폼 데이터 업데이트 스킵. [selectedCurShop]->FormDataFromShop->setFormData
-    const updateFormDataFromShop = (shopData) => {
-    
-    if (isEditing || isEditCompleted) return;
-    
+  // [selectedCurShop]->FormDataFromShop->Redux Store
+  const updateFormDataFromShop = (shopData) => {
+    // shopData가 null이면 빈 폼 데이터로 초기화
     if (!shopData) {
-      // shopData가 없는 경우 폼 초기화
-      setFormData({
-        storeName: "",
-        storeStyle: "",
-        alias: "",
-        comment: "",
-        locationMap: "",
-        businessHours: "",
-        hotHours: "",
-        discountHours: "",
-        address: "",
-        mainImage: "",
-        pinCoordinates: "",
-        path: "",
-        categoryIcon: "",
-        googleDataId: "",
-      });
+      dispatch(updateFormData(utilsUpdateFormDataFromShop(null, {})));
       return;
     }
-    
-    const updatedFormData = editUtils.updateFormDataFromShop(shopData, formData);
-    setFormData(updatedFormData);
+
+    // Redux 액션 디스패치 - rightSidebarUtils의 함수 사용
+    dispatch(updateFormData(utilsUpdateFormDataFromShop(shopData, formData)));
   };
-  
-  // editNewShopDataSet으로부터 폼 데이터 업데이트하는 헬퍼 함수
-  const updateFormDataFromEditData = () => {
-    if (!editNewShopDataSet) return;
-    
-    const updatedFormData = editUtils.updateFormDataFromEditData(editNewShopDataSet, formData);
-    setFormData(updatedFormData);
+
+  /**
+   * 편집 데이터에서 폼 데이터 업데이트 함수
+   * @param {import('./dataModels').ShopDataSet} editShopData - 편집 중인 상점 데이터
+   */
+  const updateFormDataFromEditData = (editShopData) => {
+    // editShopData가 null이면 빈 폼 데이터로 초기화
+    if (!editShopData) {
+      dispatch(updateFormData(utilsUpdateFormDataFromShop(null, {})));
+      return;
+    }
+
+    // Redux 액션 디스패치
+    dispatch(updateFormData(utilsUpdateFormDataFromShop(editShopData, formData)));
   };
 
   // 컴포넌트 내부, 다른 함수들과 함께 정의
@@ -1138,7 +1088,7 @@ export default function Editor() { // 메인 페이지
               </div>
               
       {/* 오른쪽 사이드바 */}
-      <RightSidebarWithRedux
+      <RightSidebar
         addNewShopItem={addNewShopItem}
         moveToCurrentLocation={moveToCurrentLocation}
         handlerfunc25={handlerfunc25}

@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { protoServerDataset } from '../../dataModels';
-import { compareShopData, updateFormDataFromShop } from '../utils/sidebarUtils';
+import { compareShopData, updateFormDataFromShop } from '../utils/rightSidebarUtils';
 
 // 초기 상태
 const initialState = {
@@ -107,12 +107,30 @@ const rightSidebarSlice = createSlice({
     
     // 폼 데이터 업데이트
     updateFormData: (state, action) => {
+      // 업데이트할 데이터가 없는 경우는 무시
+      if (!action.payload) {
+        console.warn('updateFormData: 데이터가 없습니다');
+        return;
+      }
       
+      // 변경된 필드 추적을 위해 변경 전 데이터 스냅샷
+      const prevFormData = { ...state.formData };
+      
+      // 새 폼 데이터로 업데이트
       state.formData = {
         ...state.formData,
         ...action.payload
       };
-
+      
+      // 개발 모드에서만 변경된 필드 로깅
+      if (process.env.NODE_ENV !== 'production') {
+        const changedFields = Object.keys(action.payload).filter(
+          key => action.payload[key] !== prevFormData[key]
+        );
+        if (changedFields.length > 0) {
+          console.log('폼 데이터 업데이트됨:', changedFields);
+        }
+      }
     },
     
     // 상태 초기화
@@ -120,9 +138,24 @@ const rightSidebarSlice = createSlice({
     
     // 외부 상점 데이터와 동기화
     syncExternalShop: (state, action) => {
-      if (!action.payload.shopData) return;
+      // shopData가 null인 경우에도 명시적 처리
+      if (!action.payload || action.payload.shopData === undefined) {
+        console.warn('syncExternalShop: shopData가 없습니다');
+        return;
+      }
       
-      state.formData = updateFormDataFromShop(action.payload.shopData, state.formData);
+      // 편집 모드인 경우 동기화 스킵
+      if (state.isEditing || state.isConfirming) {
+        console.log('편집 중이므로 외부 상점 데이터 동기화를 건너뜁니다');
+        return;
+      }
+      
+      try {
+        // shopData가 null이어도 빈 폼 데이터로 처리
+        state.formData = updateFormDataFromShop(action.payload.shopData, state.formData);
+      } catch (error) {
+        console.error('상점 데이터 동기화 중 오류 발생:', error);
+      }
     }
   },
   extraReducers: (builder) => { // 비동기처리  리듀서 선언부 

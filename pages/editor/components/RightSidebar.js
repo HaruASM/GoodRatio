@@ -1,53 +1,59 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
+import {
+  togglePanel,
+  startEdit,
+  completeEdit,
+  cancelEdit,
+  confirmEdit,
+  updateField,
+  trackField,
+  updateFormData,
+  syncExternalShop,
+  saveShopData,
+  selectIsPanelVisible,
+  selectIsEditing,
+  selectIsConfirming,
+  selectHasChanges,
+  selectFormData,
+  selectModifiedFields,
+  selectEditNewShopDataSet,
+  selectStatus,
+  selectError,
+  startDrawingMode
+} from '../store/slices/rightSidebarSlice';
 
 /**
- * 오른쪽 사이드바 컴포넌트
+ * 오른쪽 사이드바 내부 컴포넌트
  * 상점 정보 표시 및 편집 기능 제공
  * 
- * @param {Object} props - 컴포넌트 props
- * @param {boolean} props.isPanelVisible - 패널 표시 여부
- * @param {boolean} props.isEditing - 편집 모드 상태
- * @param {boolean} props.isEditCompleted - 수정 완료 상태
- * @param {boolean} props.hasChanges - 수정 여부 상태
- * @param {Object} props.editNewShopDataSet - 편집 중인 데이터
- * @param {Object} props.formData - 폼 필드에 표시되는 데이터
- * @param {Object} props.modifiedFields - 수정된 필드 추적
- * @param {Object} props.inputRefs - 입력 필드 참조
- * @param {Function} props.handleEditFoamCardButton - 수정/완료/재수정 버튼 클릭 핸들러
- * @param {Function} props.handleConfirmEdit - 수정 확인 핸들러
- * @param {Function} props.handleCancelEdit - 수정 취소 핸들러
- * @param {Function} props.handleFieldEditButtonClick - 필드 편집 버튼 클릭 핸들러
- * @param {Function} props.handleInputChange - 입력 필드 변경 핸들러
- * @param {Function} props.addNewShopItem - 상점 추가 핸들러
- * @param {Function} props.handlePinCoordinatesButtonClick - 핀 좌표 버튼 클릭 핸들러
- * @param {Function} props.handlePathButtonClick - 경로 버튼 클릭 핸들러
- * @param {Function} props.handleCommentButtonClick - 코멘트 버튼 클릭 핸들러
- * @param {Function} props.moveToCurrentLocation - 현재 위치로 이동 핸들러
- * @param {Function} props.handlerfunc25 - 기타 핸들러 함수
  * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
  */
-const RightSidebar = ({
-  isPanelVisible,
-  isEditing,
-  isEditCompleted,
-  hasChanges,
-  editNewShopDataSet,
-  formData,
-  modifiedFields,
-  inputRefs,
-  handleEditFoamCardButton,
-  handleConfirmEdit,
-  handleCancelEdit,
-  handleFieldEditButtonClick,
-  handleInputChange,
-  addNewShopItem,
-  handlePinCoordinatesButtonClick,
-  handlePathButtonClick,
-  handleCommentButtonClick,
-  moveToCurrentLocation,
-  handlerfunc25
-}) => {
+const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, currentShop, onShopUpdate }) => {
+  // Redux 상태 및 디스패치 가져오기
+  const dispatch = useDispatch();
+  const isPanelVisible = useSelector(selectIsPanelVisible);
+  const isEditing = useSelector(selectIsEditing);
+  const isConfirming = useSelector(selectIsConfirming);
+  const hasChanges = useSelector(selectHasChanges);
+  const formData = useSelector(selectFormData);
+  const modifiedFields = useSelector(selectModifiedFields);
+  const editNewShopDataSet = useSelector(selectEditNewShopDataSet);
+  const status = useSelector(selectStatus);
+  const error = useSelector(selectError);
+  
+  // 입력 필드 참조 객체
+  const inputRefs = useRef({});
+  
+  // 현재 상점 데이터가 변경될 때 폼 데이터 업데이트
+  useEffect(() => {
+    if (currentShop && !isEditing) {
+      // 외부 상점 데이터와 동기화
+      dispatch(syncExternalShop({ shopData: currentShop }));
+    }
+  }, [currentShop, isEditing, dispatch]);
+  
   // 패널이 보이지 않으면 null 반환
   if (!isPanelVisible) {
     return null;
@@ -60,14 +66,25 @@ const RightSidebar = ({
   let buttonText = "수정";
   if (isEditing) {
     buttonText = "완료";
-  } else if (isEditCompleted) {
+  } else if (isConfirming) {
     buttonText = "재수정";
   }
 
   // 입력 필드 스타일 결정 함수
   const getInputClassName = (fieldName) => {
+    // 특별한 필드 타입에 따른 빈 값 체크
+    let isEmpty = true;
+    
+    if (fieldName === 'businessHours') {
+      isEmpty = !formData[fieldName] || formData[fieldName] === '';
+    } else if (fieldName === 'path' || fieldName === 'pinCoordinates') {
+      isEmpty = !formData[fieldName] || formData[fieldName] === '';
+    } else {
+      isEmpty = !formData[fieldName];
+    }
+    
     // 기본 스타일 (비어있거나 채워져 있는지)
-    const baseClassName = formData[fieldName] ? styles.filledInput : styles.emptyInput;
+    const baseClassName = !isEmpty ? styles.filledInput : styles.emptyInput;
     
     // 수정된 필드인 경우 추가 스타일
     if (modifiedFields && modifiedFields[fieldName]) {
@@ -94,6 +111,98 @@ const RightSidebar = ({
     return true;
   };
 
+  // 이벤트 핸들러
+  const handleEditFoamCardButton = (e) => {
+    e.preventDefault();
+    
+    if (isEditing) {
+      dispatch(completeEdit());
+    } else {
+      dispatch(startEdit({ shopData: currentShop }));
+    }
+  };
+  
+  const handleConfirmEdit = () => {
+    // 비동기 액션을 사용하여 데이터 저장
+    dispatch(saveShopData(editNewShopDataSet))
+      .unwrap()
+      .then((savedData) => {
+        // 저장 성공 시 외부 상태 업데이트 (onShopUpdate 콜백 호출)
+        if (onShopUpdate) {
+          onShopUpdate(savedData);
+        }
+      })
+      .catch((error) => {
+        // 오류 처리
+      });
+  };
+  
+  const handleCancelEdit = () => {
+    dispatch(cancelEdit());
+  };
+  
+  const handleFieldEditButtonClick = (e, fieldName) => {
+    e.preventDefault();
+    
+    // 필드 편집 가능하게 설정
+    if (inputRefs.current[fieldName]) {
+      inputRefs.current[fieldName].readOnly = false;
+      inputRefs.current[fieldName].focus();
+      
+      // 필드 변경 추적
+      dispatch(trackField({ field: fieldName }));
+    }
+  };
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    // 폼 데이터 업데이트
+    dispatch(updateFormData({ [name]: value }));
+    
+    // 필드 값 업데이트 - 배열 타입 특수 처리
+    let processedValue = value;
+    
+    // 배열형 필드 처리
+    if (name === 'businessHours') {
+      if (value === '' || value.trim() === '') {
+        processedValue = [""];  // 빈 값은 [""] 형태로 저장
+      } else {
+        processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
+        if (processedValue.length === 0) {
+          processedValue = [""];  // 결과가 빈 배열이면 [""] 형태로 저장
+        }
+      }
+    }
+    
+    // 원본 값 가져오기
+    let originalValue = null;
+    if (currentShop) {
+      if (currentShop.serverDataset) {
+        originalValue = currentShop.serverDataset[name];
+      } else {
+        originalValue = currentShop[name];
+      }
+    }
+    
+    // 값 업데이트 액션 디스패치
+    dispatch(updateField({ field: name, value: processedValue }));
+  };
+  
+  const handlePinCoordinatesButtonClick = (e) => {
+    e.preventDefault();
+    
+    // Redux 액션 디스패치 - 마커 드로잉 모드 시작
+    dispatch(startDrawingMode({ type: 'MARKER' }));
+  };
+  
+  const handlePathButtonClick = (e) => {
+    e.preventDefault();
+    
+    // Redux 액션 디스패치 - 폴리곤 드로잉 모드 시작
+    dispatch(startDrawingMode({ type: 'POLYGON' }));
+  };
+
   return (
     <div className={styles.rightSidebar}>
       {/* 상단 버튼 영역 */}
@@ -102,17 +211,32 @@ const RightSidebar = ({
           {isEditing && (
             <span className={styles.editingStatusText}>데이터 수정중...</span>
           )}
-          {isEditCompleted && !hasChanges && (
-            <span className={styles.editingStatusText}>수정된 내용이 없습니다. 다시 탐색하세요.</span>
+          {isConfirming && !hasChanges && (
+            <span className={styles.editingStatusText}>
+              변경사항 없음. 
+              
+            </span>
           )}
-          {isEditCompleted && hasChanges && (
-            <span className={styles.editingStatusText}>변경사항이 있습니다. 확인 또는 취소를 선택하세요.</span>
+          {isConfirming && hasChanges && (
+            <span className={styles.editingStatusText}>
+              변경사항이 있습니다. 
+            </span>
+          )}
+          {!isEditing && !isConfirming && (
+            <span className={styles.editingStatusText}></span>
+          )}
+          {status === 'loading' && (
+            <span className={styles.editingStatusText}>저장 중...</span>
+          )}
+          {status === 'failed' && error && (
+            <span className={styles.errorStatusText}>오류: {error}</span>
           )}
         </div>
         <button 
           className={styles.addShopButton} 
           onClick={addNewShopItem}
           title="상점 추가"
+          disabled={status === 'loading'}
         >
           ➕ 상점 추가
         </button>
@@ -122,23 +246,28 @@ const RightSidebar = ({
       <div className={cardClassName}>
         <div className={styles.buttonContainer}>
           <h3>{formData.storeName || "상점 Data"}</h3>
-          {isEditCompleted && hasChanges ? (
+          {isConfirming ? (
             <div className={styles.buttonGroup}>
               <button 
                 className={styles.cancelButton} 
                 onClick={handleCancelEdit}
+                disabled={status === 'loading'}
               >
                 취소
               </button>
-              <button 
-                className={styles.confirmButton} 
-                onClick={handleConfirmEdit}
-              >
-                확인
-              </button>
+              {hasChanges && (
+                <button 
+                  className={styles.confirmButton} 
+                  onClick={handleConfirmEdit}
+                  disabled={status === 'loading'}
+                >
+                  {status === 'loading' ? '저장 중...' : '확인'}
+                </button>
+              )}
               <button 
                 className={styles.headerButton} 
                 onClick={handleEditFoamCardButton}
+                disabled={status === 'loading'}
               >
                 {buttonText}
               </button>
@@ -147,6 +276,7 @@ const RightSidebar = ({
             <button 
               className={styles.headerButton} 
               onClick={handleEditFoamCardButton}
+              disabled={status === 'loading'}
             >
               {buttonText}
             </button>
@@ -247,8 +377,9 @@ const RightSidebar = ({
               )}
             </div>
           </div>
- {/* 코멘트 */}
- <div className={styles.formRow}>
+
+          {/* 코멘트 */}
+          <div className={styles.formRow}>
             <span>코멘트</span>
             <div className={styles.inputContainer}>
               <input
@@ -277,6 +408,7 @@ const RightSidebar = ({
               )}
             </div>
           </div>
+
           {/* 위치지역 */}
           <div className={styles.formRow}>
             <span>위치지역</span>
@@ -576,11 +708,44 @@ const RightSidebar = ({
               )}
             </div>
           </div>
-
-         
         </form>
       </div>
     </div>
+  );
+};
+
+/**
+ * 오른쪽 사이드바 컴포넌트 (Redux 연결)
+ * 
+ * @param {Object} props - 컴포넌트 props
+ * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
+ */
+const RightSidebar = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, curSelectedShop, onShopUpdate }) => {
+  const dispatch = useDispatch();
+  const isPanelVisible = useSelector(selectIsPanelVisible);
+  
+  // 패널 토글 버튼
+  const togglePanelButton = !isPanelVisible && (
+    <button 
+      className={styles.floatingPanelToggle}
+      onClick={() => dispatch(togglePanel())}
+      title="패널 표시"
+    >
+      ≫
+    </button>
+  );
+
+  return (
+    <>
+      <SidebarContent 
+        addNewShopItem={addNewShopItem}
+        moveToCurrentLocation={moveToCurrentLocation}
+        handlerfunc25={handlerfunc25}
+        currentShop={curSelectedShop}
+        onShopUpdate={onShopUpdate}
+      />
+      {togglePanelButton}
+    </>
   );
 };
 

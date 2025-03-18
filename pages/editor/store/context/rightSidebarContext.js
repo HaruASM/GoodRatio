@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useMemo } from 'react';
 import { protoServerDataset } from '../../dataModels';
-import { compareShopData, updateFormDataFromShop } from '../utils/sidebarUtils';
+import { compareShopData, updateFormDataFromShop } from '../utils/rightSidebarUtils';
 
 // 액션 타입 정의
 export const RightSidebarActionTypes = {

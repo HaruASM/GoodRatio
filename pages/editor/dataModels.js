@@ -29,17 +29,17 @@ export const protoServerDataset = {
   storeName: "",
   storeStyle: "",
   alias: "",
-  businessHours: [],
+  businessHours: [""],
   hotHours: "",
   discountHours: "",
   address: "",
   mainImage: "",
-  mainImages: [],
-  subImages: [], // Google Place API에서 가져온 이미지를 저장할 배열
+  mainImages: [""],
+  subImages: [""], // Google Place API에서 가져온 이미지를 저장할 배열
   pinCoordinates: "",
   categoryIcon: "",
   googleDataId: "",
-  path: [],
+  path: [""],
   comment: "", // comment 필드 추가
 };
 

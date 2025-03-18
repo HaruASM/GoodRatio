@@ -27,7 +27,13 @@ import {
   startEdit,
   confirmEdit,
   trackField,
-  updateField
+  updateField,
+  togglePanel,
+  startDrawingMode,
+  endDrawingMode,
+  updateCoordinates,
+  selectIsDrawing,
+  selectDrawingType
 } from './store/slices/rightSidebarSlice';
 import { updateFormDataFromShop as utilsUpdateFormDataFromShop, compareShopData } from './store/utils/rightSidebarUtils';
 
@@ -163,6 +169,18 @@ export default function Editor() { // 메인 페이지
   // presentMakers 배열은 사용되지 않으므로 제거
   // const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
 
+  // 드로잉 오버레이 객체 저장 상태 추가
+  const [tempOverlays, setTempOverlays] = useState({
+    marker: null,
+    polygon: null
+  });
+  
+  // 임시 오버레이 참조용 ref 추가
+  const tempOverlaysRef = useRef({
+    marker: null,
+    polygon: null
+  });
+
   // curSectionName을 상태로 관리 - 초기값을 null로 설정
   const [curSectionName, setCurSectionName] = useState(null);
   
@@ -212,6 +230,9 @@ export default function Editor() { // 메인 페이지
   const hasChanges = useSelector(selectHasChanges);
   const editNewShopDataSet = useSelector(selectEditNewShopDataSet);
   const modifiedFields = useSelector(selectModifiedFields);
+  // 드로잉 관련 상태 추가
+  const isDrawing = useSelector(selectIsDrawing);
+  const drawingType = useSelector(selectDrawingType);
   
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
@@ -344,28 +365,116 @@ export default function Editor() { // 메인 페이지
     // 기능 제거 - 차후 추가 예정
   };
 
-  // 폼데이터내 지적도 도형 버튼 클릭시 동작. 다각형에 대한 처리를 위해 사용 
-  // 드로잉매니저에 대한 실질적인 이벤트 처리부
-  // // 수정버튼 클릭 -> 핸들러 -> DrawManager 동작 
-  // // -> 객체 생성 이벤트 발생 ( overlaycomplete, polygoncomplete 2개 cb 동작작 )
-  // // -> DataSet에 저장 -> 폼데이터내 Path 필드에 저장 -> 필드 활성화되어있으면 -> 해당 마커 생성 
-  // 0 Marker Overlay 객체 생성 삭제를 관리 
-  // 1.드로잉매니저 컨트롤러 보여주고, 
-  // 2. 이벤트 처리 결과 pin과 다각형을 기존 객체 변수에 저장. 
-  // 3. 기존은 삭제 
-  
-  const handlePathButtonClick = (event) => {
-    event.preventDefault();
-    console.log('경로 그리기 버튼 클릭');
+  // 드로잉 매니저 상태 감시 및 제어를 위한 useEffect
+  useEffect(() => {
+    // 드로잉 매니저가 초기화되지 않았거나 맵이 없으면 무시
+    if (!drawingManagerRef.current || !instMap.current) return;
+    
+    // 드로잉 모드가 활성화되었을 때
+    if (isDrawing && drawingType) {
+      // 인포윈도우가 열려있으면 닫기
+      if (sharedInfoWindow.current) {
+        sharedInfoWindow.current.close();
+      }
+      
+      // 드로잉 모드 타입에 따라 설정
+      if (drawingType === 'MARKER') {
+        drawingManagerRef.current.setOptions({
+          drawingControl: true,
+          drawingMode: window.google.maps.drawing.OverlayType.MARKER
+        });
+        
+        
+      } else if (drawingType === 'POLYGON') {
+        drawingManagerRef.current.setOptions({
+          drawingControl: true,
+          drawingMode: window.google.maps.drawing.OverlayType.POLYGON
+        });
+        
+        
+      }
+    } else {
+      // 드로잉 모드가 비활성화되었을 때
+      drawingManagerRef.current.setOptions({
+        drawingControl: false,
+        drawingMode: null
+      });
+    }
+  }, [isDrawing, drawingType]); // isDrawing과 drawingType이 변경될 때만 실행
+
+  // 편집 상태 및 드로잉 상태 변화 감지 useEffect 추가
+  useEffect(() => {
+    // 편집이 완료되거나 취소되었을 때 임시 오버레이 객체 정리
+    if (!isEditing) {
+      // 마커 정리
+      if (tempOverlaysRef.current.marker) {
+        tempOverlaysRef.current.marker.setMap(null);
+        tempOverlaysRef.current.marker = null;
+      }
+      
+      // 폴리곤 정리
+      if (tempOverlaysRef.current.polygon) {
+        tempOverlaysRef.current.polygon.setMap(null);
+        tempOverlaysRef.current.polygon = null;
+      }
+      
+      // 상태도 함께 초기화
+      setTempOverlays({
+        marker: null,
+        polygon: null
+      });
+    }
+  }, [isEditing]); // 종속성 배열에서 tempOverlays 제거
+
+  const handlerfunc25 = () => {
     // 기능 제거 - 차후 추가 예정
   };
 
+  // 검색창 
+  const initSearchInput = (_mapInstance) => {
+    const inputDom = searchInputDomRef.current;
+    if (!inputDom) {
+      console.error("Search input DOM element not found");
+      return;
+    }
+
+    const autocomplete = new window.google.maps.places.Autocomplete(inputDom);
+    autocomplete.bindTo('bounds', _mapInstance);
+
+    autocomplete.addListener('place_changed', () => {
+      console.log('place_changed');
+      const detailPlace = autocomplete.getPlace();
+      if (!detailPlace.geometry || !detailPlace.geometry.location) {
+        console.log("No details available for input: '" + detailPlace.name + "'");
+        return;
+      }
+
+      const _newData = {
+        storeName: detailPlace.name || '',
+        address: detailPlace.formatted_address || '',
+        googleDataId: detailPlace.place_id || '',
+      };
+
+      // 장소 데이터 업데이트 (Redux 액션 사용)
+      dispatch(updateFormData(_newData));
+
+      if (detailPlace.geometry.viewport) {
+        _mapInstance.fitBounds(detailPlace.geometry.viewport);
+      } else {
+        _mapInstance.setCenter(detailPlace.geometry.location);
+        _mapInstance.setZoom(15);
+      }
+    });
+
+    _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
+
+    // console.log('search input initialized');
+  }
 
   let optionsMarker, optionsPolygon;
 
   // 마커와 폴리곤 옵션 초기화 함수
   const initMarker = () => { 
-
      // MapUtils 초기화 (684라인)
      if (!mapUtils.initialize()) {
       console.error('MapUtils 초기화 실패');
@@ -375,8 +484,6 @@ export default function Editor() { // 메인 페이지
     if (!sharedInfoWindow.current && window.google && window.google.maps) {
       sharedInfoWindow.current = new window.google.maps.InfoWindow();
     }
-
-
   }
   
   //AT 마커와 폴리곤, 공통 이벤트 바인딩 InitMarker 
@@ -429,12 +536,6 @@ export default function Editor() { // 메인 페이지
     };
   }, [instMap.current]);
 
-  // 컴포넌트 내부의 factoryMakers 함수 제거 (mapUtils에서 import한 함수로 대체)
-
-  // 컴포넌트 내부의 factoryPolygon 함수 제거 (mapUtils에서 import한 함수로 대체)
-
-  // Firebase와 데이터 동기화 함수는 serverUtils.js로 이동했습니다.
-
   // FB와 연동 - 초기화 방식으로 수정
   const initShopList = async (_mapInstance) => { //AT initShoplist 
     if (!curSectionName) {
@@ -443,61 +544,6 @@ export default function Editor() { // 메인 페이지
       return;
     }
   };
-
-  // pin 좌표 수정 버튼 클릭시 동작
-  const handlePinCoordinatesButtonClick = (event) => {
-    event.preventDefault();
-    console.log('pin 좌표 수정 버튼 클릭');
-    // 기능 제거 - 차후 추가 예정
-  };
-
-
-  const handlerfunc25 = () => {
-    console.log('새로고침 버튼 클릭');
-    // 기능 제거 - 차후 추가 예정
-  };
-
-  // 검색창 
-  const initSearchInput = (_mapInstance) => {
-    const inputDom = searchInputDomRef.current;
-    if (!inputDom) {
-      console.error("Search input DOM element not found");
-      return;
-    }
-
-    const autocomplete = new window.google.maps.places.Autocomplete(inputDom);
-    autocomplete.bindTo('bounds', _mapInstance);
-
-    autocomplete.addListener('place_changed', () => {
-      console.log('place_changed');
-      const detailPlace = autocomplete.getPlace();
-      if (!detailPlace.geometry || !detailPlace.geometry.location) {
-        console.log("No details available for input: '" + detailPlace.name + "'");
-        return;
-      }
-
-      const _newData = {
-        storeName: detailPlace.name || '',
-        address: detailPlace.formatted_address || '',
-        googleDataId: detailPlace.place_id || '',
-      };
-
-      // 장소 데이터 업데이트 (Redux 액션 사용)
-      dispatch(updateFormData(_newData));
-
-      if (detailPlace.geometry.viewport) {
-        _mapInstance.fitBounds(detailPlace.geometry.viewport);
-      } else {
-        _mapInstance.setCenter(detailPlace.geometry.location);
-        _mapInstance.setZoom(15);
-      }
-    });
-
-    _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
-
-    // console.log('search input initialized');
-  }
-
 
   // 드로잉 매니저의 생성이유와 용도는 MyshopData의 pin과 다각형 도형 수정과 출력을 그리기용용
   // 드로잉매니저 초기화 단계에서는 마커의 디자인과 기본 동일한 동작만 세팅 
@@ -534,21 +580,81 @@ export default function Editor() { // 메인 페이지
         editable: true,
         zIndex: 1,
       },
-
     }); // _drawingManager.setOptions
 
-    // 오버레이 생성시 
+    // 오버레이 생성시 공통 이벤트 핸들러
     window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj) => {
-      // console.log 제거
-      _drawingManager.setDrawingMode(null); // 그리기 모드 초기화
+      // 1. 그리기 모드 초기화
+      _drawingManager.setDrawingMode(null);
+      _drawingManager.setOptions({ drawingControl: false });
+      
+      // 2. Redux 액션 디스패치 - 드로잉 모드 종료
+      dispatch(endDrawingMode());
+    });
+
+    // 마커 완료 이벤트 리스너 추가
+    window.google.maps.event.addListener(_drawingManager, 'markercomplete', (marker) => {
+      // 마커 위치 가져오기
+      const position = marker.getPosition();
+      const pinCoordinates = `${position.lat()},${position.lng()}`;
+      
+      // Redux 액션 디스패치 - 좌표 업데이트
+      dispatch(updateCoordinates({ 
+        type: 'MARKER', 
+        coordinates: pinCoordinates 
+      }));
+      
+      // 기존 임시 마커가 있으면 제거
+      if (tempOverlaysRef.current.marker) {
+        tempOverlaysRef.current.marker.setMap(null);
+      }
+      
+      // 새 마커를 임시 오버레이로 저장 (ref와 상태 모두 업데이트)
+      tempOverlaysRef.current.marker = marker;
+      setTempOverlays(prev => ({
+        ...prev,
+        marker: marker
+      }));
+    });
+
+    // 폴리곤 완료 이벤트 리스너 추가
+    window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', (polygon) => {
+      // 폴리곤 경로 가져오기
+      const path = polygon.getPath();
+      const pathCoordinates = [];
+      
+      // 폴리곤 경로의 모든 좌표 수집
+      for (let i = 0; i < path.getLength(); i++) {
+        const point = path.getAt(i);
+        pathCoordinates.push(`${point.lat()},${point.lng()}`);
+      }
+      
+      // 문자열로 변환 (경로 포맷 준수)
+      const pathString = pathCoordinates.join('|');
+      
+      // Redux 액션 디스패치 - 좌표 업데이트
+      dispatch(updateCoordinates({ 
+        type: 'POLYGON', 
+        coordinates: pathString 
+      }));
+      
+      // 기존 임시 폴리곤이 있으면 제거
+      if (tempOverlaysRef.current.polygon) {
+        tempOverlaysRef.current.polygon.setMap(null);
+      }
+      
+      // 새 폴리곤을 임시 오버레이로 저장 (ref와 상태 모두 업데이트)
+      tempOverlaysRef.current.polygon = polygon;
+      setTempOverlays(prev => ({
+        ...prev,
+        polygon: polygon
+      }));
     });
 
     _drawingManager.setOptions({ drawingControl: false });
     _drawingManager.setMap(_mapInstance);
     drawingManagerRef.current = _drawingManager;
-    //setDrawingManager(_drawingManager); // 비동기 이므로 최후반
-
-  } // initializeDrawingManager  
+  };
 
   const moveToCurrentLocation = () => {
     if (navigator.geolocation) {

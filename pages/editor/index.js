@@ -124,6 +124,7 @@ const SectionsDBManager = {
     this._cache.set(sectionName, items);
     
     console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${items.length}개 항목)`);
+
   },
   
   /**
@@ -212,7 +213,7 @@ export default function Editor() { // 메인 페이지
       return [];
     }
     
-    console.log(`getCurLocalItemlist: ${sectionName} 데이터 로드 시도`);
+    
     
     // SectionsDBManager를 통해 데이터 가져오기
     return await SectionsDBManager.getSectionItems(sectionName);
@@ -237,133 +238,38 @@ export default function Editor() { // 메인 페이지
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
 
-  const handleButtonClick = (buttonName) => {
-    setSelectedButton(buttonName);
-  };
 
-
-  const handleDetailLoadingClick = (event) => {
-    // 이벤트 기본 동작 방지
-    if (event) event.preventDefault();
-    console.log('디테일 로딩 버튼 클릭');
-    // 기능 제거 - 차후 추가 예정
-  };
-
-  // 서버 DB에 데이터 업데이트하는 함수
-  const justWriteServerDB = () => {
-  
-    // 서버로 데이터를 보내는 기능은 삭제하고 로그만 출력
-    console.log(`[미구현] 샵데이터 에디터에서 편집 완료한 데이터를 서버로 보내는 기능`);
-  };
-
-  // 수정/완료/재수정 버튼 클릭 핸들러
-  const handleEditFoamCardButton = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // 완료 버튼 클릭 시
-    if (isEditing) {
-      // 변경 사항 확인
-      // 변경 사항 체크는 Redux가 자동으로 처리하므로 여기서 compareShopData 필요 없음
-      
-      dispatch(completeEdit());
-    } 
-    // 수정 버튼 클릭 시
-    else if (!isEditing && !isEditCompleted) {
-      // 원본 데이터 저장 및 편집 시작
-      dispatch(
-        startEdit({ shopData: curSelectedShop })
-      );
-    } 
-    // 재수정 버튼 클릭 시
-    else if (!isEditing && isEditCompleted) {
-      // 원본 데이터는 유지하고 편집 상태로 전환
-      dispatch(
-        startEdit({ shopData: curSelectedShop })
-      );
-    }
-  };
-
-  // 수정 확인 핸들러
-  const handleConfirmEdit = () => {
-    if (!editNewShopDataSet || !curSelectedShop) return;
-    
-    // 서버 데이터 업데이트 로직
-    console.log('수정 확인:', editNewShopDataSet);
-    
-    // 현재 선택된 상점 업데이트
-    setCurSelectedShop(editNewShopDataSet);
-    
-    // 상태 초기화
-    dispatch(confirmEdit());
-  };
-
-  // 수정 취소 핸들러
-  const handleCancelEdit = () => {
-    // 원본 데이터로 폼 데이터 복원 - Redux가 처리하므로 여기서 추가 처리 불필요
-    
-    // 상태 초기화
-    dispatch(cancelEdit());
-  };
-  
-  // 필드 편집 버튼 클릭 핸들러
-  const handleFieldEditButtonClick = (event, fieldName) => {
-    event.preventDefault();
-    
-    console.log(`편집 버튼 클릭: ${fieldName}`);
-    
-    // 해당 필드 편집 가능 상태로 변경
-    if (inputRefs.current[fieldName]) {
-      // readOnly 속성 해제
-      inputRefs.current[fieldName].readOnly = false;
-      
-      // 포커스 설정
-      setTimeout(() => {
-        inputRefs.current[fieldName].focus();
-        
-        // 커서를 텍스트 끝으로 이동
-        const length = inputRefs.current[fieldName].value.length;
-        inputRefs.current[fieldName].setSelectionRange(length, length);
-      }, 0);
+  // 임시 오버레이 정리 함수
+  const cleanupTempOverlays = () => {
+    // 마커 정리
+    if (tempOverlaysRef.current.marker) {
+      // 등록된 이벤트 리스너 제거
+      google.maps.event.clearInstanceListeners(tempOverlaysRef.current.marker);
+      // 마커 맵에서 제거
+      tempOverlaysRef.current.marker.setMap(null);
+      tempOverlaysRef.current.marker = null;
     }
     
-    // 수정된 필드 추적
-    dispatch(trackField({ field: fieldName }));
-  };
-  
-  // 입력 필드 변경 핸들러
-  const handleInputChange = (event) => {
-    const { name, value } = event.target;
-    
-    // formData 업데이트
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-    
-    // 편집 모드일 때만 처리 (확인 모드에서는 편집 불가)
-    if (isEditing) {
-      // 처리된 값 (비즈니스 시간은 배열로 변환)
-      let processedValue = value;
-      if (name === 'businessHours' && value.trim() !== '') {
-        processedValue = value.split(',').map(v => v.trim());
+    // 폴리곤 정리
+    if (tempOverlaysRef.current.polygon) {
+      // 등록된 이벤트 리스너 제거 (경로 이벤트 포함)
+      if (tempOverlaysRef.current.polygon.getPath) {
+        const path = tempOverlaysRef.current.polygon.getPath();
+        google.maps.event.clearInstanceListeners(path);
       }
-      
-      // 필드 데이터 업데이트
-      dispatch(updateField({ field: name, value: processedValue }));
-      
-      // 수정된 필드 추적
-      dispatch(trackField({ field: name }));
-    } else {
-      // 일반 모드에서는 selectedCurShop 업데이트
-      console.log('편집 모드가 아닙니다.');
+      google.maps.event.clearInstanceListeners(tempOverlaysRef.current.polygon);
+      // 폴리곤 맵에서 제거
+      tempOverlaysRef.current.polygon.setMap(null);
+      tempOverlaysRef.current.polygon = null;
     }
+    
+    // 상태도 함께 초기화
+    setTempOverlays({
+      marker: null,
+      polygon: null
+    });
   };
   
-  const updateDataSet = (updates) => {
-    console.log('데이터 업데이트 요청:', updates);
-    // 기능 제거 - 차후 추가 예정
-  };
 
   // 드로잉 매니저 상태 감시 및 제어를 위한 useEffect
   useEffect(() => {
@@ -404,31 +310,46 @@ export default function Editor() { // 메인 페이지
 
   // 편집 상태 및 드로잉 상태 변화 감지 useEffect 추가
   useEffect(() => {
-    // 편집이 완료되거나 취소되었을 때 임시 오버레이 객체 정리
-    if (!isEditing) {
-      // 마커 정리
-      if (tempOverlaysRef.current.marker) {
-        tempOverlaysRef.current.marker.setMap(null);
-        tempOverlaysRef.current.marker = null;
+    // 드로잉 매니저가 초기화되지 않았거나 맵이 없으면 무시
+    if (!drawingManagerRef.current || !instMap.current) return;
+    
+    // 드로잉 모드가 활성화되었을 때
+    if (isDrawing && drawingType) {
+      // 인포윈도우가 열려있으면 닫기
+      if (sharedInfoWindow.current) {
+        sharedInfoWindow.current.close();
       }
       
-      // 폴리곤 정리
-      if (tempOverlaysRef.current.polygon) {
-        tempOverlaysRef.current.polygon.setMap(null);
-        tempOverlaysRef.current.polygon = null;
+      // 드로잉 모드 타입에 따라 설정
+      if (drawingType === 'MARKER') {
+        drawingManagerRef.current.setOptions({
+          drawingControl: true,
+          drawingMode: window.google.maps.drawing.OverlayType.MARKER
+        });
+        
+        
+      } else if (drawingType === 'POLYGON') {
+        drawingManagerRef.current.setOptions({
+          drawingControl: true,
+          drawingMode: window.google.maps.drawing.OverlayType.POLYGON
+        });
+        
+        
       }
-      
-      // 상태도 함께 초기화
-      setTempOverlays({
-        marker: null,
-        polygon: null
+    } else {
+      // 드로잉 모드가 비활성화되었을 때
+      drawingManagerRef.current.setOptions({
+        drawingControl: false,
+        drawingMode: null
       });
     }
-  }, [isEditing]); // 종속성 배열에서 tempOverlays 제거
+  }, [isDrawing, drawingType]); // isDrawing과 drawingType이 변경될 때만 실행
 
-  const handlerfunc25 = () => {
-    // 기능 제거 - 차후 추가 예정
-  };
+  const handlerFuncs = useMemo(() => {
+    return {
+      cleanupTempOverlays: cleanupTempOverlays
+    };
+  }, []);
 
   // 검색창 
   const initSearchInput = (_mapInstance) => {
@@ -442,10 +363,10 @@ export default function Editor() { // 메인 페이지
     autocomplete.bindTo('bounds', _mapInstance);
 
     autocomplete.addListener('place_changed', () => {
-      console.log('place_changed');
+      
       const detailPlace = autocomplete.getPlace();
       if (!detailPlace.geometry || !detailPlace.geometry.location) {
-        console.log("No details available for input: '" + detailPlace.name + "'");
+        console.error("구글place 미작동: '" + detailPlace.name + "'");
         return;
       }
 
@@ -468,7 +389,7 @@ export default function Editor() { // 메인 페이지
 
     _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
 
-    // console.log('search input initialized');
+    
   }
 
   let optionsMarker, optionsPolygon;
@@ -615,6 +536,18 @@ export default function Editor() { // 메인 페이지
         ...prev,
         marker: marker
       }));
+      
+      // 마커에 drag 이벤트 리스너 추가 - 위치 변경 시 좌표 업데이트
+      window.google.maps.event.addListener(marker, 'dragend', () => {
+        const newPosition = marker.getPosition();
+        const newCoordinates = `${newPosition.lat()},${newPosition.lng()}`;
+        
+        // Redux 액션 디스패치 - 좌표 업데이트
+        dispatch(updateCoordinates({
+          type: 'MARKER',
+          coordinates: newCoordinates
+        }));
+      });
     });
 
     // 폴리곤 완료 이벤트 리스너 추가
@@ -649,11 +582,47 @@ export default function Editor() { // 메인 페이지
         ...prev,
         polygon: polygon
       }));
+      
+      // 폴리곤 path 변경 이벤트 리스너 추가
+      // 1. 폴리곤 모양 변경 이벤트
+      google.maps.event.addListener(polygon.getPath(), 'set_at', () => {
+        updatePolygonPath(polygon);
+      });
+      
+      // 2. 폴리곤 포인트 추가 이벤트
+      google.maps.event.addListener(polygon.getPath(), 'insert_at', () => {
+        updatePolygonPath(polygon);
+      });
+      
+      // 3. 폴리곤 포인트 제거 이벤트
+      google.maps.event.addListener(polygon.getPath(), 'remove_at', () => {
+        updatePolygonPath(polygon);
+      });
     });
 
     _drawingManager.setOptions({ drawingControl: false });
     _drawingManager.setMap(_mapInstance);
     drawingManagerRef.current = _drawingManager;
+  };
+
+  // 폴리곤 경로 업데이트 헬퍼 함수
+  const updatePolygonPath = (polygon) => {
+    const path = polygon.getPath();
+    const pathCoordinates = [];
+    
+    for (let i = 0; i < path.getLength(); i++) {
+      const point = path.getAt(i);
+      pathCoordinates.push(`${point.lat()},${point.lng()}`);
+    }
+    
+    // 경로를 문자열로 변환
+    const pathString = pathCoordinates.join('|');
+    
+    // Redux 액션 디스패치 - 경로 업데이트
+    dispatch(updateCoordinates({
+      type: 'POLYGON',
+      coordinates: pathString
+    }));
   };
 
   const moveToCurrentLocation = () => {
@@ -756,12 +725,12 @@ export default function Editor() { // 메인 페이지
             clearInterval(_intervalId);
           } else {
             if (_cnt++ > 10) { clearInterval(_intervalId); console.error('구글맵 로딩 오류'); }
-            console.log('구글맵 로딩 중', _cnt);
+            console.error('구글맵 로딩 중', _cnt);
           }
         }, 100);
       } else {
         if (_cnt++ > 10) { clearInterval(_intervalId); console.error('구글서비스 로딩 오류'); }
-        console.log('구글서비스 로딩 중', _cnt);
+        console.error('구글서비스 로딩 중', _cnt);
       }
     }, 100);
   }, []);
@@ -900,15 +869,15 @@ export default function Editor() { // 메인 페이지
     if(!instMap.current) return;  // 최초 curItemListInCurSection초기화시 1회 이탈
 
     if (!curItemListInCurSection.length) {
-      console.log('아이템 리스트가 비어 있습니다.');
+      console.error('아이템 리스트가 비어 있습니다.');
       return; 
     }
     
-    console.log(`아이템 리스트 업데이트: ${curItemListInCurSection.length}개 항목`);
+    
     
     // 이전 오버레이 제거 (useRef.current 사용)
     if (prevItemListforRelieveOverlays.current && prevItemListforRelieveOverlays.current.length > 0) {
-      console.log(`이전 오버레이 제거: ${prevItemListforRelieveOverlays.current.length}개`);
+      
       
       prevItemListforRelieveOverlays.current.forEach(item => {
         if (item.itemMarker) {
@@ -957,7 +926,7 @@ export default function Editor() { // 메인 페이지
       }
     );
     
-    console.log(`마커: ${markerCount}개, 폴리곤: ${polygonCount}개 표시됨`);
+    
     
     // 폴리곤 가시성 업데이트 (폴리곤이 있는 경우에만)
     if (polygonCount > 0) {
@@ -967,7 +936,7 @@ export default function Editor() { // 메인 페이지
         if (item.itemPolygon) item.itemPolygon.setVisible(shouldShowPolygons);
       });
       
-      console.log(`폴리곤 가시성: ${shouldShowPolygons ? '표시' : '숨김'}, 현재 줌: ${currentZoom}`);
+      
     }
     
     // 좌측 사이드바 아이템 리스트 업데이트
@@ -1092,14 +1061,7 @@ export default function Editor() { // 메인 페이지
     setIsSearchFocused(false);
   };
 
-  // 별칭 수정 버튼 클릭 핸들러 추가
-  const handleCommentButtonClick = (event) => {
-    event.preventDefault();
-    console.log('코멘트 수정 버튼 클릭');
-    // 기능 제거 - 차후 추가 예정
-  };
-
-
+  
 
   // 상점 데이터로부터 폼 데이터 업데이트하는 헬퍼 함수
   // [selectedCurShop]->FormDataFromShop->Redux Store
@@ -1118,24 +1080,7 @@ export default function Editor() { // 메인 페이지
    * 편집 데이터에서 폼 데이터 업데이트 함수
    * @param {import('./dataModels').ShopDataSet} editShopData - 편집 중인 상점 데이터
    */
-  const updateFormDataFromEditData = (editShopData) => {
-    // editShopData가 null이면 빈 폼 데이터로 초기화
-    if (!editShopData) {
-      dispatch(updateFormData(utilsUpdateFormDataFromShop(null, {})));
-      return;
-    }
-
-    // Redux 액션 디스패치
-    dispatch(updateFormData(utilsUpdateFormDataFromShop(editShopData, formData)));
-  };
-
-  // 컴포넌트 내부, 다른 함수들과 함께 정의
-  const addNewShopItem = () => {
-    // 상점 추가 로직 구현
-    console.log('상점 추가 버튼 클릭됨');
-    // 필요한 작업 수행
-  };
-
+  
 
   return (
     <div className={styles.container}>
@@ -1195,12 +1140,14 @@ export default function Editor() { // 메인 페이지
               
       {/* 오른쪽 사이드바 */}
       <RightSidebar
-        addNewShopItem={addNewShopItem}
         moveToCurrentLocation={moveToCurrentLocation}
-        handlerfunc25={handlerfunc25}
+        handlerfunc25={handlerFuncs}
         curSelectedShop={curSelectedShop ? curSelectedShop.serverDataset : null}
         onShopUpdate={(updatedShop) => {
-          if (curSelectedShop) {
+          if (updatedShop === null) {
+            // 상점 선택 초기화
+            setCurSelectedShop(null);
+          } else if (curSelectedShop) {
             // 원래 객체 구조 유지하면서 serverDataset만 업데이트
             setCurSelectedShop({
               ...curSelectedShop,

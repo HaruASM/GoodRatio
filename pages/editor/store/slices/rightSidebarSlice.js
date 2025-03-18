@@ -92,18 +92,27 @@ const rightSidebarSlice = createSlice({
       state.isEditing = false;
       state.isConfirming = false;
       state.hasChanges = false;
-      state.editNewShopDataSet = state.originalShopData;
-      state.formData = updateFormDataFromShop(state.originalShopData, state.formData);
+      state.editNewShopDataSet = null;
+      state.originalShopData = null;
+      state.formData = updateFormDataFromShop(null, {});
       state.modifiedFields = {};
     },
     
     // 편집 확인
     confirmEdit: (state) => {
+      // 수정된 데이터 콘솔에 출력
+      console.log('저장되는 데이터:', state.editNewShopDataSet);
+      
+      // 상태 초기화
       state.isEditing = false;
       state.isConfirming = false;
       state.hasChanges = false;
-      state.originalShopData = state.editNewShopDataSet;
+      state.originalShopData = null;
+      state.editNewShopDataSet = null;
       state.modifiedFields = {};
+      
+      // 폼 데이터 초기화
+      state.formData = updateFormDataFromShop(null, {});
     },
     
     // 필드 업데이트
@@ -190,6 +199,22 @@ const rightSidebarSlice = createSlice({
       } catch (error) {
         // 오류 처리
       }
+    },
+    
+    // 새 상점 추가
+    addNewShop: (state) => {
+      // 상태 초기화
+      state.isEditing = true;
+      state.isConfirming = false;
+      state.hasChanges = false;
+      state.modifiedFields = {};
+      
+      // 빈 상점 데이터로 초기화 (protoServerDataset 사용)
+      state.originalShopData = { ...protoServerDataset };
+      state.editNewShopDataSet = { ...protoServerDataset };
+      
+      // 폼 데이터도 초기화
+      state.formData = updateFormDataFromShop(null, {});
     },
     
     // 드로잉 모드 시작
@@ -297,7 +322,8 @@ export const {
   // 드로잉 관련 액션 내보내기
   startDrawingMode,
   endDrawingMode,
-  updateCoordinates
+  updateCoordinates,
+  addNewShop
 } = rightSidebarSlice.actions;
 
 export default rightSidebarSlice.reducer; 

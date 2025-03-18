@@ -65,7 +65,7 @@ const mapUtils = {
       return false;
     }
     
-    console.log('MapUtils 초기화 중...');
+    
     
     // 마커 옵션 초기화
     this.markerOptions = {
@@ -94,7 +94,7 @@ const mapUtils = {
       fillOpacity: 0.35,
     };
     
-    console.log('MapUtils 초기화 완료');
+    
     return true;
   },
   
@@ -261,7 +261,7 @@ const mapUtils = {
   registerAllItemsEvents: function(items, mapInst, infoWindow, callbacks) {
     if (!items || !Array.isArray(items)) return;
     
-    console.log(`${items.length}개 아이템에 이벤트 등록 중...`);
+    
     
     items.forEach(item => {
       this.registerItemEvents(item, mapInst, infoWindow, callbacks);
@@ -279,7 +279,7 @@ const mapUtils = {
     const zoomLevel = map.getZoom();
     const isVisible = zoomLevel >= 16; // 줌 레벨 16 이상에서만 폴리곤 표시
     
-    console.log(`폴리곤 가시성 업데이트: 줌 레벨 ${zoomLevel}, 가시성 ${isVisible}`);
+    
     
     currentItems.forEach(item => {
       if (item.itemPolygon) {

@@ -21,7 +21,8 @@ import {
   selectEditNewShopDataSet,
   selectStatus,
   selectError,
-  startDrawingMode
+  startDrawingMode,
+  addNewShop
 } from '../store/slices/rightSidebarSlice';
 
 /**
@@ -131,14 +132,39 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
         if (onShopUpdate) {
           onShopUpdate(savedData);
         }
+        
+        // 외부로 임시 오버레이 정리 함수 호출 (props로 전달받은 함수)
+        if (handlerfunc25 && typeof handlerfunc25.cleanupTempOverlays === 'function') {
+          handlerfunc25.cleanupTempOverlays();
+        }
+        
+        // 편집 확인 액션 디스패치 - UI 초기화 및 데이터 출력
+        dispatch(confirmEdit());
+        
+        // 현재 선택된 상점 초기화 요청 (null로 설정)
+        if (onShopUpdate) {
+          onShopUpdate(null);
+        }
       })
       .catch((error) => {
         // 오류 처리
+        console.error('상점 데이터 저장 중 오류 발생:', error);
       });
   };
   
   const handleCancelEdit = () => {
+    // 외부로 임시 오버레이 정리 함수 호출 (props로 전달받은 함수)
+    if (handlerfunc25 && typeof handlerfunc25.cleanupTempOverlays === 'function') {
+      handlerfunc25.cleanupTempOverlays();
+    }
+    
+    // 편집 취소 액션 디스패치
     dispatch(cancelEdit());
+    
+    // 현재 선택된 상점 초기화 요청 (null로 설정)
+    if (onShopUpdate) {
+      onShopUpdate(null);
+    }
   };
   
   const handleFieldEditButtonClick = (e, fieldName) => {
@@ -208,18 +234,20 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
       {/* 상단 버튼 영역 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>
-          {isEditing && (
-            <span className={styles.editingStatusText}>데이터 수정중...</span>
+          {isEditing && !currentShop && (
+            <span className={styles.editingStatusText}>신규상점 입력 중...</span>
+          )}
+          {isEditing && currentShop && (
+            <span className={styles.editingStatusText}>데이터 수정 중...</span>
           )}
           {isConfirming && !hasChanges && (
             <span className={styles.editingStatusText}>
-              변경사항 없음. 
-              
+              변경사항 없음
             </span>
           )}
           {isConfirming && hasChanges && (
             <span className={styles.editingStatusText}>
-              변경사항이 있습니다. 
+              변경사항이 있습니다
             </span>
           )}
           {!isEditing && !isConfirming && (
@@ -236,7 +264,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
           className={styles.addShopButton} 
           onClick={addNewShopItem}
           title="상점 추가"
-          disabled={status === 'loading'}
+          disabled={isEditing || isConfirming || status === 'loading'}
         >
           ➕ 상점 추가
         </button>
@@ -245,7 +273,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
       {/* 상점 정보 카드 */}
       <div className={cardClassName}>
         <div className={styles.buttonContainer}>
-          <h3>{formData.storeName || "상점 Data"}</h3>
+          <h3>{formData.storeName || (!isEditing ? "상점 Data" : "신규상점 추가")}</h3>
           {isConfirming ? (
             <div className={styles.buttonGroup}>
               <button 
@@ -708,6 +736,64 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
               )}
             </div>
           </div>
+
+          {/* 이미지 미리보기 영역 */}
+          <div className={styles.imagesPreviewContainer}>
+            <div className={styles.imageSection}>
+              <div className={styles.formRow}>
+                <span>메인 이미지</span>
+              </div>
+              <div className={styles.mainImageContainer}>
+                {formData.mainImage ? (
+                  <img 
+                    src={formData.mainImage} 
+                    alt="메인 이미지" 
+                    className={styles.mainImagePreview}
+                    onError={(e) => {
+                      e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
+                      e.target.alt = "이미지 로드 실패";
+                    }}
+                  />
+                ) : (
+                  <div className={styles.emptyImagePlaceholder}>
+                    <span>이미지 없음</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className={styles.imageSection}>
+              <div className={styles.formRow}>
+                <span>서브 이미지</span>
+              </div>
+              <div className={styles.subImagesContainer}>
+                {formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0 && formData.subImages[0] !== "" ? (
+                  formData.subImages.slice(0, 4).map((imgUrl, index) => (
+                    <div key={index} className={styles.subImageItem}>
+                      <img 
+                        src={imgUrl} 
+                        alt={`서브 이미지 ${index + 1}`} 
+                        className={styles.subImagePreview}
+                        onError={(e) => {
+                          e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
+                          e.target.alt = "이미지 로드 실패";
+                        }}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  // 빈 서브 이미지 4개 표시
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className={styles.subImageItem}>
+                      <div className={styles.emptyImagePlaceholder}>
+                        <span>이미지 {index + 1}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </form>
       </div>
     </div>
@@ -720,9 +806,22 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
  * @param {Object} props - 컴포넌트 props
  * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
  */
-const RightSidebar = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, curSelectedShop, onShopUpdate }) => {
+const RightSidebar = ({ moveToCurrentLocation, handlerfunc25, curSelectedShop, onShopUpdate }) => {
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
+  
+  // 상점 추가 핸들러 (메인 컴포넌트와 공유)
+  const handleAddNewShopItem = (e) => {
+    if (e) e.preventDefault();
+    
+    // 외부로 임시 오버레이 정리 함수 호출 (기존 오버레이 정리)
+    if (handlerfunc25 && typeof handlerfunc25.cleanupTempOverlays === 'function') {
+      handlerfunc25.cleanupTempOverlays();
+    }
+    
+    // 새 상점 추가 액션 디스패치
+    dispatch(addNewShop());
+  };
   
   // 패널 토글 버튼
   const togglePanelButton = !isPanelVisible && (
@@ -738,7 +837,7 @@ const RightSidebar = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, cu
   return (
     <>
       <SidebarContent 
-        addNewShopItem={addNewShopItem}
+        addNewShopItem={handleAddNewShopItem}
         moveToCurrentLocation={moveToCurrentLocation}
         handlerfunc25={handlerfunc25}
         currentShop={curSelectedShop}

@@ -15,27 +15,20 @@ import { getSectionData } from './serverUtils';
 import RightSidebar from './components/RightSidebar';
 // Redux 선택자 가져오기
 import {
+  togglePanel,
   selectIsPanelVisible,
-  selectIsEditing,
-  selectIsConfirming,
   selectHasChanges,
   selectEditNewShopDataSet,
   selectModifiedFields,
-  updateFormData,
-  cancelEdit,
-  completeEdit,
-  startEdit,
-  confirmEdit,
-  trackField,
-  updateField,
-  togglePanel,
-  startDrawingMode,
+  selectIsDrawing,
+  selectDrawingType,
   endDrawingMode,
   updateCoordinates,
-  selectIsDrawing,
-  selectDrawingType
+  syncExternalShop,
+  updateFormData,
+  selectFormData
 } from './store/slices/rightSidebarSlice';
-import { updateFormDataFromShop as utilsUpdateFormDataFromShop, compareShopData } from './store/utils/rightSidebarUtils';
+//import { compareShopData } from './store/utils/rightSidebarUtils';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -188,23 +181,8 @@ export default function Editor() { // 메인 페이지
   // 선택된 상점 정보를 저장하는 상태 변수 추가 - 코드 순서 변경
   const [curSelectedShop, setCurSelectedShop] = useState(null);
   
-  // 폼 데이터를 관리하는 상태 추가
-  const [formData, setFormData] = useState({
-    storeName: "",
-    storeStyle: "",
-    alias: "",
-    comment: "",
-    locationMap: "",
-    businessHours: "",
-    hotHours: "",
-    discountHours: "",
-    address: "",
-    mainImage: "",
-    pinCoordinates: "",
-    path: "",
-    categoryIcon: "",
-    googleDataId: "",
-  });
+  // 폼 데이터는 이제 Redux에서 관리 (로컬 상태 제거)
+  const formData = useSelector(selectFormData);
   
   // 현재 선택된 섹션의 아이템 리스트를 가져오는 함수
   const getCurLocalItemlist = async (sectionName = curSectionName) => { 
@@ -226,8 +204,6 @@ export default function Editor() { // 메인 페이지
   // Redux 상태 및 디스패치 가져오기
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
-  const isEditing = useSelector(selectIsEditing);
-  const isEditCompleted = useSelector(selectIsConfirming); // 이름 변경됨
   const hasChanges = useSelector(selectHasChanges);
   const editNewShopDataSet = useSelector(selectEditNewShopDataSet);
   const modifiedFields = useSelector(selectModifiedFields);
@@ -345,7 +321,7 @@ export default function Editor() { // 메인 페이지
     }
   }, [isDrawing, drawingType]); // isDrawing과 drawingType이 변경될 때만 실행
 
-  const handlerFuncs = useMemo(() => {
+  const mapOverlayHandlers = useMemo(() => {
     return {
       cleanupTempOverlays: cleanupTempOverlays
     };
@@ -741,7 +717,7 @@ export default function Editor() { // 메인 페이지
   useEffect(() => { // AT [curSelectedShop]  
     if (!curSelectedShop) {
       // selectedCurShop이 없는 경우 폼 초기화
-      updateFormDataFromShop(null);
+      dispatch(syncExternalShop({ shopData: null }));
       if (sharedInfoWindow.current) {
         sharedInfoWindow.current.close();
       }
@@ -840,11 +816,13 @@ export default function Editor() { // 메인 페이지
     
     // 4. 폼 데이터 업데이트 
     // Redux 스토어와 로컬 상태를 일관되게 유지
-    if (!isEditing && !isEditCompleted) {
-      updateFormDataFromShop(curSelectedShop);
+    // 상태 검증은 Redux 액션 내부에서 처리됨
+    if (curSelectedShop) {
+      // 상점 데이터 동기화 - syncExternalShop 액션 내부에서 isEditing, isConfirming 상태 검증
+      dispatch(syncExternalShop({ shopData: curSelectedShop.serverDataset }));
     }
 
-  }, [curSelectedShop, isEditing, isEditCompleted]); // curSelectedShop이 변경되거나 편집 상태가 변경될 때만 실행
+  }, [curSelectedShop]); //## 추가 종속성 절대 추가 금지. curSelectedShop이 변경될때만 연산되는 useEffect. 
 
   
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
@@ -964,38 +942,23 @@ export default function Editor() { // 메인 페이지
       const itemTitle = document.createElement('span');
       itemTitle.className = styles.itemTitle;
       
-      // serverDataset이 있는지 확인
-      if (item.serverDataset) {
-        itemTitle.innerHTML = `${item.serverDataset.storeName || '이름 없음'} <small>${item.serverDataset.storeStyle || ''}</small>`;
-      } else {
-        // 기존 데이터 구조 (serverDataset이 없는 경우)
-        itemTitle.innerHTML = `${item.storeName || '이름 없음'} <small>${item.storeStyle || ''}</small>`;
-      }
+      // 모든 아이템은 serverDataset을 가지고 있음
+      itemTitle.innerHTML = `${item.serverDataset.storeName || '이름 없음'} <small>${item.serverDataset.storeStyle || ''}</small>`;
 
       const businessHours = document.createElement('p');
-      if (item.serverDataset && item.serverDataset.businessHours && item.serverDataset.businessHours.length > 0) {
+      if (item.serverDataset.businessHours && item.serverDataset.businessHours.length > 0) {
         businessHours.textContent = `영업 중 · ${item.serverDataset.businessHours[0]}`;
-      } else if (item.businessHours && item.businessHours.length > 0) {
-        businessHours.textContent = `영업 중 · ${item.businessHours[0]}`;
       } else {
         businessHours.textContent = '영업 중 · 정보 없음';
       }
 
       const address = document.createElement('p');
-      if (item.serverDataset) {
-        address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.serverDataset.address || '주소 없음'}`;
-      } else {
-        address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.address || '주소 없음'}`;
-      }
+      address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.serverDataset.address || '주소 없음'}`;
 
       const itemImage = document.createElement('img');
       itemImage.src = "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
       
-      if (item.serverDataset) {
-        itemImage.alt = `${item.serverDataset.storeName || ''} ${item.serverDataset.storeStyle || ''}`;
-      } else {
-        itemImage.alt = `${item.storeName || ''} ${item.storeStyle || ''}`;
-      }
+      itemImage.alt = `${item.serverDataset.storeName || ''} ${item.serverDataset.storeStyle || ''}`;
       
       itemImage.className = styles.itemImage;
       itemImage.width = 100;
@@ -1005,25 +968,14 @@ export default function Editor() { // 메인 페이지
       link.addEventListener('click', (e) => {
         e.preventDefault();
         
-        if (!item.serverDataset) {
-          const newServerDataset = { ...protoServerDataset };
-          Object.keys(protoServerDataset).forEach(field => {
-            if (item[field] !== undefined) {
-              newServerDataset[field] = item[field];
-            }
-          });
-          item.serverDataset = newServerDataset;
-        }
-        
+        // 모든 아이템은 항상 serverDataset 구조를 가짐
         setCurSelectedShop(item);
         
         if (instMap.current) {
           try {
             let position = null;
-            if (item.serverDataset && item.serverDataset.pinCoordinates) {
+            if (item.serverDataset.pinCoordinates) {
               position = parseCoordinates(item.serverDataset.pinCoordinates);
-            } else if (item.pinCoordinates) {
-              position = parseCoordinates(item.pinCoordinates);
             }
 
             if (position) {
@@ -1061,25 +1013,6 @@ export default function Editor() { // 메인 페이지
     setIsSearchFocused(false);
   };
 
-  
-
-  // 상점 데이터로부터 폼 데이터 업데이트하는 헬퍼 함수
-  // [selectedCurShop]->FormDataFromShop->Redux Store
-  const updateFormDataFromShop = (shopData) => {
-    // shopData가 null이면 빈 폼 데이터로 초기화
-    if (!shopData) {
-      dispatch(updateFormData(utilsUpdateFormDataFromShop(null, {})));
-      return;
-    }
-
-    // Redux 액션 디스패치 - rightSidebarUtils의 함수 사용
-    dispatch(updateFormData(utilsUpdateFormDataFromShop(shopData, formData)));
-  };
-
-  /**
-   * 편집 데이터에서 폼 데이터 업데이트 함수
-   * @param {import('./dataModels').ShopDataSet} editShopData - 편집 중인 상점 데이터
-   */
   
 
   return (
@@ -1141,8 +1074,8 @@ export default function Editor() { // 메인 페이지
       {/* 오른쪽 사이드바 */}
       <RightSidebar
         moveToCurrentLocation={moveToCurrentLocation}
-        handlerfunc25={handlerFuncs}
-        curSelectedShop={curSelectedShop ? curSelectedShop.serverDataset : null}
+        mapOverlayHandlers={mapOverlayHandlers}
+        curSelectedShop={curSelectedShop}
         onShopUpdate={(updatedShop) => {
           if (updatedShop === null) {
             // 상점 선택 초기화

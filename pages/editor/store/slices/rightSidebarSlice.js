@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createAction } from '@reduxjs/toolkit';
 import { protoServerDataset } from '../../dataModels';
 import { compareShopData, updateFormDataFromShop } from '../utils/rightSidebarUtils';
 
@@ -10,13 +10,16 @@ const initialState = {
   hasChanges: false,
   originalShopData: null,
   editNewShopDataSet: null,
+  // 비교 모달용 복사본 제거
   formData: { ...protoServerDataset },
   modifiedFields: {},
   status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   error: null,
   // 드로잉 관련 상태 추가
   isDrawing: false,
-  drawingType: null // 'MARKER' 또는 'POLYGON'
+  drawingType: null, // 'MARKER' 또는 'POLYGON'
+  // 모달 창 관련 상태 추가
+  isCompareModalVisible: false
 };
 
 // 비동기 액션: 상점 데이터 저장
@@ -31,6 +34,22 @@ export const saveShopData = createAsyncThunk( // 액션 생성자자
       return shopData;
     } catch (error) {
       return rejectWithValue(error.message);
+    }
+  }
+);
+
+// 최종 확인 액션 (thunk로 분리)
+export const finalConfirmAndSubmit = createAsyncThunk(
+  'rightSidebar/finalConfirmAndSubmit',
+  async (_, { dispatch, getState }) => {
+    try {
+      // 상태 초기화만 수행 (데이터 저장은 이미 CompareModal에서 수행됨)
+      dispatch(rightSidebarSlice.actions.confirmAndSubmit());
+      
+      return { success: true };
+    } catch (error) {
+      console.error('상태 초기화 중 오류 발생:', error);
+      return { success: false, error };
     }
   }
 );
@@ -50,8 +69,11 @@ const rightSidebarSlice = createSlice({
       state.isEditing = true;
       state.isConfirming = false;
       state.hasChanges = false;
-      state.originalShopData = action.payload.shopData;
-      state.editNewShopDataSet = { ...action.payload.shopData };
+      
+      // 항상 serverDataset 형식의 데이터로 가정
+      state.originalShopData = JSON.parse(JSON.stringify(action.payload.shopData));
+      state.editNewShopDataSet = JSON.parse(JSON.stringify(action.payload.shopData));
+
       state.modifiedFields = {};
     },
     
@@ -101,8 +123,24 @@ const rightSidebarSlice = createSlice({
     // 편집 확인
     confirmEdit: (state) => {
       // 수정된 데이터 콘솔에 출력
-      console.log('저장되는 데이터:', state.editNewShopDataSet);
+      console.log('저장되는 데이터:', state.editNewShopDataSet.storeName, state.editNewShopDataSet.comment);
+      console.log('원본 데이터:', state.originalShopData.storeName, state.originalShopData.comment);
       
+      
+      // 모달창 표시 - formData는 유지
+      state.isCompareModalVisible = true;
+      
+      
+      
+    },
+    
+    // 모달 닫기
+    closeCompareModal: (state) => {
+      state.isCompareModalVisible = false;
+    },
+    
+    // 최종 확인 및 전송 액션 추가 (리듀서 내부에만 있는 버전)
+    confirmAndSubmit: (state) => {
       // 상태 초기화
       state.isEditing = false;
       state.isConfirming = false;
@@ -110,6 +148,7 @@ const rightSidebarSlice = createSlice({
       state.originalShopData = null;
       state.editNewShopDataSet = null;
       state.modifiedFields = {};
+      state.isCompareModalVisible = false;
       
       // 폼 데이터 초기화
       state.formData = updateFormDataFromShop(null, {});
@@ -123,39 +162,22 @@ const rightSidebarSlice = createSlice({
       if (state.editNewShopDataSet) {
         let originalValue;
         
-        // 원본 값 가져오기
+        // 원본 값 가져오기 - 구조 변경에 맞게 수정
         if (state.originalShopData) {
-          if (state.originalShopData.serverDataset) {
-            originalValue = state.originalShopData.serverDataset[field];
-          } else {
-            originalValue = state.originalShopData[field];
-          }
+          originalValue = state.originalShopData[field];
         }
         
-        // 새 값 설정
-        if (state.editNewShopDataSet.serverDataset) {
-          // 변경사항 추적을 위해 원본 값과 비교
-          if (value !== originalValue) {
-            state.modifiedFields[field] = true;
-          } else {
-            // 값이 원래대로 되돌아왔다면 수정된 필드에서 제거
-            delete state.modifiedFields[field];
-          }
-          
-          // 값 업데이트
-          state.editNewShopDataSet.serverDataset[field] = value;
+        // 새 값 설정 - 구조 변경에 맞게 수정
+        // 변경사항 추적을 위해 원본 값과 비교
+        if (value !== originalValue) {
+          state.modifiedFields[field] = true;
         } else {
-          // 변경사항 추적을 위해 원본 값과 비교
-          if (value !== originalValue) {
-            state.modifiedFields[field] = true;
-          } else {
-            // 값이 원래대로 되돌아왔다면 수정된 필드에서 제거
-            delete state.modifiedFields[field];
-          }
-          
-          // 값 업데이트
-          state.editNewShopDataSet[field] = value;
+          // 값이 원래대로 되돌아왔다면 수정된 필드에서 제거
+          delete state.modifiedFields[field];
         }
+        
+        // 값 업데이트
+        state.editNewShopDataSet[field] = value;
       }
     },
     
@@ -188,16 +210,22 @@ const rightSidebarSlice = createSlice({
         return;
       }
       
-      // 편집 모드인 경우 동기화 스킵
+      // 편집 모드나 확인 모드일 경우 폼 데이터 동기화 스킵
+      // isEditing = true: 편집 중일 때는 폼 데이터를 사용자 입력으로 유지
+      // isConfirming = true: 확인 단계일 때는 편집 데이터 유지
       if (state.isEditing || state.isConfirming) {
         return;
       }
       
       try {
-        // shopData가 null이어도 빈 폼 데이터로 처리
-        state.formData = updateFormDataFromShop(action.payload.shopData, state.formData);
+        // 직접 데이터 사용 (protoServerDataset 구조)
+        const shopData = action.payload.shopData;
+        
+        // 여기서 폼 데이터 업데이트 (Editor 컴포넌트의 updateFormDataFromShop 로직 대체)
+        state.formData = updateFormDataFromShop(shopData, state.formData);
       } catch (error) {
         // 오류 처리
+        console.error('syncExternalShop 처리 중 오류 발생:', error);
       }
     },
     
@@ -209,7 +237,7 @@ const rightSidebarSlice = createSlice({
       state.hasChanges = false;
       state.modifiedFields = {};
       
-      // 빈 상점 데이터로 초기화 (protoServerDataset 사용)
+      // 빈 상점 데이터로 초기화 (protoServerDataset 직접 사용)
       state.originalShopData = { ...protoServerDataset };
       state.editNewShopDataSet = { ...protoServerDataset };
       
@@ -243,11 +271,7 @@ const rightSidebarSlice = createSlice({
         state.formData.pinCoordinates = coordinates;
         
         // 2. 필드 값 업데이트 (데이터 저장)
-        if (state.editNewShopDataSet.serverDataset) {
-          state.editNewShopDataSet.serverDataset.pinCoordinates = coordinates;
-        } else {
-          state.editNewShopDataSet.pinCoordinates = coordinates;
-        }
+        state.editNewShopDataSet.pinCoordinates = coordinates;
         
         // 3. 필드 변경 추적
         state.modifiedFields.pinCoordinates = true;
@@ -256,11 +280,7 @@ const rightSidebarSlice = createSlice({
         state.formData.path = coordinates;
         
         // 2. 필드 값 업데이트 (데이터 저장)
-        if (state.editNewShopDataSet.serverDataset) {
-          state.editNewShopDataSet.serverDataset.path = coordinates;
-        } else {
-          state.editNewShopDataSet.path = coordinates;
-        }
+        state.editNewShopDataSet.path = coordinates;
         
         // 3. 필드 변경 추적
         state.modifiedFields.path = true;
@@ -276,8 +296,7 @@ const rightSidebarSlice = createSlice({
       .addCase(saveShopData.fulfilled, (state, action) => {
         state.status = 'succeeded';
         
-        // 원본 데이터 업데이트
-        state.originalShopData = action.payload;
+        // 원본 데이터는 유지하고 업데이트하지 않음
         
         // 확인 모드 해제
         state.isConfirming = false;
@@ -297,16 +316,19 @@ export const selectIsPanelVisible = (state) => state.rightSidebar.isPanelVisible
 export const selectIsEditing = (state) => state.rightSidebar.isEditing;
 export const selectIsConfirming = (state) => state.rightSidebar.isConfirming;
 export const selectHasChanges = (state) => state.rightSidebar.hasChanges;
-export const selectFormData = (state) => state.rightSidebar.formData;
-export const selectModifiedFields = (state) => state.rightSidebar.modifiedFields;
 export const selectOriginalShopData = (state) => state.rightSidebar.originalShopData;
 export const selectEditNewShopDataSet = (state) => state.rightSidebar.editNewShopDataSet;
+export const selectFormData = (state) => state.rightSidebar.formData;
+export const selectModifiedFields = (state) => state.rightSidebar.modifiedFields;
 export const selectStatus = (state) => state.rightSidebar.status;
 export const selectError = (state) => state.rightSidebar.error;
 
 // 드로잉 관련 셀렉터
 export const selectIsDrawing = (state) => state.rightSidebar.isDrawing;
 export const selectDrawingType = (state) => state.rightSidebar.drawingType;
+
+// 모달 창 관련 셀렉터
+export const selectIsCompareModalVisible = (state) => state.rightSidebar.isCompareModalVisible;
 
 export const {
   togglePanel,
@@ -323,7 +345,16 @@ export const {
   startDrawingMode,
   endDrawingMode,
   updateCoordinates,
-  addNewShop
+  addNewShop,
+  // 모달 관련 액션 내보내기
+  closeCompareModal,
+  confirmAndSubmit
 } = rightSidebarSlice.actions;
 
-export default rightSidebarSlice.reducer; 
+export default rightSidebarSlice.reducer;
+
+export {
+  saveShopData,
+  finalConfirmAndSubmit,
+  rightSidebarSlice,
+}; 

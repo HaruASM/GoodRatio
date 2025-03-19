@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
+import { protoServerDataset } from '../dataModels';
 import {
   togglePanel,
   startEdit,
@@ -21,9 +22,194 @@ import {
   selectEditNewShopDataSet,
   selectStatus,
   selectError,
+  selectIsCompareModalVisible,
+  selectOriginalShopData,
   startDrawingMode,
-  addNewShop
+  addNewShop,
+  closeCompareModal,
+  finalConfirmAndSubmit
 } from '../store/slices/rightSidebarSlice';
+
+/**
+ * 비교 모달 컴포넌트
+ * 상점 데이터 폼과 동일한 모양으로 우측에 표시되는 모달
+ * 원본 데이터와 수정된 데이터를 비교하는 기능 제공
+ */
+const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
+  const dispatch = useDispatch();
+  const isVisible = useSelector(selectIsCompareModalVisible);
+  const originalShopData = useSelector(selectOriginalShopData);
+  const editedShopData = useSelector(selectEditNewShopDataSet);
+
+  // 모달이 표시되지 않으면 null 반환
+  if (!isVisible) {
+    return null;
+  }
+
+  // 원본 데이터가 없는 경우 (신규 추가 시)
+  const isNewShop = !originalShopData || Object.keys(originalShopData).length === 0;
+
+  // 원본 데이터 값 가져오기
+  const getOriginalValue = (field) => {
+    if (!originalShopData) return '';
+    return originalShopData[field] || '';
+  };
+
+  // 수정된 데이터 값 가져오기
+  const getEditedValue = (field) => {
+    if (!editedShopData) return '';
+    return editedShopData[field] || '';
+  };
+
+  // 필드 변경 여부 확인
+  const isFieldChanged = (field) => {
+    const originalValue = getOriginalValue(field);
+    const editedValue = getEditedValue(field);
+    
+    // 배열인 경우 문자열로 변환하여 비교
+    if (Array.isArray(originalValue) && Array.isArray(editedValue)) {
+      return JSON.stringify(originalValue) !== JSON.stringify(editedValue);
+    }
+    
+    return originalValue !== editedValue;
+  };
+
+  // 모달 닫기 핸들러
+  const handleCloseModal = () => {
+    dispatch(closeCompareModal());
+  };
+
+  // 최종 확인 핸들러 - 확인 액션 후 저장 로직 실행
+  const handleFinalConfirm = () => {
+    // 데이터 저장 대신 콘솔에 출력만 함
+    console.log('서버로 전송할 데이터:', editedShopData);
+    
+    // 외부로 임시 오버레이 정리 함수 호출
+    if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
+      mapOverlayHandlers.cleanupTempOverlays();
+    }
+    
+    // 모달 닫기
+    dispatch(closeCompareModal());
+    
+    // 편집 취소 액션 호출하여 폼 데이터 비우기
+    dispatch(cancelEdit());
+  };
+
+  // 원본 값과 수정된 값 모두 표시
+  const renderComparisonField = (field, label, formatValue = value => value) => {
+    const originalValue = getOriginalValue(field);
+    const editedValue = getEditedValue(field);
+    const isChanged = isFieldChanged(field);
+    
+    const formattedOriginalValue = formatValue(originalValue);
+    const formattedEditedValue = formatValue(editedValue);
+    
+    if( field === 'comment' ){
+    console.log(originalValue," / " ,editedValue, "///", isChanged, '/', formattedOriginalValue, " / ", formattedEditedValue );
+    }
+    
+    return (
+      <div className={styles.formRow}>
+        <div className={styles.formLabelContainer}>
+          <span className={styles.formLabel}>{label}</span>
+        </div>
+        <div className={styles.comparisonContainer}>
+          <div className={styles.originalValueContainer}>
+            <input
+              type="text"
+              value={formattedOriginalValue}
+              readOnly
+              className={`${styles.filledInput} ${isChanged ? styles.originalValue : ''}`}
+            />
+          </div>
+          <div className={styles.editedValueContainer}>
+            <input
+              type="text"
+              value={formattedEditedValue}
+              readOnly
+              className={`${styles.filledInput} ${isChanged ? styles.changedField : ''}`}
+            />
+            {isChanged && <div className={styles.changeIndicator}>변경됨</div>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={`${styles.compareModal} ${isVisible ? styles.visible : ''}`}>
+      <div className={styles.compareModalHeader}>
+        <h3>{isNewShop ? "신규 추가 데이터 확인" : "데이터 비교"}</h3>
+        <div className={styles.headerButtonGroup}>
+          <button 
+            className={styles.confirmButton}
+            onClick={handleFinalConfirm}
+          >
+            최종확인
+          </button>
+          <button 
+            className={styles.headerButton}
+            onClick={handleCloseModal}
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+      
+      <div className={styles.compareCard}>
+        <div className={styles.comparisonHeader}>
+          <h3>{isNewShop ? "신규 추가" : "원본 데이터"}</h3>
+          <h3>{"수정된 데이터"}</h3>
+        </div>
+        <div className={styles.form}>
+          {/* 상점명 */}
+          {renderComparisonField('storeName', '상점명')}
+
+          {/* 상점 스타일 */}
+          {renderComparisonField('storeStyle', '상점 스타일')}
+
+          {/* 별칭 */}
+          {renderComparisonField('alias', '별칭')}
+
+          {/* 코멘트 */}
+          {renderComparisonField('comment', '코멘트')}
+
+          {/* 위치지역 */}
+          {renderComparisonField('locationMap', '위치지역')}
+
+          {/* 영업시간 */}
+          {renderComparisonField('businessHours', '영업시간', 
+            value => Array.isArray(value) ? value.join(', ') : value)}
+
+          {/* hot시간 */}
+          {renderComparisonField('hotHours', 'hot시간')}
+
+          {/* 할인 시간 */}
+          {renderComparisonField('discountHours', '할인시간')}
+
+          {/* 주소 */}
+          {renderComparisonField('address', '주소')}
+
+          {/* 메인 이미지 */}
+          {renderComparisonField('mainImage', '메인 이미지')}
+
+          {/* 핀 좌표 */}
+          {renderComparisonField('pinCoordinates', '핀 좌표')}
+
+          {/* 다각형 경로 */}
+          {renderComparisonField('path', '다각형 경로')}
+
+          {/* 아이콘분류 */}
+          {renderComparisonField('categoryIcon', '아이콘분류')}
+
+          {/* Google 데이터 ID */}
+          {renderComparisonField('googleDataId', '구글데이터ID')}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * 오른쪽 사이드바 내부 컴포넌트
@@ -31,7 +217,7 @@ import {
  * 
  * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
  */
-const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, currentShop, onShopUpdate }) => {
+const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandlers, currentShopServerDataSet, onShopUpdate }) => {
   // Redux 상태 및 디스패치 가져오기
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
@@ -43,17 +229,18 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
   const editNewShopDataSet = useSelector(selectEditNewShopDataSet);
   const status = useSelector(selectStatus);
   const error = useSelector(selectError);
+  const isCompareModalVisible = useSelector(selectIsCompareModalVisible);
   
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
   
   // 현재 상점 데이터가 변경될 때 폼 데이터 업데이트
   useEffect(() => {
-    if (currentShop && !isEditing) {
-      // 외부 상점 데이터와 동기화
-      dispatch(syncExternalShop({ shopData: currentShop }));
+    if (currentShopServerDataSet && !isEditing) {
+      // 외부 상점 데이터와 동기화 - 직접 데이터 전달
+      dispatch(syncExternalShop({ shopData: currentShopServerDataSet }));
     }
-  }, [currentShop, isEditing, dispatch]);
+  }, [currentShopServerDataSet, isEditing, dispatch]);
   
   // 패널이 보이지 않으면 null 반환
   if (!isPanelVisible) {
@@ -66,7 +253,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
   // 수정 상태에 따른 버튼 텍스트 결정
   let buttonText = "수정";
   if (isEditing) {
-    buttonText = "완료";
+    buttonText = "수정완료";
   } else if (isConfirming) {
     buttonText = "재수정";
   }
@@ -119,52 +306,26 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
     if (isEditing) {
       dispatch(completeEdit());
     } else {
-      dispatch(startEdit({ shopData: currentShop }));
+      // 직접 데이터 전달 (serverDataset 구조 사용 않음)
+      dispatch(startEdit({ 
+        shopData: currentShopServerDataSet
+      }));
     }
   };
   
   const handleConfirmEdit = () => {
-    // 비동기 액션을 사용하여 데이터 저장
-    dispatch(saveShopData(editNewShopDataSet))
-      .unwrap()
-      .then((savedData) => {
-        // 저장 성공 시 외부 상태 업데이트 (onShopUpdate 콜백 호출)
-        if (onShopUpdate) {
-          onShopUpdate(savedData);
-        }
-        
-        // 외부로 임시 오버레이 정리 함수 호출 (props로 전달받은 함수)
-        if (handlerfunc25 && typeof handlerfunc25.cleanupTempOverlays === 'function') {
-          handlerfunc25.cleanupTempOverlays();
-        }
-        
-        // 편집 확인 액션 디스패치 - UI 초기화 및 데이터 출력
-        dispatch(confirmEdit());
-        
-        // 현재 선택된 상점 초기화 요청 (null로 설정)
-        if (onShopUpdate) {
-          onShopUpdate(null);
-        }
-      })
-      .catch((error) => {
-        // 오류 처리
-        console.error('상점 데이터 저장 중 오류 발생:', error);
-      });
+    // 데이터 저장 없이 모달창만 표시
+    dispatch(confirmEdit());
   };
   
   const handleCancelEdit = () => {
     // 외부로 임시 오버레이 정리 함수 호출 (props로 전달받은 함수)
-    if (handlerfunc25 && typeof handlerfunc25.cleanupTempOverlays === 'function') {
-      handlerfunc25.cleanupTempOverlays();
+    if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
+      mapOverlayHandlers.cleanupTempOverlays();
     }
     
     // 편집 취소 액션 디스패치
     dispatch(cancelEdit());
-    
-    // 현재 선택된 상점 초기화 요청 (null로 설정)
-    if (onShopUpdate) {
-      onShopUpdate(null);
-    }
   };
   
   const handleFieldEditButtonClick = (e, fieldName) => {
@@ -203,12 +364,8 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
     
     // 원본 값 가져오기
     let originalValue = null;
-    if (currentShop) {
-      if (currentShop.serverDataset) {
-        originalValue = currentShop.serverDataset[name];
-      } else {
-        originalValue = currentShop[name];
-      }
+    if (currentShopServerDataSet) {
+      originalValue = currentShopServerDataSet[name];
     }
     
     // 값 업데이트 액션 디스패치
@@ -234,10 +391,10 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
       {/* 상단 버튼 영역 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>
-          {isEditing && !currentShop && (
+          {isEditing && !currentShopServerDataSet && (
             <span className={styles.editingStatusText}>신규상점 입력 중...</span>
           )}
-          {isEditing && currentShop && (
+          {isEditing && currentShopServerDataSet && (
             <span className={styles.editingStatusText}>데이터 수정 중...</span>
           )}
           {isConfirming && !hasChanges && (
@@ -289,7 +446,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
                   onClick={handleConfirmEdit}
                   disabled={status === 'loading'}
                 >
-                  {status === 'loading' ? '저장 중...' : '확인'}
+                  {status === 'loading' ? '처리 중...' : '확인'}
                 </button>
               )}
               <button 
@@ -790,6 +947,12 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
           </div>
         </form>
       </div>
+      
+      {/* 비교 모달에 필요한 props 전달 */}
+      <CompareModal 
+        onShopUpdate={onShopUpdate}
+        mapOverlayHandlers={mapOverlayHandlers}
+      />
     </div>
   );
 };
@@ -800,17 +963,21 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
  * @param {Object} props - 컴포넌트 props
  * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
  */
-const RightSidebar = ({ moveToCurrentLocation, handlerfunc25, curSelectedShop, onShopUpdate }) => {
+const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedShop, onShopUpdate }) => {
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
+  const isCompareModalVisible = useSelector(selectIsCompareModalVisible);
   
+  // 상점 데이터에서 serverDataset 추출
+  const currentShopServerDataSet = curSelectedShop?.serverDataset || null;
+
   // 상점 추가 핸들러 (메인 컴포넌트와 공유)
   const handleAddNewShopItem = (e) => {
     if (e) e.preventDefault();
     
     // 외부로 임시 오버레이 정리 함수 호출 (기존 오버레이 정리)
-    if (handlerfunc25 && typeof handlerfunc25.cleanupTempOverlays === 'function') {
-      handlerfunc25.cleanupTempOverlays();
+    if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
+      mapOverlayHandlers.cleanupTempOverlays();
     }
     
     // 새 상점 추가 액션 디스패치
@@ -833,8 +1000,8 @@ const RightSidebar = ({ moveToCurrentLocation, handlerfunc25, curSelectedShop, o
       <SidebarContent 
         addNewShopItem={handleAddNewShopItem}
         moveToCurrentLocation={moveToCurrentLocation}
-        handlerfunc25={handlerfunc25}
-        currentShop={curSelectedShop}
+        mapOverlayHandlers={mapOverlayHandlers}
+        currentShopServerDataSet={currentShopServerDataSet}
         onShopUpdate={onShopUpdate}
       />
       {togglePanelButton}

@@ -81,42 +81,10 @@ export const compareShopData = (original, edited) => {
   // 변경사항 존재 여부
   let hasChanges = false;
   
-  // serverDataset이 있는 경우
-  if (original.serverDataset && edited.serverDataset) {
-    const originalData = original.serverDataset;
-    const editedData = edited.serverDataset;
-    
-    // 로깅 추가
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('compareShopData: serverDataset 비교 시작');
-    }
-    
-    // 모든 필드 비교
-    for (const key in editedData) {
-      // 특수 필드 무시 (itemMarker, itemPolygon 등)
-      if (key === 'itemMarker' || key === 'itemPolygon') continue;
-      
-      // 일반 값 비교 - 개선된 isEqual 함수 사용
-      if (!isEqual(editedData[key], originalData[key])) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`필드 ${key}: 값 다름`);
-          console.log('  원본:', originalData[key]);
-          console.log('  편집:', editedData[key]);
-        }
-        hasChanges = true;
-        break; // 하나라도 변경사항이 있으면 즉시 종료
-      }
-    }
-    
-    if (!hasChanges && process.env.NODE_ENV !== 'production') {
-      console.log('compareShopData: 변경사항 없음');
-    }
-    return hasChanges;
-  }
-  
-  // serverDataset이 없는 경우 직접 비교
+   
+  // 모든 필드 비교
   for (const key in edited) {
-    // 특수 필드 무시
+    // 특수 필드 무시 (itemMarker, itemPolygon 등)
     if (key === 'itemMarker' || key === 'itemPolygon') continue;
     
     // 일반 값 비교 - 개선된 isEqual 함수 사용
@@ -146,6 +114,7 @@ export const compareShopData = (original, edited) => {
  * @returns {Object} 업데이트된 폼 데이터
  */
 export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
+  // 빈 값 처리: shopData가 없거나 정의되지 않은 경우 빈 폼 데이터 반환
   if (!shopData) {
     return {
       storeName: "",
@@ -165,8 +134,8 @@ export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
     };
   }
   
-  // serverDataset이 있는 경우
-  const data = shopData.serverDataset || shopData;
+  // 데이터는 직접 사용 (protoServerDataset 구조)
+  const data = shopData;
   
   // businessHours 특수 처리 - 빈 배열이거나 [""] 패턴인 경우도 빈 문자열로 표시
   let businessHoursValue = "";

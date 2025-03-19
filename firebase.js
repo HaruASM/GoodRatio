@@ -16,6 +16,8 @@ const firebaseapp = !getApps().length ? initializeApp(firebaseConfig) : getApps(
 const firebasedb = getFirestore(firebaseapp, 'goodrationapp', {
     experimentalForceLongPolling: true,
     useFetchStreams: false,
+    experimentalAutoDetectLongPolling: true,
+    experimentalHttpHeadersWhitelist: ['Accept', 'Accept-Encoding', 'Content-Type']
   });
 
 export { firebaseapp, firebasedb }; 

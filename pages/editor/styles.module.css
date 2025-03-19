@@ -241,10 +241,8 @@
 
 .formRow {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   align-items: center;
-  position: relative;
 }
 
 .formRow span {
@@ -805,4 +803,197 @@
   font-size: 0.8rem;
   border: 1px dashed #ddd;
   border-radius: 3px;
+}
+
+/* 비교 모달 스타일 */
+.compareModal {
+  position: fixed;
+  top: 0;
+  right: 0; /* 화면 우측에 붙도록 변경 */
+  width: 480px; /* 크기 유지 */
+  height: 100vh;
+  background-color: #f9f9f9;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+  z-index: 1002; /* 사이드바보다 더 높게 설정 */
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+  overflow-y: auto;
+}
+
+.compareModal.visible {
+  transform: translateX(0);
+}
+
+.compareModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.compareModalHeader h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.compareCard {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #fafafa;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  margin-bottom: 15px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.compareCard h3 {
+  margin-bottom: 10px;
+  margin-top: 0px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compareModalFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+}
+
+/* 변경된 필드 하이라이트 */
+.changedField {
+  background-color: rgba(255, 230, 177, 0.5) !important;
+  border-color: #ffa726 !important;
+}
+
+/* 변경 표시기 스타일 */
+.changeIndicator {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  background-color: #ffa726;
+  color: white;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transform: translateX(0);
+}
+
+/* 모바일 환경에서 변경 표시기 조정 */
+@media (max-width: 768px) {
+  .changeIndicator {
+    right: 5px;
+    font-size: 10px;
+    padding: 1px 4px;
+  }
+}
+
+/* 모바일 환경 대응 */
+@media (max-width: 1200px) {
+  .compareModal {
+    right: 0; /* 화면 우측에 붙도록 설정 */
+    width: 440px; /* 약간 줄임 */
+  }
+}
+
+@media (max-width: 576px) {
+  .compareModal {
+    right: 0;
+    width: 100%;
+    z-index: 1002; /* 사이드바보다 높게 유지 */
+  }
+}
+
+/* 비교 컨테이너 스타일 */
+.comparisonContainer {
+  display: flex;
+  flex: 1;
+  gap: 15px; /* 간격 줄임 (20px → 15px) */
+}
+
+/* 원본값과 수정값 컨테이너 스타일 */
+.originalValueContainer,
+.editedValueContainer {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  max-width: 48%; /* 컨테이너 너비 제한 */
+}
+
+.originalValue {
+  background-color: rgba(230, 230, 230, 0.5);
+  border-color: #ccc;
+}
+
+.comparisonHeader {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 10px;
+}
+
+.comparisonHeader h3 {
+  flex: 1;
+  font-size: 14px;
+  text-align: center;
+  margin: 0;
+  padding: 5px;
+}
+
+/* 폼 라벨 컨테이너 및 라벨 스타일 추가 */
+.formLabelContainer {
+  width: 90px; /* 라벨 너비 줄임 (100px → 90px) */
+  min-width: 90px;
+  padding-right: 8px; /* 패딩 줄임 */
+  display: flex;
+  align-items: center;
+}
+
+.formLabel {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 헤더버튼 그룹 스타일 추가 */
+.headerButtonGroup {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 비교 모달 내 폼 행 스타일 */
+.compareCard .formRow {
+  margin-bottom: 4px; /* 8px에서 4px로 줄임 */
+}
+
+/* 비교 모달 내 인풋 필드 스타일 */
+.compareCard input {
+  padding: 4px 8px; /* 좌우 패딩 약간 늘림 */
+  font-size: 14px; /* 글자 크기 키움 (13px → 14px) */
+  max-width: 95%; /* 인풋창 너비 제한 */
+}
+
+@media (max-width: 768px) {
+  .compareModal {
+    right: 0;
+    width: 350px; /* 모바일에서 적절한 크기로 조정 */
+  }
 }

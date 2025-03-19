@@ -94,16 +94,8 @@ export const rightSidebarReducer = (state, action) => {
         ...state.editNewShopDataSet
       };
       
-      // serverDataset이 있는 경우 해당 필드 업데이트
-      if (updatedShopData.serverDataset) {
-        updatedShopData.serverDataset = {
-          ...updatedShopData.serverDataset,
-          [field]: value
-        };
-      } else {
-        // serverDataset이 없는 경우 직접 필드 업데이트
-        updatedShopData[field] = value;
-      }
+      // 직접 필드 업데이트 (항상 protoServerDataset 구조)
+      updatedShopData[field] = value;
       
       return {
         ...state,

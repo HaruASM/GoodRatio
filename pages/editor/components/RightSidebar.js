@@ -740,9 +740,6 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
           {/* 이미지 미리보기 영역 */}
           <div className={styles.imagesPreviewContainer}>
             <div className={styles.imageSection}>
-              <div className={styles.formRow}>
-                <span>메인 이미지</span>
-              </div>
               <div className={styles.mainImageContainer}>
                 {formData.mainImage ? (
                   <img 
@@ -756,16 +753,13 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
                   />
                 ) : (
                   <div className={styles.emptyImagePlaceholder}>
-                    <span>이미지 없음</span>
+                    <span>메인 이미지</span>
                   </div>
                 )}
               </div>
             </div>
             
             <div className={styles.imageSection}>
-              <div className={styles.formRow}>
-                <span>서브 이미지</span>
-              </div>
               <div className={styles.subImagesContainer}>
                 {formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0 && formData.subImages[0] !== "" ? (
                   formData.subImages.slice(0, 4).map((imgUrl, index) => (
@@ -786,7 +780,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, handlerfunc25, 
                   Array.from({ length: 4 }).map((_, index) => (
                     <div key={index} className={styles.subImageItem}>
                       <div className={styles.emptyImagePlaceholder}>
-                        <span>이미지 {index + 1}</span>
+                        
                       </div>
                     </div>
                   ))

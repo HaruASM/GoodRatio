@@ -13,7 +13,7 @@
 }
 
 .rightSidebar {
-  width: 300px;
+  width: 280px;
   background-color: #f9f9f9;
   overflow-y: auto;
   box-shadow: -2px 0 5px rgba(0,0,0,0.1);
@@ -214,7 +214,7 @@
 }
 
 .card {
-  padding: 15px;
+  padding: 10px;
   border: 1px solid #ddd;
   border-radius: 8px;
   background-color: #fff;
@@ -709,7 +709,7 @@
   align-items: center;
   width: 100%;
   margin-bottom: 5px;
-  padding-bottom: 5px;
+  
   border-bottom: 1px solid #eee;
 }
 
@@ -745,12 +745,12 @@
 .imagesPreviewContainer {
   display: flex;
   margin-top: 10px;
-  padding-top: 5px;
+  margin-bottom: 10px;
+  gap: 10px;
 }
 
 .imageSection {
   flex: 1;
-  padding: 0 10px;
 }
 
 .mainImageContainer {
@@ -778,8 +778,8 @@
 }
 
 .subImageItem {
-  width: calc(50% - 5px);
-  height: 75px;
+  width: 100%;
+  height: 100%;
   border: 1px solid #eaeaea;
   border-radius: 4px;
   overflow: hidden;
@@ -789,12 +789,12 @@
 }
 
 .subImagePreview {
-  max-width: 100%;
-  max-height: 75px;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.emptyImagePlaceholder, .emptySubImagesPlaceholder {
+.emptyImagePlaceholder {
   display: flex;
   justify-content: center;
   align-items: center;

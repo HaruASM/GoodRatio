@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useMemo } from 'react';
 import { protoServerDataset } from '../../dataModels';
-import { compareShopData, updateFormDataFromShop } from '../utils/rightSidebarUtils';
+import { checkDataIsChanged, updateFormDataFromShop } from '../utils/rightSidebarUtils';
 
 // 액션 타입 정의
 export const RightSidebarActionTypes = {
@@ -50,7 +50,7 @@ export const rightSidebarReducer = (state, action) => {
       
     case RightSidebarActionTypes.EDIT_COMPLETE:
       // 변경 사항이 있는지 확인
-      const hasChanges = compareShopData(
+      const hasChanges = checkDataIsChanged(
         state.originalShopData,
         state.editNewShopDataSet
       );
@@ -214,7 +214,7 @@ export const RightSidebarProvider = ({ children }) => {
   // 유틸리티 함수 메모이제이션
   const utils = useMemo(() => {
     return {
-      compareShopData,
+      compareShopData: checkDataIsChanged,
       updateFormDataFromShop
     };
   }, []);

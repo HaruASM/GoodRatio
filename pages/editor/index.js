@@ -26,8 +26,14 @@ import {
   updateCoordinates,
   syncExternalShop,
   updateFormData,
-  selectFormData
+  selectFormData,
+  
+  
+  setIdleState,
+  selectIsGsearch,
+  compareGooglePlaceData
 } from './store/slices/rightSidebarSlice';
+import store from './store';
 //import { compareShopData } from './store/utils/rightSidebarUtils';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
@@ -339,22 +345,17 @@ export default function Editor() { // 메인 페이지
     autocomplete.bindTo('bounds', _mapInstance);
 
     autocomplete.addListener('place_changed', () => {
-      
       const detailPlace = autocomplete.getPlace();
       if (!detailPlace.geometry || !detailPlace.geometry.location) {
         console.error("구글place 미작동: '" + detailPlace.name + "'");
         return;
       }
 
-      const _newData = {
-        storeName: detailPlace.name || '',
-        address: detailPlace.formatted_address || '',
-        googleDataId: detailPlace.place_id || '',
-      };
+      // 검색된 장소 데이터를 Redux로 전송
+      dispatch(compareGooglePlaceData(detailPlace));
+      console.log('구글 장소 검색: 데이터 전송 완료');
 
-      // 장소 데이터 업데이트 (Redux 액션 사용)
-      dispatch(updateFormData(_newData));
-
+      // 지도 이동은 유지
       if (detailPlace.geometry.viewport) {
         _mapInstance.fitBounds(detailPlace.geometry.viewport);
       } else {
@@ -366,9 +367,7 @@ export default function Editor() { // 메인 페이지
     _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
 
     
-  }
-
-  let optionsMarker, optionsPolygon;
+  } // initSearchInput
 
   // 마커와 폴리곤 옵션 초기화 함수
   const initMarker = () => { 
@@ -654,11 +653,8 @@ export default function Editor() { // 메인 페이지
     });
     //-- g맵 인스턴스 생성 끝끝
 
-    // 줌 변경 이벤트 리스너 추가
-    //TODO: 추후 이 부분을 모듈화/캡슐화하여 별도 함수나 훅으로 분리할 것
-    // - 이벤트 핸들러 등록/제거 로직
-    // - 폴리곤 가시성 제어 로직 
-    // - 기타 줌 레벨에 따른 UI 변경 로직을 캡슐화
+    //TODO: 모듈화/캡슐화하여 별도 Zoom매너지/지도탐색매니저로 관리. 
+    // - 이벤트 핸들러 등록/제거 로직    // - 폴리곤 가시성 제어 로직     // - 기타 줌 레벨에 따른 UI 변경 로직을 캡슐화
     window.google.maps.event.addListener(_mapInstance, 'zoom_changed', () => { //AT 지도줌변경 이벤트 바인딩
       // 최신 아이템 리스트를 useRef에서 가져옴 (클로저 문제 해결)
       const itemList = currentItemListRef.current;
@@ -711,19 +707,26 @@ export default function Editor() { // 메인 페이지
     }, 100);
   }, []);
 
+  // 컴포넌트 마운트 시 IDLE 상태 설정
+  useEffect(() => { // AT 우측 사이드바 초기화 지점 
+    // 초기에 IDLE 상태로 설정
+    dispatch(setIdleState(true));
+  }, [dispatch]);
 
-  // selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
-  // selectedCurShop 업데이트시, 파생 동작들 일괄적으로 작동되어야 함. 
+  //## selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
+  //## selectedCurShop 업데이트시, 파생 동작들 일괄적으로 작동되어야 함. 
   useEffect(() => { // AT [curSelectedShop]  
-    if (!curSelectedShop) {
-      // selectedCurShop이 없는 경우 폼 초기화
-      dispatch(syncExternalShop({ shopData: null }));
-      if (sharedInfoWindow.current) {
+    // 4. 폼 데이터 업데이트 
+    // 우측 사이드바 업데이트 여부와 상태 검증은 Redux 액션 내부에서 처리됨
+    if (!curSelectedShop) {      // selectedCurShop이 없는 경우 빈 폼 
+      dispatch(syncExternalShop({ shopData: null })); // 내부적으로 isIdel일때만 빈폼 초기화 
+      if (sharedInfoWindow.current)   
         sharedInfoWindow.current.close();
-      }
-      return;
+      return; // 선택된 값이 비어있으면 여기서 종료 
     }
     
+    dispatch(syncExternalShop({ shopData: curSelectedShop.serverDataset })); // 우측 사이드바 상태 내부적으로 isIdel일때만 빈폼 초기화 
+
     // 1. 좌측 사이드바 아이템 하이라이트 효과
     const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
     
@@ -814,13 +817,7 @@ export default function Editor() { // 메인 페이지
       }
     }
     
-    // 4. 폼 데이터 업데이트 
-    // Redux 스토어와 로컬 상태를 일관되게 유지
-    // 상태 검증은 Redux 액션 내부에서 처리됨
-    if (curSelectedShop) {
-      // 상점 데이터 동기화 - syncExternalShop 액션 내부에서 isEditing, isConfirming 상태 검증
-      dispatch(syncExternalShop({ shopData: curSelectedShop.serverDataset }));
-    }
+  
 
   }, [curSelectedShop]); //## 추가 종속성 절대 추가 금지. curSelectedShop이 변경될때만 연산되는 useEffect. 
 
@@ -1056,21 +1053,22 @@ export default function Editor() { // 메인 페이지
         <div id="map" className={styles.map}></div>
         <div ref={searchformRef} className={styles.searchForm}>
           <div className={styles.searchInputContainer}>
-              <input 
+            <input 
               ref={searchInputDomRef}
-                type="text" 
+              type="text" 
               className={styles.searchInput}
               placeholder="장소 검색..."
               onFocus={handleSearchFocus}
               onBlur={handleSearchBlur}
+              data-testid="place-search-input"
             />
             <button className={styles.searchButton}>
               <span className={styles.searchIcon}>🔍</span>
-                </button>
-            </div>
-            </div>
-              </div>
-              
+            </button>
+          </div>
+        </div>
+      </div>
+      
       {/* 오른쪽 사이드바 */}
       <RightSidebar
         moveToCurrentLocation={moveToCurrentLocation}

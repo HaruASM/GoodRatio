@@ -214,7 +214,7 @@
 }
 
 .card {
-  padding: 10px;
+  padding: 1px 10px; 
   border: 1px solid #ddd;
   border-radius: 8px;
   background-color: #fff;
@@ -578,7 +578,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  /* padding: 8px 12px; */
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .tooltipIcon {
@@ -806,11 +807,11 @@
 }
 
 /* 비교 모달 스타일 */
-.compareModal {
+.rightSidebarCompareModal {
   position: fixed;
   top: 0;
   right: 0; /* 화면 우측에 붙도록 변경 */
-  width: 480px; /* 크기 유지 */
+  width: 350px; /* 너비 축소 (480px → 300px) */
   height: 100vh;
   background-color: #f9f9f9;
   box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
@@ -823,11 +824,11 @@
   overflow-y: auto;
 }
 
-.compareModal.visible {
+.rightSidebarCompareModal.rightSidebarVisible {
   transform: translateX(0);
 }
 
-.compareModalHeader {
+.rightSidebarCompareModalHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -836,14 +837,14 @@
   border-bottom: 1px solid #ddd;
 }
 
-.compareModalHeader h3 {
+.rightSidebarCompareModalHeader h3 {
   margin: 0;
   font-size: 16px;
   font-weight: bold;
 }
 
-.compareCard {
-  padding: 10px;
+.rightSidebarCompareCard {
+  
   border: 1px solid #ddd;
   border-radius: 8px;
   background-color: #fafafa;
@@ -853,7 +854,7 @@
   flex: 1;
 }
 
-.compareCard h3 {
+.rightSidebarCompareCard h3 {
   margin-bottom: 10px;
   margin-top: 0px;
   font-size: 18px;
@@ -864,26 +865,28 @@
   text-overflow: ellipsis;
 }
 
-.compareModalFooter {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #ddd;
+/* 컬럼 레이블 스타일 */
+.rightSidebarColumnLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 5px;
+  text-align: center;
 }
 
-/* 변경된 필드 하이라이트 */
-.changedField {
+/* 변경된 필드 하이라이트 - 글자색을 검은색으로 변경 */
+.rightSidebarChangedField {
   background-color: rgba(255, 230, 177, 0.5) !important;
   border-color: #ffa726 !important;
+  color: #000 !important; /* 검은색 텍스트 색상으로 변경 */
+  font-weight: 500 !important; /* 글자 두께 유지 */
 }
 
 /* 변경 표시기 스타일 */
-.changeIndicator {
+.rightSidebarChangeIndicator {
   position: absolute;
-  right: -6px;
-  top: -6px;
+  right: -8px;
+  top: -8px;
   background-color: #ffa726;
   color: white;
   font-size: 10px;
@@ -891,12 +894,13 @@
   border-radius: 10px;
   white-space: nowrap;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  transform: translateX(0);
+  z-index: 100; /* z-index 값 높임 */
+  pointer-events: none; /* 다른 요소와 상호작용 방지 */
 }
 
 /* 모바일 환경에서 변경 표시기 조정 */
 @media (max-width: 768px) {
-  .changeIndicator {
+  .rightSidebarChangeIndicator {
     right: 5px;
     font-size: 10px;
     padding: 1px 4px;
@@ -905,42 +909,48 @@
 
 /* 모바일 환경 대응 */
 @media (max-width: 1200px) {
-  .compareModal {
+  .rightSidebarCompareModal {
     right: 0; /* 화면 우측에 붙도록 설정 */
-    width: 440px; /* 약간 줄임 */
+    width: 300px; /* 같은 너비로 통일 */
   }
 }
 
 @media (max-width: 576px) {
-  .compareModal {
+  .rightSidebarCompareModal {
     right: 0;
     width: 100%;
     z-index: 1002; /* 사이드바보다 높게 유지 */
   }
 }
 
-/* 비교 컨테이너 스타일 */
-.comparisonContainer {
+/* 비교 컨테이너 스타일 - 간격 조정 */
+.rightSidebarComparisonContainer {
   display: flex;
   flex: 1;
-  gap: 15px; /* 간격 줄임 (20px → 15px) */
+  gap: 5px; /* 간격 조정 (1px → 5px) */
+  justify-content: center; /* 중앙 정렬로 변경 */
 }
 
-/* 원본값과 수정값 컨테이너 스타일 */
-.originalValueContainer,
-.editedValueContainer {
-  flex: 1;
+/* 원본값과 수정값 컨테이너 스타일 - 겹치지 않도록 조정 */
+.rightSidebarOriginalValueContainer,
+.rightSidebarEditedValueContainer {
+  flex: 0 0 calc(50% - 4px); /* 너비 조정 */
   position: relative;
   min-width: 0;
-  max-width: 48%; /* 컨테이너 너비 제한 */
+  max-width: calc(50% - 4px); /* 최대 너비 조정 */
+  border-radius: 4px;
+  overflow: hidden; /* 내용이 넘치지 않도록 */
 }
 
-.originalValue {
+/* 원본값 스타일 */
+.rightSidebarOriginalValue {
   background-color: rgba(230, 230, 230, 0.5);
   border-color: #ccc;
+  box-sizing: border-box; /* 박스 사이징 추가 */
+  width: 100%; /* 너비 100%로 설정 */
 }
 
-.comparisonHeader {
+.rightSidebarComparisonHeader {
   display: flex;
   justify-content: space-between;
   padding: 5px 0;
@@ -948,7 +958,7 @@
   margin-bottom: 10px;
 }
 
-.comparisonHeader h3 {
+.rightSidebarComparisonHeader h3 {
   flex: 1;
   font-size: 14px;
   text-align: center;
@@ -956,44 +966,230 @@
   padding: 5px;
 }
 
-/* 폼 라벨 컨테이너 및 라벨 스타일 추가 */
-.formLabelContainer {
-  width: 90px; /* 라벨 너비 줄임 (100px → 90px) */
-  min-width: 90px;
-  padding-right: 8px; /* 패딩 줄임 */
+/* 헤더버튼 그룹 스타일 추가 */
+.rightSidebarHeaderButtonGroup {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 비교 모달 내 인풋 필드 스타일 */
+.rightSidebarFilledInput {
+  background-color: #f5f5f5 !important;
+  border-color: #ddd !important;
+  color: #333 !important;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* 빈 상태 메시지 스타일 */
+.emptyStateMessage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: #888;
+  font-size: 16px;
+  text-align: center;
+  border-top: 1px solid #eee;
+}
+
+/* 상점명 스타일 조정 */
+.buttonContainer h3 {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+/* 우측 사이드바 카드 스타일 */
+.rightSidebarCard {
+  background-color: white;
+  border-radius: 10px;
+  margin: 10px 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.rightSidebarCardEditing {
+  border-left: 3px solid #2196f3;
+  background-color: #f8f9ff;
+}
+
+/* 우측 사이드바 폼 스타일 */
+.rightSidebarForm {
+  padding: 10px 10px 10px;
+  background-color: white;
+}
+
+/* 우측 사이드바 폼 행 스타일 */
+.rightSidebarFormRow {
+  margin-bottom: 2px;
   display: flex;
   align-items: center;
 }
 
-.formLabel {
+.rightSidebarFormRow span {
+  flex: 1.0;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+  color: #555;
+  font-weight: 500;
+}
+
+/* 우측 사이드바 폼 행 내 input 스타일 */
+.rightSidebarFormRow input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: #fff;
+  transition: all 0.2s ease;
+}
+
+.rightSidebarFormRow input[readonly] {
+  background-color: #f5f5f5;
+  border-color: #ddd;
+  color: #666;
+  cursor: default;
+  pointer-events: none; /* 읽기 전용 필드는 클릭 이벤트 비활성화 */
+}
+
+.rightSidebarFormRow input:not([readonly]) {
+  background-color: #fff;
+  border-color: #4dabf7;
+  color: #333;
+  cursor: text;
+  pointer-events: auto; /* 편집 가능 필드는 클릭 이벤트 활성화 */
+}
+
+.rightSidebarFormRow input:focus {
+  border-color: #4dabf7;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.2);
+  background-color: #fff !important;
+}
+
+/* 우측 사이드바 입력 컨테이너 스타일 */
+.rightSidebarInputContainer {
+  flex: 1.7;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* 우측 사이드바 버튼 컨테이너 스타일 */
+.rightSidebarButtonContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* 우측 사이드바 상점명 스타일 */
+.rightSidebarButtonContainer h3 {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+/* 편집 모드에서 값이 있는 필드에 호버했을 때 편집 버튼 표시 */
+.rightSidebarInputContainer:hover .inputOverlayButton {
+  background-color: #f0f0f0;
+}
+
+/* 우측 사이드바 폼 라벨 컨테이너 및 라벨 스타일 */
+.rightSidebarFormLabelContainer {
+  width: 85px;
+  min-width: 85px;
+  padding-right: 1px;
+  display: flex;
+  align-items: center;
+}
+
+.rightSidebarFormLabel {
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* 헤더버튼 그룹 스타일 추가 */
-.headerButtonGroup {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+/* 값이 있는 필드와 없는 필드의 스타일 - 우측 사이드바용 */
+.rightSidebarFilledInput {
+  background-color: #f5f5f5 !important;
+  border-color: #ddd !important;
+  color: #333 !important;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
-/* 비교 모달 내 폼 행 스타일 */
-.compareCard .formRow {
-  margin-bottom: 4px; /* 8px에서 4px로 줄임 */
+.rightSidebarEmptyInput {
+  background-color: #ffffff !important;
+  border-color: #ddd !important;
+  color: #999 !important;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
-/* 비교 모달 내 인풋 필드 스타일 */
-.compareCard input {
-  padding: 4px 8px; /* 좌우 패딩 약간 늘림 */
-  font-size: 14px; /* 글자 크기 키움 (13px → 14px) */
-  max-width: 95%; /* 인풋창 너비 제한 */
+/* 편집 모드에서 활성화된 필드 스타일 수정 */
+.rightSidebarEmptyInput:not([readonly]) {
+  background-color: #ffffff !important;
+  border-color: #4dabf7 !important;
+  color: #333 !important;
+  cursor: text !important;
+  pointer-events: auto !important;
 }
 
-@media (max-width: 768px) {
-  .compareModal {
-    right: 0;
-    width: 350px; /* 모바일에서 적절한 크기로 조정 */
-  }
+.rightSidebarFilledInput:not([readonly]) {
+  background-color: #ffffff !important;
+  border-color: #4dabf7 !important;
+  color: #333 !important;
+  cursor: text !important;
+  pointer-events: auto !important;
+}
+
+/* 수정된 필드 스타일 */
+.rightSidebarModifiedInput {
+  background-color: #e8f4fe !important;
+  border-color: #4dabf7 !important;
+  color: #0062cc !important;
+}
+
+/* 입력 필드 스타일 추가 */
+.rightSidebarComparisonContainer input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px; /* 글자 크기 약간 줄임 */
+}
+
+/* 컬럼 레이블 스타일 */
+.rightSidebarColumnLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 5px;
+  text-align: center;
+  padding: 2px 0;
+  background-color: #f0f0f0; /* 배경색 추가 */
+  border-radius: 4px; /* 테두리 둥글게 */
 }

@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, createAction } from '@reduxjs/toolkit';
 import { protoServerDataset } from '../../dataModels';
-import { compareShopData, updateFormDataFromShop } from '../utils/rightSidebarUtils';
+import { compareShopData, updateFormDataFromShop, checkDataIsChanged } from '../utils/rightSidebarUtils';
 
 // 초기 상태
 const initialState = {
@@ -13,13 +13,31 @@ const initialState = {
   // 비교 모달용 복사본 제거
   formData: { ...protoServerDataset },
   modifiedFields: {},
+  // 변경된 필드 목록 추가
+  changedFieldsList: [],
+  // 비교 모달 데이터
+  compareModalData: {
+    reference: {
+      label: '',
+      data: null
+    },
+    target: {
+      label: '',
+      data: null
+    }
+  },
   status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   error: null,
   // 드로잉 관련 상태 추가
   isDrawing: false,
   drawingType: null, // 'MARKER' 또는 'POLYGON'
   // 모달 창 관련 상태 추가
-  isCompareModalVisible: false
+  isCompareModalVisible: false,
+  // IDLE 상태 추가 (초기에는 IDLE 상태)
+  isIdle: true,
+  // 구글 장소 검색 관련 상태 추가
+  isGsearch: false,
+  googlePlaceData: null
 };
 
 // 비동기 액션: 상점 데이터 저장
@@ -68,13 +86,16 @@ const rightSidebarSlice = createSlice({
     startEdit: (state, action) => {
       state.isEditing = true;
       state.isConfirming = false;
-      state.hasChanges = false;
       
       // 항상 serverDataset 형식의 데이터로 가정
       state.originalShopData = JSON.parse(JSON.stringify(action.payload.shopData));
       state.editNewShopDataSet = JSON.parse(JSON.stringify(action.payload.shopData));
 
-      state.modifiedFields = {};
+      // 새로 추가하는 경우에만 modifiedFields 초기화
+      if (!state.isConfirming && !state.hasChanges) {
+        state.hasChanges = false;
+      }
+      // modifiedFields는 유지 (수정된 필드 표시를 위해)
     },
     
     // 편집 완료
@@ -88,25 +109,14 @@ const rightSidebarSlice = createSlice({
       }
       
       // modifiedFields에 기록된 필드가 있는지 먼저 확인
-      const hasModifiedFields = Object.keys(state.modifiedFields).length > 0;
+      const hasChanges = Object.keys(state.modifiedFields).length > 0;
       
-      // 실제 데이터 비교로 변경 여부 확인
-      const compareResult = compareShopData(
-        state.originalShopData,
-        state.editNewShopDataSet
-      );
-      
-      // 변경된 필드가 있고, 실제 데이터 비교에서도 차이가 있는 경우
-      const hasChanges = hasModifiedFields && compareResult;
-      
+               
       state.isEditing = false;
       state.isConfirming = true; // 항상 확인 상태로 전환
       state.hasChanges = hasChanges;
       
-      // 변경 사항이 없으면 modifiedFields 초기화
-      if (!hasChanges) {
-        state.modifiedFields = {};
-      }
+      // modifiedFields는 유지 (재수정 시 수정된 필드 표시를 위해)
     },
     
     // 편집 취소
@@ -118,25 +128,66 @@ const rightSidebarSlice = createSlice({
       state.originalShopData = null;
       state.formData = updateFormDataFromShop(null, {});
       state.modifiedFields = {};
+      // 취소 시 IDLE 상태로 복귀
+      state.isIdle = true;
+      
+      // 구글 검색 상태 초기화
+      state.isGsearch = false;
+      state.googlePlaceData = null;
     },
     
-    // 편집 확인
+    // 비교 모달 시작
+    startCompareModal: (state, action) => {
+      // 두 개의 배열 인자 처리
+      const [reference, target] = action.payload;
+      
+      // 레퍼런스 데이터 설정 [라벨, 데이터]
+      if (Array.isArray(reference) && reference.length >= 2) {
+        state.compareModalData.reference.label = reference[0] || '원본';
+        state.compareModalData.reference.data = reference[1] || null;
+      }
+      
+      // 타겟 데이터 설정 [라벨, 데이터]
+      if (Array.isArray(target) && target.length >= 2) {
+        state.compareModalData.target.label = target[0] || '수정본';
+        state.compareModalData.target.data = target[1] || null;
+      }
+      
+      // 모달창 표시
+      state.isCompareModalVisible = true;
+    },
+    
+    // 기존 confirmEdit 수정 - startCompareModal 액션 사용
     confirmEdit: (state) => {
       // 수정된 데이터 콘솔에 출력
       console.log('저장되는 데이터:', state.editNewShopDataSet.storeName, state.editNewShopDataSet.comment);
       console.log('원본 데이터:', state.originalShopData.storeName, state.originalShopData.comment);
       
+      // 비교 모달 데이터 설정
+      state.compareModalData = {
+        reference: {
+          label: '원본',
+          data: state.originalShopData
+        },
+        target: {
+          label: '수정본',
+          data: state.editNewShopDataSet
+        }
+      };
       
-      // 모달창 표시 - formData는 유지
+      // 모달창 표시
       state.isCompareModalVisible = true;
-      
-      
-      
     },
     
     // 모달 닫기
     closeCompareModal: (state) => {
       state.isCompareModalVisible = false;
+      
+      // 구글 검색 중이었다면 검색 상태 종료
+      if (state.isGsearch) {
+        state.isGsearch = false;
+        state.googlePlaceData = null;
+      }
     },
     
     // 최종 확인 및 전송 액션 추가 (리듀서 내부에만 있는 버전)
@@ -207,6 +258,9 @@ const rightSidebarSlice = createSlice({
     syncExternalShop: (state, action) => {
       // shopData가 null인 경우에도 명시적 처리
       if (!action.payload || action.payload.shopData === undefined) {
+        // IDLE 상태로 설정하고 폼 데이터 초기화
+        state.isIdle = true;
+        state.formData = updateFormDataFromShop(null, {});
         return;
       }
       
@@ -221,8 +275,18 @@ const rightSidebarSlice = createSlice({
         // 직접 데이터 사용 (protoServerDataset 구조)
         const shopData = action.payload.shopData;
         
-        // 여기서 폼 데이터 업데이트 (Editor 컴포넌트의 updateFormDataFromShop 로직 대체)
-        state.formData = updateFormDataFromShop(shopData, state.formData);
+        // IDLE 상태일 때만 폼 데이터 업데이트하도록 수정
+        if (state.isIdle || (!state.isEditing && !state.isConfirming)) {
+          // 여기서 폼 데이터 업데이트 (Editor 컴포넌트의 updateFormDataFromShop 로직 대체)
+          state.formData = updateFormDataFromShop(shopData, state.formData);
+        }
+        
+        // 데이터가 있는 경우에만 IDLE 상태 해제
+        if (shopData) {
+          state.isIdle = false;
+        } else {
+          state.isIdle = true;
+        }
       } catch (error) {
         // 오류 처리
         console.error('syncExternalShop 처리 중 오류 발생:', error);
@@ -285,6 +349,63 @@ const rightSidebarSlice = createSlice({
         // 3. 필드 변경 추적
         state.modifiedFields.path = true;
       }
+    },
+    
+    // IDLE 상태 설정 액션 추가
+    setIdleState: (state, action) => {
+      state.isIdle = action.payload ?? true;
+      
+      // IDLE 상태로 변경 시 폼 데이터 초기화 (선택적)
+      if (state.isIdle) {
+        state.formData = updateFormDataFromShop(null, {});
+      }
+    },
+    
+    // 구글 장소 검색 모드 시작
+    startGsearch: (state) => {
+      state.isGsearch = true;
+    },
+    
+    // 구글 장소 검색 모드 종료
+    endGsearch: (state) => {
+      state.isGsearch = false;
+      state.googlePlaceData = null;
+    },
+    
+    // 구글 장소 데이터 저장
+    compareGooglePlaceData: (state, action) => { //AT (작업중)set구글장소
+      // 구글 탐색 버튼이 눌려진 상태가 아니면 return
+      if (!state.isGsearch) {
+        return;
+      }
+
+      // googlePlaceData를 protoServerDataset으로 초기화 후 action.payload 값을 넣음
+      state.googlePlaceData = { ...protoServerDataset };
+          
+      // 필요한 필드만 복사      
+      if (action.payload) {
+        state.googlePlaceData.storeName = action.payload.name || '';
+        state.googlePlaceData.address = action.payload.formatted_address || '';
+        state.googlePlaceData.googleDataId = action.payload.place_id || '';
+        state.googlePlaceData.subImages = action.payload.photos || [];
+        state.googlePlaceData.pinCoordinates = action.payload.geometry?.location || '';
+        state.googlePlaceData.businessHours = action.payload.opening_hours || '';
+      }
+      
+      // 비교 모달 데이터 설정
+      state.compareModalData = {
+        reference: {
+          label: '구글Place',
+          data: state.googlePlaceData
+        },
+        target: {
+          label: '수정본',
+          data: state.editNewShopDataSet
+        }
+      };
+      
+      // 비교 모달 표시
+      state.isCompareModalVisible = true;
     }
   },
   
@@ -323,12 +444,19 @@ export const selectModifiedFields = (state) => state.rightSidebar.modifiedFields
 export const selectStatus = (state) => state.rightSidebar.status;
 export const selectError = (state) => state.rightSidebar.error;
 
+// IDLE 상태 선택자 추가
+export const selectIsIdle = (state) => state.rightSidebar.isIdle;
+
 // 드로잉 관련 셀렉터
 export const selectIsDrawing = (state) => state.rightSidebar.isDrawing;
 export const selectDrawingType = (state) => state.rightSidebar.drawingType;
 
 // 모달 창 관련 셀렉터
 export const selectIsCompareModalVisible = (state) => state.rightSidebar.isCompareModalVisible;
+
+// 구글 장소 검색 관련 셀렉터
+export const selectIsGsearch = (state) => state.rightSidebar.isGsearch;
+export const selectGooglePlaceData = (state) => state.rightSidebar.googlePlaceData;
 
 export const {
   togglePanel,
@@ -341,20 +469,17 @@ export const {
   updateFormData,
   resetState,
   syncExternalShop,
-  // 드로잉 관련 액션 내보내기
   startDrawingMode,
   endDrawingMode,
   updateCoordinates,
   addNewShop,
-  // 모달 관련 액션 내보내기
   closeCompareModal,
-  confirmAndSubmit
+  confirmAndSubmit,
+  setIdleState,
+  startGsearch,
+  endGsearch,
+  compareGooglePlaceData,
+  startCompareModal
 } = rightSidebarSlice.actions;
 
-export default rightSidebarSlice.reducer;
-
-export {
-  saveShopData,
-  finalConfirmAndSubmit,
-  rightSidebarSlice,
-}; 
+export default rightSidebarSlice.reducer; 

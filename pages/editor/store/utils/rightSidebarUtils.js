@@ -66,43 +66,43 @@ const isEqual = (val1, val2) => {
 /**
  * 상점 데이터 비교 함수
  * 원본 데이터와 편집된 데이터를 비교하여 변경 사항이 있는지 확인
+ * 값의 변경이 있는지만 체크함 
  * 
- * @param {Object} original - 원본 상점 데이터
- * @param {Object} edited - 편집된 상점 데이터
+ * @param {Object} refItem - 원본 상점 데이터
+ * @param {Object} editedItem - 편집된 상점 데이터
  * @returns {boolean} 변경 사항 존재 여부
  */
-export const compareShopData = (original, edited) => {
+export const checkDataIsChanged = (refItem, editedItem) => {  //AT checkDataIsChanged (작업중) 
   // null 또는 undefined 체크를 명확히 함
-  if (!original || !edited) {
-    console.log('compareShopData: 원본 또는 편집 데이터가 없음', { original, edited });
-    return false;
+  if (!refItem || !editedItem) {
+    console.log('compareShopData: 원본 또는 편집 데이터가 없음', { original: refItem, edited: editedItem });
+    return [];
   }
   
-  // 변경사항 존재 여부
-  let hasChanges = false;
+  // 변경된 필드 키 배열
+  let keysChanged = [];
   
-   
   // 모든 필드 비교
-  for (const key in edited) {
-    // 특수 필드 무시 (itemMarker, itemPolygon 등)
-    if (key === 'itemMarker' || key === 'itemPolygon') continue;
-    
+  for (const key in editedItem) {
     // 일반 값 비교 - 개선된 isEqual 함수 사용
-    if (!isEqual(edited[key], original[key])) {
+    if (!isEqual(editedItem[key], refItem[key])) {
       if (process.env.NODE_ENV !== 'production') {
         console.log(`필드 ${key}: 값 다름`);
-        console.log('  원본:', original[key]);
-        console.log('  편집:', edited[key]);
+        console.log('  원본:', refItem[key]);
+        console.log('  편집:', editedItem[key]);
       }
-      hasChanges = true;
-      break; // 하나라도 변경사항이 있으면 즉시 종료
+      // 변경된 키를 배열에 추가
+      keysChanged.push(key);
     }
   }
   
-  if (!hasChanges && process.env.NODE_ENV !== 'production') {
+  if (keysChanged.length === 0 && process.env.NODE_ENV !== 'production') {
     console.log('compareShopData: 변경사항 없음');
+  } else if (process.env.NODE_ENV !== 'production') {
+    console.log('변경된 필드:', keysChanged);
   }
-  return hasChanges;
+  
+  return keysChanged;
 };
 
 /**
@@ -114,38 +114,9 @@ export const compareShopData = (original, edited) => {
  * @returns {Object} 업데이트된 폼 데이터
  */
 export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
-  // 빈 값 처리: shopData가 없거나 정의되지 않은 경우 빈 폼 데이터 반환
-  if (!shopData) {
-    return {
-      storeName: "",
-      storeStyle: "",
-      alias: "",
-      comment: "",
-      locationMap: "",
-      businessHours: "",
-      hotHours: "",
-      discountHours: "",
-      address: "",
-      mainImage: "",
-      pinCoordinates: "",
-      path: "",
-      categoryIcon: "",
-      googleDataId: "",
-    };
-  }
-  
-  // 데이터는 직접 사용 (protoServerDataset 구조)
-  const data = shopData;
-  
-  // businessHours 특수 처리 - 빈 배열이거나 [""] 패턴인 경우도 빈 문자열로 표시
-  let businessHoursValue = "";
-  if (Array.isArray(data.businessHours)) {
-    if (data.businessHours.length > 0 && !(data.businessHours.length === 1 && data.businessHours[0] === "")) {
-      businessHoursValue = data.businessHours.join(', ');
-    }
-  } else if (data.businessHours) {
-    businessHoursValue = data.businessHours;
-  }
+  // 빈 값 처리: shopData가 없거나 정의되지 않은 경우 protoServerDataset 사용
+  // 데이터는 직접 사용 (shopData가 없으면 protoServerDataset 사용)
+  const data = shopData || protoServerDataset;
   
   return {
     ...currentFormData,
@@ -154,7 +125,11 @@ export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
     alias: data.alias || "",
     comment: data.comment || "",
     locationMap: data.locationMap || "",
-    businessHours: businessHoursValue,
+    businessHours: Array.isArray(data.businessHours) 
+      ? (data.businessHours.length > 0 && !(data.businessHours.length === 1 && data.businessHours[0] === "")) 
+        ? data.businessHours.join(', ') 
+        : "" 
+      : (data.businessHours || ""),
     hotHours: data.hotHours || "",
     discountHours: data.discountHours || "",
     address: data.address || "",
@@ -172,22 +147,8 @@ export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
  * @returns {Object} 기본 폼 데이터
  */
 export const getDefaultFormData = () => {
-  return {
-    storeName: "",
-    storeStyle: "",
-    alias: "",
-    comment: "",
-    locationMap: "",
-    businessHours: "",
-    hotHours: "",
-    discountHours: "",
-    address: "",
-    mainImage: "",
-    pinCoordinates: "",
-    path: "",
-    categoryIcon: "",
-    googleDataId: "",
-  };
+  // protoServerDataset 기반으로 기본 폼 데이터 생성
+  return updateFormDataFromShop(protoServerDataset, {});
 };
 
 /**
@@ -197,4 +158,13 @@ export const getDefaultFormData = () => {
  */
 export const getDefaultShopData = () => {
   return { ...protoServerDataset };
+};
+
+export {
+  compareShopData,
+  checkDataIsChanged,
+  updateFormDataFromShop,
+  getDefaultCoordinates, 
+  getDefaultPath,
+  isEqual
 }; 

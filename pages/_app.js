@@ -1,5 +1,5 @@
 import { Provider } from 'react-redux';
-import store from './editor/store';
+import store from '../pages/editor/store';
 
 function MyApp({ Component, pageProps }) {
   return (

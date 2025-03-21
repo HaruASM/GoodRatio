@@ -32,7 +32,9 @@ const initialState = {
         text: '',
         action: ''
       }
-    }
+    },
+    // 복사 버튼 표시 여부를 결정하는 플래그
+    insertModeModal: false
   },
   status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   error: null,
@@ -44,7 +46,7 @@ const initialState = {
   // IDLE 상태 추가 (초기에는 IDLE 상태)
   isIdle: true,
   // 구글 장소 검색 관련 상태 추가
-  insertMode: false,
+  isGsearch: false,
   googlePlaceData: null
 };
 
@@ -140,7 +142,7 @@ const rightSidebarSlice = createSlice({
       state.isIdle = true;
       
       // 구글 검색 상태 초기화
-      state.insertMode = false;
+      state.isGsearch = false;
       state.googlePlaceData = null;
     },
     
@@ -154,15 +156,17 @@ const rightSidebarSlice = createSlice({
       
       // 레퍼런스 데이터 설정 [라벨, 데이터]
       if (Array.isArray(reference) && reference.length >= 2) {
-        state.compareModalData.reference.label = reference[0] || '';
-        state.compareModalData.reference.data = reference[1] || null;
+        state.compareModalData.reference.label = reference[0] ;
+        state.compareModalData.reference.data = reference[1] ;
       }
       
-      // 타겟 데이터 설정 [라벨, 데이터]
-      if (Array.isArray(target) && target.length >= 2) {
-        state.compareModalData.target.label = target[0] || '';
-        state.compareModalData.target.data = target[1] || null;
+      state.compareModalData.target.label = target[0] ;
+      if (target[1] === true) {
+        state.compareModalData.target.data = state.editNewShopDataSet;
+      } else {
+        state.compareModalData.target.data = target[1] ;
       }
+
       
       // 모달 설정 적용
       if (modalConfig) {
@@ -172,18 +176,16 @@ const rightSidebarSlice = createSlice({
         };
       }
       
-      // insertMode가 있으면 설정 (기본값은 false)
-      state.insertMode = insertMode === true;
+      // 복사 버튼 표시 설정 (insertMode가 true면 복사 버튼 표시)
+      state.compareModalData.insertModeModal = insertMode === true;
       
       // 모달창 표시
       state.isCompareModalVisible = true;
     },
     
     // 기존 confirmEdit 수정 - startCompareModal 액션 사용
-    confirmEdit: (state, action) => {
-      // payload에서 최신 데이터 가져오기
-      const updatedData = action.payload?.updatedData || state.editNewShopDataSet;
-      
+    confirmEdit: (state) => {
+      //AT 데이터 수정후 전송 확인용 비교 모달 표시 
       // 비교 모달 데이터 설정
       state.compareModalData = {
         reference: {
@@ -192,7 +194,8 @@ const rightSidebarSlice = createSlice({
         },
         target: {
           label: '수정본',
-          data: updatedData  // 컴포넌트에서 전달한 최신 데이터 사용
+          // 직접 참조로 변경
+          data: true
         },
         modalConfig: {
           title: '비교후 전송',
@@ -200,27 +203,19 @@ const rightSidebarSlice = createSlice({
             text: '확정전송',
             action: 'confirmComplete'
           }
-        }
+        },
+        // 일반 비교 모드에서는 복사 버튼 표시 안함
+        insertModeModal: false
       };
-      
-      // 최신 데이터로 상태 업데이트
-      state.editNewShopDataSet = updatedData;
       
       // 모달창 표시
       state.isCompareModalVisible = true;
     },
     
-    // 모달 닫기
+    // 모달 닫기 - 단순히 모달만 닫음
     closeCompareModal: (state) => {
+      // 모달 닫기
       state.isCompareModalVisible = false;
-      
-      // 구글 검색 중이었다면 검색 상태 종료하고 데이터 완전히 초기화
-      if (state.insertMode) {
-        state.insertMode = false;
-        state.googlePlaceData = null;
-      }
-      
-      // 모달 데이터도 초기화
       state.compareModalData = {
         reference: {
           label: '',
@@ -229,14 +224,28 @@ const rightSidebarSlice = createSlice({
         target: {
           label: '',
           data: null
-        }
+        },
+        modalConfig: {
+          title: '비교대상없음',
+          button: {
+            text: '',
+            action: ''
+          }
+        },
+        insertModeModal: false
       };
     },
     
     // 비교 모달의 타겟 데이터 업데이트
     updateCompareModalTarget: (state, action) => {
       if (state.compareModalData && state.compareModalData.target) {
+        // 모달의 타겟 데이터 업데이트
         state.compareModalData.target.data = action.payload;
+        
+        // 실제 편집 중인 데이터도 함께 업데이트
+        if (state.isEditing && state.editNewShopDataSet) {
+          state.editNewShopDataSet = { ...action.payload };
+        }
       }
     },
     
@@ -255,50 +264,87 @@ const rightSidebarSlice = createSlice({
       state.formData = updateFormDataFromShop(null, {});
     },
     
-    // 필드 업데이트
+    // 필드 업데이트 - 단일 업데이트 경로
     updateField: (state, action) => {
-      const { field, value } = action.payload;
-      
-      // 새로운 editNewShopDataSet 업데이트
-      if (state.editNewShopDataSet) {
-        let originalValue;
+      // 단일 필드 업데이트 경우
+      if (action.payload.field) {
+        const { field, value } = action.payload;
         
-        // 원본 값 가져오기 - 구조 변경에 맞게 수정
-        if (state.originalShopData) {
-          originalValue = state.originalShopData[field];
+        // 새로운 editNewShopDataSet 업데이트
+        if (state.editNewShopDataSet) {
+          let originalValue;
+          
+          // 원본 값 가져오기
+          if (state.originalShopData) {
+            originalValue = state.originalShopData[field];
+          }
+          
+          // 새 값 설정
+          // 변경사항 추적을 위해 원본 값과 비교
+          if (value !== originalValue) {
+            state.modifiedFields[field] = true;
+          } else {
+            // 값이 원래대로 되돌아왔다면 수정된 필드에서 제거
+            delete state.modifiedFields[field];
+          }
+          
+          // 값 업데이트
+          state.editNewShopDataSet[field] = value;
+          
+          // formData도 함께 업데이트 - 단일 경로 보장
+          if (state.formData) {
+            state.formData[field] = value;
+          }
+          
+          // 비교 모달이 열려있는 경우 모달 데이터도 업데이트
+          if (state.isCompareModalVisible && 
+              state.compareModalData && 
+              state.compareModalData.target && 
+              state.compareModalData.target.data) {
+            // 명시적 객체 복사 대신, 직접 참조 방식 사용
+            state.compareModalData.target.data = state.editNewShopDataSet;
+          }
+        }
+      } 
+      // 여러 필드 업데이트 경우 (기존 updateFormData 기능 통합)
+      else if (action.payload) {
+        // 전달된 모든 필드에 대해 처리
+        const formUpdates = action.payload;
+        
+        // formData 업데이트
+        if (state.formData) {
+          state.formData = {
+            ...state.formData,
+            ...formUpdates
+          };
         }
         
-        // 새 값 설정 - 구조 변경에 맞게 수정
-        // 변경사항 추적을 위해 원본 값과 비교
-        if (value !== originalValue) {
-          state.modifiedFields[field] = true;
-        } else {
-          // 값이 원래대로 되돌아왔다면 수정된 필드에서 제거
-          delete state.modifiedFields[field];
+        // editNewShopDataSet도 함께 업데이트 (단일 경로 보장)
+        if (state.editNewShopDataSet) {
+          Object.entries(formUpdates).forEach(([field, value]) => {
+            // 수정값 추적
+            if (state.originalShopData && value !== state.originalShopData[field]) {
+              state.modifiedFields[field] = true;
+            } else {
+              delete state.modifiedFields[field];
+            }
+            
+            // 값 업데이트
+            state.editNewShopDataSet[field] = value;
+          });
+          
+          // 비교 모달 데이터도 업데이트 (필요한 경우)
+          if (state.isCompareModalVisible && 
+              state.compareModalData?.target?.data) {
+            state.compareModalData.target.data = state.editNewShopDataSet;
+          }
         }
-        
-        // 값 업데이트
-        state.editNewShopDataSet[field] = value;
       }
     },
     
     // 필드 변경 추적
     trackField: (state, action) => {
       state.modifiedFields[action.payload.field] = true;
-    },
-    
-    // 폼 데이터 업데이트
-    updateFormData: (state, action) => {
-      // 업데이트할 데이터가 없는 경우는 무시
-      if (!action.payload) {
-        return;
-      }
-      
-      // 새 폼 데이터로 업데이트
-      state.formData = {
-        ...state.formData,
-        ...action.payload
-      };
     },
     
     // 상태 초기화
@@ -413,35 +459,19 @@ const rightSidebarSlice = createSlice({
     
     // 구글 장소 검색 모드 시작 (구글 장소 검색 버튼 클릭 시)
     startGsearch: (state) => {
-      state.insertMode = true;
-      
-      // 초기화
       state.googlePlaceData = null;
-      
-      // 현재 편집 중인 데이터가 있는 경우, compareModalData 초기화
-      // 나중에 compareGooglePlaceData 액션에서 모달 데이터가 설정됨
-      if (state.isEditing) {
-        state.compareModalData = {
-          reference: {
-            label: '구글데이터',
-            data: null
-          },
-          target: {
-            label: '현재데이터',
-            data: state.editNewShopDataSet
-          }
-        };
-      }
+      state.isGsearch = true;
     },
     
     // 구글 장소 검색 모드 종료
     endGsearch: (state) => {
-      state.insertMode = false;
       state.googlePlaceData = null;
+      state.isGsearch = false;
     },
     
     // 구글 장소 비교 데이터 설정
     compareGooglePlaceData: (state, action) => { //AT (작업중)set구글장소
+   
       // googlePlaceData를 protoServerDataset으로 초기화 후 action.payload 값을 넣음
       state.googlePlaceData = { ...protoServerDataset };
           
@@ -453,19 +483,22 @@ const rightSidebarSlice = createSlice({
         state.googlePlaceData.googleDataId = action.payload.place_id || '';
         
         // 이미지 처리 - 구글은 photo_reference 배열을 제공
+        // 모든 이미지를 subImages에 추가하고 mainImage는 비워둠
         if (action.payload.photos && Array.isArray(action.payload.photos)) {
-          // 첫 번째 사진은 메인 이미지로
-          if (action.payload.photos.length > 0 && action.payload.photos[0].photo_reference) {
-            state.googlePlaceData.mainImage = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${action.payload.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
-          }
+          // mainImage는 빈 문자열로 설정
+          state.googlePlaceData.mainImage = '';
           
-          // 나머지 사진들은 서브 이미지로
-          state.googlePlaceData.subImages = action.payload.photos.slice(1).map(photo => {
+          // 모든 사진을 subImages 배열에 추가
+          state.googlePlaceData.subImages = action.payload.photos.map(photo => {
             if (photo.photo_reference) {
               return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=200&photoreference=${photo.photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
             }
             return '';
           }).filter(url => url !== '');
+        } else {
+          // 사진이 없는 경우 빈 배열 설정
+          state.googlePlaceData.mainImage = '';
+          state.googlePlaceData.subImages = [];
         }
         
         // 위치 정보 처리 - string 형식으로 변환
@@ -521,7 +554,8 @@ const rightSidebarSlice = createSlice({
         },
         target: {
           label: '현재데이터',
-          data: state.editNewShopDataSet
+          // 직접 참조로 변경
+          data: true
         },
         modalConfig: {
           title: '구글Place 데이터',
@@ -529,7 +563,9 @@ const rightSidebarSlice = createSlice({
             text: '',
             action: ''
           }
-        }
+        },
+        // 구글 검색 모드에서는 복사 버튼 표시함
+        insertModeModal: true
       };
       
       // 비교 모달 표시
@@ -583,7 +619,7 @@ export const selectDrawingType = (state) => state.rightSidebar.drawingType;
 export const selectIsCompareModalVisible = (state) => state.rightSidebar.isCompareModalVisible;
 
 // 구글 장소 검색 관련 셀렉터
-export const selectIsGsearch = (state) => state.rightSidebar.insertMode;
+export const selectIsGsearch = (state) => state.rightSidebar.isGsearch;
 export const selectGooglePlaceData = (state) => state.rightSidebar.googlePlaceData;
 
 export const {
@@ -594,7 +630,6 @@ export const {
   confirmEdit,
   updateField,
   trackField,
-  updateFormData,
   resetState,
   syncExternalShop,
   startDrawingMode,

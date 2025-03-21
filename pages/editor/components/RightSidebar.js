@@ -32,7 +32,11 @@ import {
   startGsearch,
   selectIsGsearch,
   selectGooglePlaceData,
-  startCompareModal
+  startCompareModal,
+  updateCompareModalTarget,
+  copyReferenceValuesToTarget,
+  compareGooglePlaceData,
+  endGsearch
 } from '../store/slices/rightSidebarSlice';
 
 // 값이 비어있는지 확인하는 공통 함수
@@ -81,7 +85,7 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => { //AT (작업중
   const isVisible = useSelector(selectIsCompareModalVisible);
   const originalShopData = useSelector(selectOriginalShopData);
   const editedShopData = useSelector(selectEditNewShopDataSet);
-  const insertMode = useSelector(selectIsGsearch);
+  const isGsearchMode = useSelector(selectIsGsearch);
   const googlePlaceData = useSelector(selectGooglePlaceData);
   
   // 비교 모달 데이터 가져오기
@@ -137,69 +141,38 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => { //AT (작업중
     // 필드 값이 없는 경우 처리하지 않음
     if (value === undefined || value === null) return;
     
-    // 편집 중인 상태에서 필드 업데이트
+    // 단일 업데이트 경로 사용: updateField 액션을 통해 모든 상태 동기화
     dispatch(updateField({ field, value }));
     
-    // 필드 변경 추적
+    // 추적을 위해 필드 변경 기록 (수정된 필드 하이라이트 표시용)
     dispatch(trackField({ field }));
-    
-    // 로컬 상태에도 즉시 반영 (UI 업데이트를 위해)
-    if (targetData) {
-      // 깊은 복사를 통한 객체 업데이트
-      const updatedTargetData = { 
-        ...targetData,
-        [field]: value 
-      };
-      
-      // compareModalData 업데이트
-      dispatch({
-        type: 'rightSidebar/updateCompareModalTarget',
-        payload: updatedTargetData
-      });
-    }
     
     console.log(`${field} 필드 값 복사됨:`, value);
   };
 
   // 모달 닫기 핸들러
-  const handleCloseModal = () => {
+  const handleCloseModal = () => { //FIXME 모달 닫기 핸들러 분기 시켜야함함
     // 외부로 임시 오버레이 정리 함수 호출 (기존 오버레이 정리)
     if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
       mapOverlayHandlers.cleanupTempOverlays();
     }
     
-    // 모달 닫기 및 구글 장소 데이터 초기화
+    // 모달 닫기
     dispatch(closeCompareModal());
     
-    console.log('모달 닫힘: 구글 데이터 초기화됨');
+    // 구글 검색 모드인 경우 완전히 종료
+    if (isGsearchMode) {
+      dispatch(endGsearch());
+    }
+    
+    
   };
 
   // 최종 확인 핸들러 - 확인 액션 후 저장 로직 실행
-  const handleFinalConfirm = () => {
-    // 구글 검색 모드일 경우 데이터 업데이트
-      if (insertMode && googlePlaceData) {
-      const updatedData = {
-        storeName: googlePlaceData.name || '',
-        address: googlePlaceData.formatted_address || '',
-        googleDataId: googlePlaceData.place_id || '',
-      };
-      
-      // 폼 데이터 업데이트
-      dispatch(updateFormData(updatedData));
-      
-      // 편집 중인 경우 필드 업데이트
-      if (originalShopData) {
-        dispatch(updateField({ field: 'storeName', value: googlePlaceData.name || '' }));
-        dispatch(updateField({ field: 'address', value: googlePlaceData.formatted_address || '' }));
-        dispatch(updateField({ field: 'googleDataId', value: googlePlaceData.place_id || '' }));
-        
-        // 필드 변경 추적
-        dispatch(trackField({ field: 'storeName' }));
-        dispatch(trackField({ field: 'address' }));
-        dispatch(trackField({ field: 'googleDataId' }));
-      }
-      
-      console.log('구글 장소 데이터 적용:', updatedData);
+  const handleFinalConfirm = () => { //FIXME 파이널 컨펌의 동작 분기 변경 
+    // 구글 검색 모드일 경우에도 자동 채우기 없이 처리
+    if (isGsearchMode && googlePlaceData) {
+      console.log('구글 장소 데이터 선택적 적용 가능: 자동 업데이트 없음');
     } else {
       // 일반 모드에서는 기존 방식대로 처리
     console.log('서버로 전송할 데이터:', editedShopData);
@@ -213,8 +186,14 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => { //AT (작업중
     // 모달 닫기
     dispatch(closeCompareModal());
     
+    // FIRXE 최종확인 단계는 구글서치에는 기능이 없다. 버튼에 액션 이벤트를 분기 시켜야함함
+    // 구글 검색 모드인 경우 완전히 종료
+    if (isGsearchMode) {
+      dispatch(endGsearch());
+    }
+    
     // 구글 검색 모드가 아닌 경우에만 편집 취소
-    if (!insertMode) {
+    if (!isGsearchMode) {
     dispatch(cancelEdit());
     }
   };
@@ -237,13 +216,13 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => { //AT (작업중
         <div className={styles.rightSidebarComparisonContainer}>
           <div className={styles.rightSidebarOriginalValueContainer}>
             <div className={styles.rightSidebarInputWithButton}>
-              <input
-                type="text"
+            <input
+              type="text"
                 value={formattedOriginalValue || ""}
-                readOnly
+              readOnly
                 className={`${styles.filledInput} ${isChanged ? styles.rightSidebarOriginalValue : ''}`}
               />
-              {insertMode && isChanged && !isOriginalEmpty && (
+              {compareModalData.insertModeModal && isChanged && !isOriginalEmpty && (
                 <button
                   className={styles.copyButton}
                   onClick={() => copyReferenceToTarget(field)}
@@ -252,7 +231,7 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => { //AT (작업중
                   →
                 </button>
               )}
-            </div>
+          </div>
           </div>
           <div className={styles.rightSidebarEditedValueContainer}>
             <input
@@ -281,12 +260,12 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => { //AT (작업중
         <h3>{modalTitle}</h3>
         <div className={styles.rightSidebarHeaderButtonGroup}>
           {showConfirmButton && (
-            <button 
-              className={styles.confirmButton}
-              onClick={handleFinalConfirm}
-            >
+          <button 
+            className={styles.confirmButton}
+            onClick={handleFinalConfirm}
+          >
               {buttonText}
-            </button>
+          </button>
           )}
           <button 
             className={styles.cancelButton}
@@ -351,6 +330,8 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
   const error = useSelector(selectError);
   const isCompareModalVisible = useSelector(selectIsCompareModalVisible);
   const isIdle = useSelector(selectIsIdle);
+  const isGsearchMode = useSelector(selectIsGsearch);
+  const googlePlaceData = useSelector(selectGooglePlaceData);
   
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
@@ -459,14 +440,13 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    // 폼 데이터 업데이트
-    dispatch(updateFormData({ [name]: value }));
+    // 단일 업데이트 경로 사용
+    dispatch(updateField({ field: name, value }));
     
-    // 필드 값 업데이트 - 배열 타입 특수 처리
-    let processedValue = value;
-    
+    // 배열형 필드 처리 (특수 처리 필요한 경우)
     // 배열형 필드 처리
     if (name === 'businessHours') {
+      let processedValue = value;
       if (value === '' || value.trim() === '') {
         processedValue = [""];  // 빈 값은 [""] 형태로 저장
       } else {
@@ -475,16 +455,12 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
           processedValue = [""];  // 결과가 빈 배열이면 [""] 형태로 저장
         }
       }
-    }
-    
-    // 원본 값 가져오기
-    let originalValue = null;
-    if (currentShopServerDataSet) {
-      originalValue = currentShopServerDataSet[name];
-    }
-    
-    // 값 업데이트 액션 디스패치
+      
+      // 배열 형태로 다시 업데이트
+      if (processedValue !== value) {
     dispatch(updateField({ field: name, value: processedValue }));
+      }
+    }
   };
   
   const handlePinCoordinatesButtonClick = (e) => {
@@ -501,33 +477,30 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
     dispatch(startDrawingMode({ type: 'POLYGON' }));
   };
 
-  // 구글 플레이스 검색 시작 (서버 데이터와 구글 데이터 비교)
+  // 구글 장소 검색 클릭 처리
   const handleGooglePlaceSearchClick = (e) => {
-    e.preventDefault();
+    e.preventDefault(); // A태그 클릭 방지
     
-    // 구글 데이터 초기화
+    // 구글 검색 모드 시작
     dispatch(startGsearch());
     
-    // 검색 입력란으로 포커스 이동
-    if (document.querySelector('[data-testid="place-search-input"]')) {
-      document.querySelector('[data-testid="place-search-input"]').focus();
-    }
     
-    console.log('검색 인풋으로 포커스 이동 및 구글 검색 모드 활성화');
+    // 검색창으로 포커스 이동 (존재하는 경우)
+    // 3번만 시도하도록 변경
+    let attempt = 0;
+    const maxAttempts = 3;
+    setTimeout(() => {
+      if(attempt < maxAttempts) {
+        const searchInput = document.querySelector('[data-testid="place-search-input"]');
+        if (searchInput) 
+          searchInput.focus();
+        attempt++;
+      }
+    }, 100);
+
   };
 
-  // 직접 비교 모달 호출 예제 (modalConfig 설정 추가)
-  const handleCustomCompare = (referenceData, targetData, options = {}) => {
-    // 옵션에서 값 추출
-    const { insertMode = false, modalConfig = null } = options;
-    
-    // 비교 모달 시작 (레퍼런스 데이터, 타겟 데이터, 옵션)
-    dispatch(startCompareModal([
-      ['참조데이터', referenceData],
-      ['대상데이터', targetData],
-      { insertMode, modalConfig }
-    ]));
-  };
+
 
   return (
     <div className={styles.rightSidebar}>

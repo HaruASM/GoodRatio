@@ -25,13 +25,20 @@ import {
   endDrawingMode,
   updateCoordinates,
   syncExternalShop,
-  updateFormData,
   selectFormData,
   
   
   setIdleState,
   selectIsGsearch,
-  compareGooglePlaceData
+  compareGooglePlaceData,
+  startEditShop,
+  completeEdit,
+  cancelEdit,
+  confirmEdit,
+  updateField,
+  trackField,
+  setGooglePlaceData,
+  closeModal
 } from './store/slices/rightSidebarSlice';
 import store from './store';
 //import { compareShopData } from './store/utils/rightSidebarUtils';
@@ -358,7 +365,7 @@ export default function Editor() { // 메인 페이지
       }
 
       // 구글 검색 모드(isGsearch)일 때만 compareGooglePlaceData 액션 디스패치
-      const isGsearchActive = store.getState().rightSidebar.insertMode;
+      const isGsearchActive = store.getState().rightSidebar.isGsearch;
       
       if (isGsearchActive) {
         // 직렬화 가능한 형태로 데이터 변환
@@ -789,7 +796,7 @@ export default function Editor() { // 메인 페이지
     }
     
     dispatch(syncExternalShop({ shopData: curSelectedShop.serverDataset })); // 우측 사이드바 상태 내부적으로 isIdel일때만 빈폼 초기화 
-
+    
     // 1. 좌측 사이드바 아이템 하이라이트 효과
     const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
     
@@ -1183,9 +1190,9 @@ export default function Editor() { // 메인 페이지
         <div id="map" className={styles.map}></div>
         <div ref={searchformRef} className={styles.searchForm}>
           <div className={styles.searchInputContainer}>
-            <input 
+              <input 
               ref={searchInputDomRef}
-              type="text" 
+                type="text" 
               className={styles.searchInput}
               placeholder="장소 검색..."
               onFocus={handleSearchFocus}
@@ -1194,11 +1201,11 @@ export default function Editor() { // 메인 페이지
             />
             <button className={styles.searchButton}>
               <span className={styles.searchIcon}>🔍</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      
+                </button>
+            </div>
+            </div>
+              </div>
+              
       {/* 오른쪽 사이드바 */}
       <RightSidebar
         moveToCurrentLocation={moveToCurrentLocation}

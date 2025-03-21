@@ -35,17 +35,53 @@ import {
   startCompareModal
 } from '../store/slices/rightSidebarSlice';
 
+// 값이 비어있는지 확인하는 공통 함수
+const isValueEmpty = (value, fieldName) => {
+  // 값이 null 또는 undefined인 경우
+  if (value === null || value === undefined) return true;
+  
+  // 빈 문자열인 경우
+  if (value === '') return true;
+  
+  // 배열이고 비어있거나 첫 요소가 빈 문자열인 경우
+  if (Array.isArray(value) && (value.length === 0 || (value.length === 1 && value[0] === ''))) return true;
+  
+  // 특정 필드에 대한 추가 로직
+  if (fieldName === 'path' || fieldName === 'pinCoordinates') {
+    return !value || value === '';
+  }
+  
+  return false;
+};
+
+// 상점 데이터 인풋창 타이틀 배열
+const titlesofDataFoam = [
+  { field: 'storeName', title: '상점명' },
+  { field: 'storeStyle', title: '상점 스타일' },
+  { field: 'alias', title: '별칭' },
+  { field: 'comment', title: '코멘트' },
+  { field: 'locationMap', title: '위치지역' },
+  { field: 'businessHours', title: '영업시간' },
+  { field: 'hotHours', title: 'hot시간' },
+  { field: 'discountHours', title: '할인시간' },
+  { field: 'address', title: '주소' },
+  { field: 'pinCoordinates', title: '핀 좌표' },
+  { field: 'path', title: '다각형 경로' },
+  { field: 'categoryIcon', title: '아이콘분류' },
+  { field: 'googleDataId', title: '구글데이터ID' }
+];
+
 /**
  * 비교 모달 컴포넌트
  * 상점 데이터 폼과 동일한 모양으로 우측에 표시되는 모달
  * 원본 데이터와 수정된 데이터를 비교하는 기능 제공
  */
-const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
+const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => { //AT (작업중) 비교모달 출력부분
   const dispatch = useDispatch();
   const isVisible = useSelector(selectIsCompareModalVisible);
   const originalShopData = useSelector(selectOriginalShopData);
   const editedShopData = useSelector(selectEditNewShopDataSet);
-  const isGsearch = useSelector(selectIsGsearch);
+  const insertMode = useSelector(selectIsGsearch);
   const googlePlaceData = useSelector(selectGooglePlaceData);
   
   // 비교 모달 데이터 가져오기
@@ -57,60 +93,32 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
   }
 
   // 모달 데이터에서 레퍼런스와 타겟 데이터 및 라벨 가져오기
-  const referenceLabel = compareModalData.reference.label || '원본';
-  const targetLabel = compareModalData.target.label || '수정본';
+  const referenceLabel = compareModalData.reference.label; 
+  const targetLabel = compareModalData.target.label; 
   
   // 레퍼런스 데이터 (compareModalData 사용, 없으면 기존 로직 사용)
-  const referenceData = compareModalData.reference.data || 
-                        (isGsearch ? googlePlaceData : originalShopData);
+  const referenceData = compareModalData.reference.data;
   
   // 타겟 데이터 (compareModalData 사용, 없으면 기존 로직 사용)
-  const targetData = compareModalData.target.data || 
-                     (isGsearch ? googlePlaceData : editedShopData);
+  const targetData = compareModalData.target.data; 
 
   // 원본 데이터가 없는 경우 (신규 추가 시)
   const isNewShop = !originalShopData || Object.keys(originalShopData).length === 0;
 
-  // 원본 데이터 값 가져오기
+  // 원본 데이터 값 가져오기 (단순화된 방식)
   const getOriginalValue = (field) => {
-    // compareModalData의 reference 데이터 사용
-    if (referenceData) {
-      if (field === 'storeName' && isGsearch) return referenceData.name || '';
-      if (field === 'address' && isGsearch) return referenceData.formatted_address || '';
-      if (field === 'googleDataId' && isGsearch) return referenceData.place_id || '';
-      // 일반적인 필드는 그대로 가져오기
-      return referenceData[field] || '';
-    }
-    
-    // 기존 로직 (폴백)
-    if (!originalShopData) return '';
-    return originalShopData[field] || '';
+    if (!referenceData) return '';
+    return referenceData[field] !== undefined ? referenceData[field] : '';
   };
 
-  // 수정된 데이터 값 가져오기
+  // 수정된 데이터 값 가져오기 (단순화된 방식)
   const getEditedValue = (field) => {
-    // compareModalData의 target 데이터 사용
-    if (targetData) {
-      if (field === 'storeName' && isGsearch) return targetData.name || '';
-      if (field === 'address' && isGsearch) return targetData.formatted_address || '';
-      if (field === 'googleDataId' && isGsearch) return targetData.place_id || '';
-      // 일반적인 필드는 그대로 가져오기
-      return targetData[field] || '';
-    }
-    
-    // 기존 로직 (폴백)
-    if (!editedShopData) return '';
-    return editedShopData[field] || '';
+    if (!targetData) return '';
+    return targetData[field] !== undefined ? targetData[field] : '';
   };
 
-  // 필드 변경 여부 확인
+  // 필드 변경 여부 확인 (단순화된 방식)
   const isFieldChanged = (field) => {
-    // 구글 검색 모드일 경우 항상 변경됨으로 처리 (관련 필드만)
-    if (isGsearch) {
-      return field === 'storeName' || field === 'address' || field === 'googleDataId';
-    }
-    
-    // 일반 모드에서는 기존 방식대로 처리
     const originalValue = getOriginalValue(field);
     const editedValue = getEditedValue(field);
     
@@ -121,16 +129,55 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
     
     return originalValue !== editedValue;
   };
+  
+  // reference 데이터를 target으로 복사하는 함수
+  const copyReferenceToTarget = (field) => {
+    const value = getOriginalValue(field);
+    
+    // 필드 값이 없는 경우 처리하지 않음
+    if (value === undefined || value === null) return;
+    
+    // 편집 중인 상태에서 필드 업데이트
+    dispatch(updateField({ field, value }));
+    
+    // 필드 변경 추적
+    dispatch(trackField({ field }));
+    
+    // 로컬 상태에도 즉시 반영 (UI 업데이트를 위해)
+    if (targetData) {
+      // 깊은 복사를 통한 객체 업데이트
+      const updatedTargetData = { 
+        ...targetData,
+        [field]: value 
+      };
+      
+      // compareModalData 업데이트
+      dispatch({
+        type: 'rightSidebar/updateCompareModalTarget',
+        payload: updatedTargetData
+      });
+    }
+    
+    console.log(`${field} 필드 값 복사됨:`, value);
+  };
 
   // 모달 닫기 핸들러
   const handleCloseModal = () => {
+    // 외부로 임시 오버레이 정리 함수 호출 (기존 오버레이 정리)
+    if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
+      mapOverlayHandlers.cleanupTempOverlays();
+    }
+    
+    // 모달 닫기 및 구글 장소 데이터 초기화
     dispatch(closeCompareModal());
+    
+    console.log('모달 닫힘: 구글 데이터 초기화됨');
   };
 
   // 최종 확인 핸들러 - 확인 액션 후 저장 로직 실행
   const handleFinalConfirm = () => {
     // 구글 검색 모드일 경우 데이터 업데이트
-    if (isGsearch && googlePlaceData) {
+      if (insertMode && googlePlaceData) {
       const updatedData = {
         storeName: googlePlaceData.name || '',
         address: googlePlaceData.formatted_address || '',
@@ -155,7 +202,7 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
       console.log('구글 장소 데이터 적용:', updatedData);
     } else {
       // 일반 모드에서는 기존 방식대로 처리
-      console.log('서버로 전송할 데이터:', editedShopData);
+    console.log('서버로 전송할 데이터:', editedShopData);
     }
     
     // 외부로 임시 오버레이 정리 함수 호출
@@ -167,8 +214,8 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
     dispatch(closeCompareModal());
     
     // 구글 검색 모드가 아닌 경우에만 편집 취소
-    if (!isGsearch) {
-      dispatch(cancelEdit());
+    if (!insertMode) {
+    dispatch(cancelEdit());
     }
   };
 
@@ -177,27 +224,35 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
     const originalValue = getOriginalValue(field);
     const editedValue = getEditedValue(field);
     const isChanged = isFieldChanged(field);
+    const isOriginalEmpty = isValueEmpty(originalValue, field);
     
     const formattedOriginalValue = formatValue(originalValue);
     const formattedEditedValue = formatValue(editedValue);
     
-    if( field === 'comment' ){
-    console.log(originalValue," / " ,editedValue, "///", isChanged, '/', formattedOriginalValue, " / ", formattedEditedValue );
-    }
-    
     return (
-      <div className={styles.rightSidebarFormRow}>
+      <div key={field} className={styles.rightSidebarFormRow}>
         <div className={styles.rightSidebarFormLabelContainer}>
           <span className={styles.rightSidebarFormLabel}>{label}</span>
         </div>
         <div className={styles.rightSidebarComparisonContainer}>
           <div className={styles.rightSidebarOriginalValueContainer}>
-            <input
-              type="text"
-              value={formattedOriginalValue || ""}
-              readOnly
-              className={`${styles.filledInput} ${isChanged ? styles.rightSidebarOriginalValue : ''}`}
-            />
+            <div className={styles.rightSidebarInputWithButton}>
+              <input
+                type="text"
+                value={formattedOriginalValue || ""}
+                readOnly
+                className={`${styles.filledInput} ${isChanged ? styles.rightSidebarOriginalValue : ''}`}
+              />
+              {insertMode && isChanged && !isOriginalEmpty && (
+                <button
+                  className={styles.copyButton}
+                  onClick={() => copyReferenceToTarget(field)}
+                  title="이 값으로 업데이트"
+                >
+                  →
+                </button>
+              )}
+            </div>
           </div>
           <div className={styles.rightSidebarEditedValueContainer}>
             <input
@@ -212,22 +267,32 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
     );
   };
 
+  // 모달 설정 가져오기
+  const modalTitle = compareModalData.modalConfig?.title || "데이터 비교";
+  const buttonText = compareModalData.modalConfig?.button?.text || "확인";
+  const showConfirmButton = compareModalData.modalConfig?.button !== null && 
+                          compareModalData.modalConfig?.button !== undefined && 
+                          Object.keys(compareModalData.modalConfig?.button || {}).length > 0 &&
+                          compareModalData.modalConfig?.button?.text !== "";
+
   return (
     <div className={`${styles.rightSidebarCompareModal} ${isVisible ? styles.rightSidebarVisible : ''}`}>
       <div className={styles.rightSidebarCompareModalHeader}>
-        <h3>{isGsearch ? "구글 장소 데이터 확인" : (isNewShop ? "신규 추가 데이터 확인" : "데이터 비교")}</h3>
+        <h3>{modalTitle}</h3>
         <div className={styles.rightSidebarHeaderButtonGroup}>
-          <button 
-            className={styles.confirmButton}
-            onClick={handleFinalConfirm}
-          >
-            {isGsearch ? "적용하기" : "최종확인"}
-          </button>
+          {showConfirmButton && (
+            <button 
+              className={styles.confirmButton}
+              onClick={handleFinalConfirm}
+            >
+              {buttonText}
+            </button>
+          )}
           <button 
             className={styles.cancelButton}
             onClick={handleCloseModal}
           >
-            닫기
+            &gt;닫기
           </button>
         </div>
       </div>
@@ -237,7 +302,7 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
           <div className={styles.rightSidebarFormRow}>
             <div className={styles.rightSidebarFormLabelContainer}>
               <span className={styles.rightSidebarFormLabel}></span>
-            </div>
+        </div>
             <div className={styles.rightSidebarComparisonContainer}>
               <div className={styles.rightSidebarOriginalValueContainer}>
                 <div className={styles.rightSidebarColumnLabel}>{referenceLabel}</div>
@@ -248,48 +313,18 @@ const CompareModal = ({ onShopUpdate, mapOverlayHandlers }) => {
             </div>
           </div>
           
-          {/* 상점명 */}
-          {renderComparisonField('storeName', '상점명')}
-          
-          {/* 상점 스타일 */}
-          {renderComparisonField('storeStyle', '상점 스타일')}
-          
-          {/* 별칭 */}
-          {renderComparisonField('alias', '별칭')}
-          
-          {/* 코멘트 */}
-          {renderComparisonField('comment', '코멘트')}
-          
-          {/* 위치지역 */}
-          {renderComparisonField('locationMap', '위치지역')}
-          
-          {/* 영업시간 */}
-          {renderComparisonField('businessHours', '영업시간', 
-            value => Array.isArray(value) ? value.join(', ') : value)}
-          
-          {/* hot시간 */}
-          {renderComparisonField('hotHours', 'hot시간')}
-          
-          {/* 할인 시간 */}
-          {renderComparisonField('discountHours', '할인시간')}
-          
-          {/* 주소 */}
-          {renderComparisonField('address', '주소')}
-          
-          {/* 메인 이미지 */}
-          {renderComparisonField('mainImage', '메인 이미지')}
-          
-          {/* 핀 좌표 */}
-          {renderComparisonField('pinCoordinates', '핀 좌표')}
-          
-          {/* 다각형 경로 */}
-          {renderComparisonField('path', '다각형 경로')}
-          
-          {/* 아이콘분류 */}
-          {renderComparisonField('categoryIcon', '아이콘분류')}
-          
-          {/* Google 데이터 ID */}
-          {renderComparisonField('googleDataId', '구글데이터ID')}
+          {/* 필드들을 배열로부터 렌더링 */}
+          {titlesofDataFoam.map(item => {
+            // 영업시간 필드는 포맷팅 함수 추가
+            if (item.field === 'businessHours') {
+              return renderComparisonField(
+                item.field, 
+                item.title, 
+                value => Array.isArray(value) ? value.join(', ') : value
+              );
+            }
+            return renderComparisonField(item.field, item.title);
+          })}
         </div>
       </div>
     </div>
@@ -348,16 +383,8 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
 
   // 입력 필드 스타일 결정 함수
   const getInputClassName = (fieldName) => {
-    // 특별한 필드 타입에 따른 빈 값 체크
-    let isEmpty = true;
-    
-    if (fieldName === 'businessHours') {
-      isEmpty = !formData[fieldName] || formData[fieldName] === '';
-    } else if (fieldName === 'path' || fieldName === 'pinCoordinates') {
-      isEmpty = !formData[fieldName] || formData[fieldName] === '';
-    } else {
-      isEmpty = !formData[fieldName];
-    }
+    // 값이 비어있는지 확인
+    const isEmpty = isValueEmpty(formData[fieldName], fieldName);
     
     // 기본 스타일 (비어있거나 채워져 있는지)
     const baseClassName = !isEmpty ? styles.filledInput : styles.emptyInput;
@@ -474,32 +501,32 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
     dispatch(startDrawingMode({ type: 'POLYGON' }));
   };
 
-  // 추가: 구글 데이터 ID 편집 시 검색 인풋으로 포커스 이동 핸들러
+  // 구글 플레이스 검색 시작 (서버 데이터와 구글 데이터 비교)
   const handleGooglePlaceSearchClick = (e) => {
     e.preventDefault();
     
-    // 구글 장소 검색 모드 활성화
+    // 구글 데이터 초기화
     dispatch(startGsearch());
     
-    // querySelector 대신 data-testid 속성을 사용해 검색
-    const searchInput = document.querySelector('[data-testid="place-search-input"]');
-    if (searchInput) {
-      // 포커스 이동
-      searchInput.focus();
-      // 현재 값 비우기 (선택 사항)
-      searchInput.value = '';
-      
-      console.log('검색 인풋으로 포커스 이동 및 구글 검색 모드 활성화');
-    } else {
-      console.error('검색 인풋 요소를 찾을 수 없습니다.');
+    // 검색 입력란으로 포커스 이동
+    if (document.querySelector('[data-testid="place-search-input"]')) {
+      document.querySelector('[data-testid="place-search-input"]').focus();
     }
+    
+    console.log('검색 인풋으로 포커스 이동 및 구글 검색 모드 활성화');
   };
 
-  // 수정 버튼 관련
-  const handleStartEdit = () => {
-    if (currentShopServerDataSet) {
-      dispatch(startEdit({ shopData: currentShopServerDataSet }));
-    }
+  // 직접 비교 모달 호출 예제 (modalConfig 설정 추가)
+  const handleCustomCompare = (referenceData, targetData, options = {}) => {
+    // 옵션에서 값 추출
+    const { insertMode = false, modalConfig = null } = options;
+    
+    // 비교 모달 시작 (레퍼런스 데이터, 타겟 데이터, 옵션)
+    dispatch(startCompareModal([
+      ['참조데이터', referenceData],
+      ['대상데이터', targetData],
+      { insertMode, modalConfig }
+    ]));
   };
 
   return (
@@ -599,13 +626,13 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
                 >
                   취소
                 </button>
-                <button 
-                  className={styles.headerButton} 
-                  onClick={handleEditFoamCardButton}
-                  disabled={status === 'loading'}
-                >
-                  {buttonText}
-                </button>
+            <button 
+              className={styles.headerButton} 
+              onClick={handleEditFoamCardButton}
+              disabled={status === 'loading'}
+            >
+              {buttonText}
+            </button>
               </div>
             )
           )}
@@ -614,486 +641,187 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
         {/* 상점 정보 폼 */}
         {isIdle ? (
           <div className={styles.emptyStateMessage}>
-            <p>상점 Editor</p>
-          </div>
+            <p>상점에디터mode</p>
+            </div>
         ) : (
           <form className={styles.rightSidebarForm}>
-            {/* 상점명 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>상점명</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="storeName"
-                  value={formData.storeName || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("storeName")}
-                  className={getInputClassName("storeName")}
-                  ref={el => inputRefs.current.storeName = el}
-                  onClick={() => {
-                    if (isEditing && formData.storeName) {
-                      handleFieldEditButtonClick(new Event('click'), "storeName");
-                    }
-                  }}
-                />
-                {isEditing && formData.storeName && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "storeName")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
+            {/* 상점 정보 필드들을 배열로부터 렌더링 */}
+            {titlesofDataFoam.map(item => {
+              // 특별한 필드 처리 (핀 좌표, 다각형 경로, 구글 데이터 ID)
+              if (item.field === 'pinCoordinates') {
+                return (
+                  <div key={item.field} className={styles.rightSidebarFormRow}>
+                    <span>{item.title}</span>
+                    <div className={styles.rightSidebarInputContainer}>
+              <input
+                type="text"
+                name="pinCoordinates"
+                value={formData.pinCoordinates || ""}
+                onChange={handleInputChange}
+                readOnly={true}
+                className={getInputClassName("pinCoordinates")}
+                ref={el => inputRefs.current.pinCoordinates = el}
+              />
+              {isEditing && (
+                <button
+                  className={styles.inputOverlayButton}
+                  onClick={handlePinCoordinatesButtonClick}
+                  style={{ display: 'block' }}
+                  title="핀 좌표 수정"
+                >
+                  📍
+                </button>
+              )}
+            </div>
+          </div>
+                );
+              } else if (item.field === 'path') {
+                return (
+                  <div key={item.field} className={styles.rightSidebarFormRow}>
+                    <span>{item.title}</span>
+                    <div className={styles.rightSidebarInputContainer}>
+              <input
+                type="text"
+                name="path"
+                value={formData.path || ""}
+                onChange={handleInputChange}
+                readOnly={true}
+                className={getInputClassName("path")}
+                ref={el => inputRefs.current.path = el}
+              />
+              {isEditing && (
+                <button
+                  className={styles.inputOverlayButton}
+                  onClick={handlePathButtonClick}
+                  style={{ display: 'block' }}
+                  title="경로 수정"
+                >
+                  🗺️
+                </button>
+              )}
+            </div>
+          </div>
+                );
+              } else if (item.field === 'googleDataId') {
+                return (
+                  <div key={item.field} className={styles.rightSidebarFormRow}>
+                    <span>{item.title}</span>
+                    <div className={styles.rightSidebarInputContainer}>
+              <input
+                type="text"
+                        name="googleDataId"
+                        value={formData.googleDataId || ""}
+                onChange={handleInputChange}
+                        readOnly={isFieldReadOnly("googleDataId")}
+                        className={getInputClassName("googleDataId")}
+                        ref={el => inputRefs.current.googleDataId = el}
+                onClick={() => {
+                          if (isEditing && formData.googleDataId) {
+                            handleFieldEditButtonClick(new Event('click'), "googleDataId");
+                  }
+                }}
+              />
+                      {isEditing && (
+                <button
+                  className={styles.inputOverlayButton}
+                          onClick={handleGooglePlaceSearchClick}
+                  style={{ display: 'block' }}
+                          title="구글 장소 검색"
+                >
+                          🔍
+                </button>
+              )}
+            </div>
+          </div>
+                );
+              } else {
+                // 일반 필드 렌더링
+                return (
+                  <div key={item.field} className={styles.rightSidebarFormRow}>
+                    <span>{item.title}</span>
+                    <div className={styles.rightSidebarInputContainer}>
+              <input
+                type="text"
+                        name={item.field}
+                        value={formData[item.field] || ""}
+                onChange={handleInputChange}
+                        readOnly={isFieldReadOnly(item.field)}
+                        className={getInputClassName(item.field)}
+                        ref={el => inputRefs.current[item.field] = el}
+                onClick={() => {
+                          if (isEditing && formData[item.field]) {
+                            handleFieldEditButtonClick(new Event('click'), item.field);
+                  }
+                }}
+              />
+                      {isEditing && formData[item.field] && (
+                <button
+                  className={styles.inputOverlayButton}
+                          onClick={(e) => handleFieldEditButtonClick(e, item.field)}
+                  style={{ display: 'block' }}
+                  title="편집"
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
+          </div>
+                );
+              }
+            })}
+
+          {/* 이미지 미리보기 영역 */}
+          <div className={styles.imagesPreviewContainer}>
+            <div className={styles.imageSection}>
+              <div className={styles.mainImageContainer}>
+                {formData.mainImage ? (
+                  <img 
+                    src={formData.mainImage} 
+                    alt="메인 이미지" 
+                    className={styles.mainImagePreview}
+                    onError={(e) => {
+                      e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
+                      e.target.alt = "이미지 로드 실패";
+                    }}
+                  />
+                ) : (
+                  <div className={styles.emptyImagePlaceholder}>
+                    <span>메인 이미지</span>
+                  </div>
                 )}
               </div>
             </div>
-
-            {/* 상점 스타일 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>상점 스타일</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="storeStyle"
-                  value={formData.storeStyle || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("storeStyle")}
-                  className={getInputClassName("storeStyle")}
-                  ref={el => inputRefs.current.storeStyle = el}
-                  onClick={() => {
-                    if (isEditing && formData.storeStyle) {
-                      handleFieldEditButtonClick(new Event('click'), "storeStyle");
-                    }
-                  }}
-                />
-                {isEditing && formData.storeStyle && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "storeStyle")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 별칭 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>별칭</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="alias"
-                  value={formData.alias || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("alias")}
-                  className={getInputClassName("alias")}
-                  ref={el => inputRefs.current.alias = el}
-                  onClick={() => {
-                    if (isEditing && formData.alias) {
-                      handleFieldEditButtonClick(new Event('click'), "alias");
-                    }
-                  }}
-                />
-                {isEditing && formData.alias && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "alias")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 코멘트 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>코멘트</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="comment"
-                  value={formData.comment || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("comment")}
-                  className={getInputClassName("comment")}
-                  ref={el => inputRefs.current.comment = el}
-                  onClick={() => {
-                    if (isEditing && formData.comment) {
-                      handleFieldEditButtonClick(new Event('click'), "comment");
-                    }
-                  }}
-                />
-                {isEditing && formData.comment && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "comment")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 위치지역 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>위치지역</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="locationMap"
-                  value={formData.locationMap || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("locationMap")}
-                  className={getInputClassName("locationMap")}
-                  ref={el => inputRefs.current.locationMap = el}
-                  onClick={() => {
-                    if (isEditing && formData.locationMap) {
-                      handleFieldEditButtonClick(new Event('click'), "locationMap");
-                    }
-                  }}
-                />
-                {isEditing && formData.locationMap && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "locationMap")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 영업시간 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>영업시간</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="businessHours"
-                  value={formData.businessHours || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("businessHours")}
-                  className={getInputClassName("businessHours")}
-                  ref={el => inputRefs.current.businessHours = el}
-                  onClick={() => {
-                    if (isEditing && formData.businessHours) {
-                      handleFieldEditButtonClick(new Event('click'), "businessHours");
-                    }
-                  }}
-                />
-                {isEditing && formData.businessHours && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "businessHours")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* hot시간 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>hot시간</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="hotHours"
-                  value={formData.hotHours || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("hotHours")}
-                  className={getInputClassName("hotHours")}
-                  ref={el => inputRefs.current.hotHours = el}
-                  onClick={() => {
-                    if (isEditing && formData.hotHours) {
-                      handleFieldEditButtonClick(new Event('click'), "hotHours");
-                    }
-                  }}
-                />
-                {isEditing && formData.hotHours && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "hotHours")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 할인 시간 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>할인시간</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="discountHours"
-                  value={formData.discountHours || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("discountHours")}
-                  className={getInputClassName("discountHours")}
-                  ref={el => inputRefs.current.discountHours = el}
-                  onClick={() => {
-                    if (isEditing && formData.discountHours) {
-                      handleFieldEditButtonClick(new Event('click'), "discountHours");
-                    }
-                  }}
-                />
-                {isEditing && formData.discountHours && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "discountHours")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 주소 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>주소</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="address"
-                  value={formData.address || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("address")}
-                  className={getInputClassName("address")}
-                  ref={el => inputRefs.current.address = el}
-                  onClick={() => {
-                    if (isEditing && formData.address) {
-                      handleFieldEditButtonClick(new Event('click'), "address");
-                    }
-                  }}
-                />
-                {isEditing && formData.address && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "address")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 메인 이미지 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>메인 이미지</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="mainImage"
-                  value={formData.mainImage || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("mainImage")}
-                  className={getInputClassName("mainImage")}
-                  ref={el => inputRefs.current.mainImage = el}
-                  onClick={() => {
-                    if (isEditing && formData.mainImage) {
-                      handleFieldEditButtonClick(new Event('click'), "mainImage");
-                    }
-                  }}
-                />
-                {isEditing && formData.mainImage && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "mainImage")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 핀 좌표 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>핀 좌표</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="pinCoordinates"
-                  value={formData.pinCoordinates || ""}
-                  onChange={handleInputChange}
-                  readOnly={true}
-                  className={getInputClassName("pinCoordinates")}
-                  ref={el => inputRefs.current.pinCoordinates = el}
-                />
-                {isEditing && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={handlePinCoordinatesButtonClick}
-                    style={{ display: 'block' }}
-                    title="핀 좌표 수정"
-                  >
-                    📍
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 다각형 경로 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>다각형 경로</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="path"
-                  value={formData.path || ""}
-                  onChange={handleInputChange}
-                  readOnly={true}
-                  className={getInputClassName("path")}
-                  ref={el => inputRefs.current.path = el}
-                />
-                {isEditing && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={handlePathButtonClick}
-                    style={{ display: 'block' }}
-                    title="경로 수정"
-                  >
-                    🗺️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 아이콘분류류 */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>아이콘분류</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="categoryIcon"
-                  value={formData.categoryIcon || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("categoryIcon")}
-                  className={getInputClassName("categoryIcon")}
-                  ref={el => inputRefs.current.categoryIcon = el}
-                  onClick={() => {
-                    if (isEditing && formData.categoryIcon) {
-                      handleFieldEditButtonClick(new Event('click'), "categoryIcon");
-                    }
-                  }}
-                />
-                {isEditing && formData.categoryIcon && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={(e) => handleFieldEditButtonClick(e, "categoryIcon")}
-                    style={{ display: 'block' }}
-                    title="편집"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Google 데이터 ID */}
-            <div className={styles.rightSidebarFormRow}>
-              <span>구글데이터ID</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name="googleDataId"
-                  value={formData.googleDataId || ""}
-                  onChange={handleInputChange}
-                  readOnly={isFieldReadOnly("googleDataId")}
-                  className={getInputClassName("googleDataId")}
-                  ref={el => inputRefs.current.googleDataId = el}
-                  onClick={() => {
-                    if (isEditing && formData.googleDataId) {
-                      handleFieldEditButtonClick(new Event('click'), "googleDataId");
-                    }
-                  }}
-                />
-                {isEditing && (
-                  <button
-                    className={styles.inputOverlayButton}
-                    onClick={handleGooglePlaceSearchClick}
-                    style={{ display: 'block' }}
-                    title="구글 장소 검색"
-                  >
-                    🔍
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 이미지 미리보기 영역 */}
-            <div className={styles.imagesPreviewContainer}>
-              <div className={styles.imageSection}>
-                <div className={styles.mainImageContainer}>
-                  {formData.mainImage ? (
-                    <img 
-                      src={formData.mainImage} 
-                      alt="메인 이미지" 
-                      className={styles.mainImagePreview}
-                      onError={(e) => {
-                        e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
-                        e.target.alt = "이미지 로드 실패";
-                      }}
-                    />
-                  ) : (
-                    <div className={styles.emptyImagePlaceholder}>
-                      <span>메인 이미지</span>
+            
+            <div className={styles.imageSection}>
+              <div className={styles.subImagesContainer}>
+                {formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0 && formData.subImages[0] !== "" ? (
+                  formData.subImages.slice(0, 4).map((imgUrl, index) => (
+                    <div key={index} className={styles.subImageItem}>
+                      <img 
+                        src={imgUrl} 
+                        alt={`서브 이미지 ${index + 1}`} 
+                        className={styles.subImagePreview}
+                        onError={(e) => {
+                          e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
+                          e.target.alt = "이미지 로드 실패";
+                        }}
+                      />
                     </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className={styles.imageSection}>
-                <div className={styles.subImagesContainer}>
-                  {formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0 && formData.subImages[0] !== "" ? (
-                    formData.subImages.slice(0, 4).map((imgUrl, index) => (
-                      <div key={index} className={styles.subImageItem}>
-                        <img 
-                          src={imgUrl} 
-                          alt={`서브 이미지 ${index + 1}`} 
-                          className={styles.subImagePreview}
-                          onError={(e) => {
-                            e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
-                            e.target.alt = "이미지 로드 실패";
-                          }}
-                        />
+                  ))
+                ) : (
+                  // 빈 서브 이미지 4개 표시
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className={styles.subImageItem}>
+                      <div className={styles.emptyImagePlaceholder}>
+                        
                       </div>
-                    ))
-                  ) : (
-                    // 빈 서브 이미지 4개 표시
-                    Array.from({ length: 4 }).map((_, index) => (
-                      <div key={index} className={styles.subImageItem}>
-                        <div className={styles.emptyImagePlaceholder}>
-                          
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          </form>
+          </div>
+        </form>
         )}
       </div>
       

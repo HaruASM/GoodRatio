@@ -24,6 +24,14 @@ const initialState = {
     target: {
       label: '',
       data: null
+    },
+    // 모달 UI 관련 설정 추가
+    modalConfig: {
+      title: '비교대상없음',
+      button: {
+        text: '',
+        action: ''
+      }
     }
   },
   status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
@@ -36,7 +44,7 @@ const initialState = {
   // IDLE 상태 추가 (초기에는 IDLE 상태)
   isIdle: true,
   // 구글 장소 검색 관련 상태 추가
-  isGsearch: false,
+  insertMode: false,
   googlePlaceData: null
 };
 
@@ -132,36 +140,49 @@ const rightSidebarSlice = createSlice({
       state.isIdle = true;
       
       // 구글 검색 상태 초기화
-      state.isGsearch = false;
+      state.insertMode = false;
       state.googlePlaceData = null;
     },
     
     // 비교 모달 시작
     startCompareModal: (state, action) => {
-      // 두 개의 배열 인자 처리
-      const [reference, target] = action.payload;
+      // 세 개의 인자 처리: reference, target, 추가 설정(insertMode, modalConfig)
+      const [reference, target, options = {}] = action.payload;
+      
+      // options에서 값 추출
+      const { insertMode = false, modalConfig = null } = options;
       
       // 레퍼런스 데이터 설정 [라벨, 데이터]
       if (Array.isArray(reference) && reference.length >= 2) {
-        state.compareModalData.reference.label = reference[0] || '원본';
+        state.compareModalData.reference.label = reference[0] || '';
         state.compareModalData.reference.data = reference[1] || null;
       }
       
       // 타겟 데이터 설정 [라벨, 데이터]
       if (Array.isArray(target) && target.length >= 2) {
-        state.compareModalData.target.label = target[0] || '수정본';
+        state.compareModalData.target.label = target[0] || '';
         state.compareModalData.target.data = target[1] || null;
       }
+      
+      // 모달 설정 적용
+      if (modalConfig) {
+        state.compareModalData.modalConfig = {
+          ...state.compareModalData.modalConfig,
+          ...modalConfig
+        };
+      }
+      
+      // insertMode가 있으면 설정 (기본값은 false)
+      state.insertMode = insertMode === true;
       
       // 모달창 표시
       state.isCompareModalVisible = true;
     },
     
     // 기존 confirmEdit 수정 - startCompareModal 액션 사용
-    confirmEdit: (state) => {
-      // 수정된 데이터 콘솔에 출력
-      console.log('저장되는 데이터:', state.editNewShopDataSet.storeName, state.editNewShopDataSet.comment);
-      console.log('원본 데이터:', state.originalShopData.storeName, state.originalShopData.comment);
+    confirmEdit: (state, action) => {
+      // payload에서 최신 데이터 가져오기
+      const updatedData = action.payload?.updatedData || state.editNewShopDataSet;
       
       // 비교 모달 데이터 설정
       state.compareModalData = {
@@ -171,9 +192,19 @@ const rightSidebarSlice = createSlice({
         },
         target: {
           label: '수정본',
-          data: state.editNewShopDataSet
+          data: updatedData  // 컴포넌트에서 전달한 최신 데이터 사용
+        },
+        modalConfig: {
+          title: '비교후 전송',
+          button: {
+            text: '확정전송',
+            action: 'confirmComplete'
+          }
         }
       };
+      
+      // 최신 데이터로 상태 업데이트
+      state.editNewShopDataSet = updatedData;
       
       // 모달창 표시
       state.isCompareModalVisible = true;
@@ -183,10 +214,29 @@ const rightSidebarSlice = createSlice({
     closeCompareModal: (state) => {
       state.isCompareModalVisible = false;
       
-      // 구글 검색 중이었다면 검색 상태 종료
-      if (state.isGsearch) {
-        state.isGsearch = false;
+      // 구글 검색 중이었다면 검색 상태 종료하고 데이터 완전히 초기화
+      if (state.insertMode) {
+        state.insertMode = false;
         state.googlePlaceData = null;
+      }
+      
+      // 모달 데이터도 초기화
+      state.compareModalData = {
+        reference: {
+          label: '',
+          data: null
+        },
+        target: {
+          label: '',
+          data: null
+        }
+      };
+    },
+    
+    // 비교 모달의 타겟 데이터 업데이트
+    updateCompareModalTarget: (state, action) => {
+      if (state.compareModalData && state.compareModalData.target) {
+        state.compareModalData.target.data = action.payload;
       }
     },
     
@@ -361,46 +411,124 @@ const rightSidebarSlice = createSlice({
       }
     },
     
-    // 구글 장소 검색 모드 시작
+    // 구글 장소 검색 모드 시작 (구글 장소 검색 버튼 클릭 시)
     startGsearch: (state) => {
-      state.isGsearch = true;
+      state.insertMode = true;
+      
+      // 초기화
+      state.googlePlaceData = null;
+      
+      // 현재 편집 중인 데이터가 있는 경우, compareModalData 초기화
+      // 나중에 compareGooglePlaceData 액션에서 모달 데이터가 설정됨
+      if (state.isEditing) {
+        state.compareModalData = {
+          reference: {
+            label: '구글데이터',
+            data: null
+          },
+          target: {
+            label: '현재데이터',
+            data: state.editNewShopDataSet
+          }
+        };
+      }
     },
     
     // 구글 장소 검색 모드 종료
     endGsearch: (state) => {
-      state.isGsearch = false;
+      state.insertMode = false;
       state.googlePlaceData = null;
     },
     
-    // 구글 장소 데이터 저장
+    // 구글 장소 비교 데이터 설정
     compareGooglePlaceData: (state, action) => { //AT (작업중)set구글장소
-      // 구글 탐색 버튼이 눌려진 상태가 아니면 return
-      if (!state.isGsearch) {
-        return;
-      }
-
       // googlePlaceData를 protoServerDataset으로 초기화 후 action.payload 값을 넣음
       state.googlePlaceData = { ...protoServerDataset };
           
-      // 필요한 필드만 복사      
+      // 구글 플레이스 데이터를 앱 형식에 맞게 변환
       if (action.payload) {
+        // 기본 필드 매핑
         state.googlePlaceData.storeName = action.payload.name || '';
         state.googlePlaceData.address = action.payload.formatted_address || '';
         state.googlePlaceData.googleDataId = action.payload.place_id || '';
-        state.googlePlaceData.subImages = action.payload.photos || [];
-        state.googlePlaceData.pinCoordinates = action.payload.geometry?.location || '';
-        state.googlePlaceData.businessHours = action.payload.opening_hours || '';
+        
+        // 이미지 처리 - 구글은 photo_reference 배열을 제공
+        if (action.payload.photos && Array.isArray(action.payload.photos)) {
+          // 첫 번째 사진은 메인 이미지로
+          if (action.payload.photos.length > 0 && action.payload.photos[0].photo_reference) {
+            state.googlePlaceData.mainImage = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${action.payload.photos[0].photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
+          }
+          
+          // 나머지 사진들은 서브 이미지로
+          state.googlePlaceData.subImages = action.payload.photos.slice(1).map(photo => {
+            if (photo.photo_reference) {
+              return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=200&photoreference=${photo.photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
+            }
+            return '';
+          }).filter(url => url !== '');
+        }
+        
+        // 위치 정보 처리 - string 형식으로 변환
+        if (action.payload.geometry && action.payload.geometry.location) {
+          // 직렬화 문제 해결: 함수 대신 값을 직접 추출
+          const lat = typeof action.payload.geometry.location.lat === 'function' 
+            ? action.payload.geometry.location.lat() 
+            : action.payload.geometry.location.lat;
+            
+          const lng = typeof action.payload.geometry.location.lng === 'function' 
+            ? action.payload.geometry.location.lng() 
+            : action.payload.geometry.location.lng;
+            
+          // 직렬화 가능한 객체로 변환
+          state.googlePlaceData.pinCoordinates = `${lat},${lng}`;
+        }
+        
+        // 영업시간 처리 - 문자열 배열로 변환
+        if (action.payload.opening_hours && action.payload.opening_hours.weekday_text) {
+          state.googlePlaceData.businessHours = action.payload.opening_hours.weekday_text;
+        } else if (action.payload.opening_hours) {
+          // weekday_text가 없는 경우 빈 배열
+          state.googlePlaceData.businessHours = [];
+        }
+        
+        // 전화번호 처리
+        if (action.payload.formatted_phone_number) {
+          state.googlePlaceData.phone = action.payload.formatted_phone_number;
+        }
+        
+        // 웹사이트 처리
+        if (action.payload.website) {
+          state.googlePlaceData.website = action.payload.website;
+        }
+        
+        // 평점 처리
+        if (action.payload.rating) {
+          state.googlePlaceData.rating = action.payload.rating.toString();
+        }
+        
+        // 가격 수준 처리
+        if (action.payload.price_level) {
+          state.googlePlaceData.priceLevel = action.payload.price_level.toString();
+        }
       }
       
       // 비교 모달 데이터 설정
+      // 기존 editNewShopDataSet(현재 편집 중인 데이터)와 구글 데이터를 비교하기 위한 설정
       state.compareModalData = {
         reference: {
-          label: '구글Place',
+          label: '구글데이터',
           data: state.googlePlaceData
         },
         target: {
-          label: '수정본',
+          label: '현재데이터',
           data: state.editNewShopDataSet
+        },
+        modalConfig: {
+          title: '구글Place 데이터',
+          button: {
+            text: '',
+            action: ''
+          }
         }
       };
       
@@ -455,7 +583,7 @@ export const selectDrawingType = (state) => state.rightSidebar.drawingType;
 export const selectIsCompareModalVisible = (state) => state.rightSidebar.isCompareModalVisible;
 
 // 구글 장소 검색 관련 셀렉터
-export const selectIsGsearch = (state) => state.rightSidebar.isGsearch;
+export const selectIsGsearch = (state) => state.rightSidebar.insertMode;
 export const selectGooglePlaceData = (state) => state.rightSidebar.googlePlaceData;
 
 export const {
@@ -479,7 +607,8 @@ export const {
   startGsearch,
   endGsearch,
   compareGooglePlaceData,
-  startCompareModal
+  startCompareModal,
+  updateCompareModalTarget
 } = rightSidebarSlice.actions;
 
 export default rightSidebarSlice.reducer; 

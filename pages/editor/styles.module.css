@@ -19,7 +19,7 @@
   box-shadow: -2px 0 5px rgba(0,0,0,0.1);
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 6px;
   padding-top: 0; /* 상단 패딩 제거 */
   position: relative; /* absolute에서 relative로 변경 */
   z-index: 1; /* z-index 값 낮춤 */
@@ -707,8 +707,6 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  margin-bottom: 5px;
-  
   border-bottom: 1px solid #eee;
 }
 
@@ -736,7 +734,7 @@
 .buttonGroup .headerButton {
   margin: 0;
   font-size: 13px;
-  padding: 6px 12px;
+  padding: 6px 5px;
   height: auto;
 }
 
@@ -876,10 +874,8 @@
 
 /* 변경된 필드 하이라이트 - 글자색을 검은색으로 변경 */
 .rightSidebarChangedField {
-  background-color: rgba(255, 230, 177, 0.5) !important;
-  border-color: #ffa726 !important;
-  color: #000 !important; /* 검은색 텍스트 색상으로 변경 */
-  font-weight: 500 !important; /* 글자 두께 유지 */
+  border: 2px solid #ff9800 !important;
+  background-color: #fff8e1;
 }
 
 /* 변경 표시기 스타일 */
@@ -944,8 +940,8 @@
 
 /* 원본값 스타일 */
 .rightSidebarOriginalValue {
-  background-color: rgba(230, 230, 230, 0.5);
-  border-color: #ccc;
+  border: 1px solid #4dabf7;
+  background-color: #e7f5ff;
   box-sizing: border-box; /* 박스 사이징 추가 */
   width: 100%; /* 너비 100%로 설정 */
 }
@@ -1093,13 +1089,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 8px;
   border-bottom: 1px solid #e0e0e0;
 }
 
 /* 우측 사이드바 상점명 스타일 */
 .rightSidebarButtonContainer h3 {
-  max-width: 180px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1192,4 +1188,39 @@
   padding: 2px 0;
   background-color: #f0f0f0; /* 배경색 추가 */
   border-radius: 4px; /* 테두리 둥글게 */
+}
+
+/* 입력창과 버튼 컨테이너 스타일 */
+.rightSidebarInputWithButton {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* 화살표 복사 버튼 스타일 */
+.copyButton {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #ccc;
+  background-color: #f1f3f5;
+  color: #495057;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.copyButton:hover {
+  background-color: #4dabf7;
+  color: white;
+  border-color: #4dabf7;
 }

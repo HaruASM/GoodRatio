@@ -13,6 +13,7 @@ import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
 import { getSectionData } from './serverUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
 import RightSidebar from './components/RightSidebar';
+import CompareBar from './components/CompareBar';
 // Redux 선택자 가져오기
 import {
   togglePanel,
@@ -30,15 +31,17 @@ import {
   
   setIdleState,
   selectIsGsearch,
-  compareGooglePlaceData,
   startEditShop,
   completeEdit,
   cancelEdit,
   confirmEdit,
   updateField,
   trackField,
-  setGooglePlaceData,
-  closeModal
+  closeModal,
+  startCompareModal,
+  setCompareBarActive,
+  toggleCompareBar,
+  selectIsCompareBarActive
 } from './store/slices/rightSidebarSlice';
 import store from './store';
 //import { compareShopData } from './store/utils/rightSidebarUtils';
@@ -230,6 +233,8 @@ export default function Editor() { // 메인 페이지
 
   // 임시 오버레이 정리 함수
   const cleanupTempOverlays = () => {
+    console.log('임시 오버레이 정리 함수 호출됨');
+    
     // 마커 정리
     if (tempOverlaysRef.current.marker) {
       // 등록된 이벤트 리스너 제거
@@ -412,9 +417,57 @@ export default function Editor() { // 메인 페이지
             })) : []
         };
         
-        // 검색된 장소 데이터를 Redux로 전송 (직렬화된 데이터 사용)
-        dispatch(compareGooglePlaceData(serializedPlace));
-        console.log('구글 장소 검색: 검색 모드에서 데이터 전송');
+        // 구글 장소 데이터를 앱 형식(protoServerDataset)으로 변환
+        const convertedGoogleData = { ...protoServerDataset };
+        
+        // 기본 필드 매핑
+        convertedGoogleData.storeName = serializedPlace.name || '';
+        convertedGoogleData.address = serializedPlace.formatted_address || '';
+        convertedGoogleData.googleDataId = serializedPlace.place_id || '';
+        
+        // 영업시간 처리 (주간 영업시간 텍스트 배열)
+        if (serializedPlace.opening_hours && serializedPlace.opening_hours.weekday_text) {
+          convertedGoogleData.businessHours = serializedPlace.opening_hours.weekday_text;
+        }
+                
+        // 좌표 처리
+        if (serializedPlace.geometry && serializedPlace.geometry.location) {
+          const { lat, lng } = serializedPlace.geometry.location;
+          convertedGoogleData.pinCoordinates = `${lat},${lng}`;
+        }
+        
+        // 구글place의 이미지는 subImages에 저장장
+          if (serializedPlace.photos.length > 1) {
+            convertedGoogleData.subImages = serializedPlace.photos.slice(1).map(photo => 
+              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${myAPIkeyforMap}`
+            );
+          }
+        
+        
+        // 직접 startCompareModal 액션 디스패치
+        dispatch(startCompareModal({
+          reference: {
+            label: '구글데이터',
+            data: convertedGoogleData  // 변환된 데이터 사용
+          },
+          target: {
+            label: '현재데이터',
+            data: true  // true면 state.editNewShopDataSet 참조
+          },
+          options: {
+            insertMode: true,
+            modalConfig: {
+              title: '구글Place 데이터',
+              button: {
+                text: '', //빈칸. 버튼 미표시
+                action: '' //빈칸. 버튼 미표시
+              }
+            }
+          }
+        }));
+        
+        console.log('Google Place 상세정보 로드됨:', detailPlace.name);
+        console.log('변환된 데이터:', convertedGoogleData);
       } else {
         // 일반 검색 모드에서는 지도 이동만 수행
         console.log('구글 장소 검색: 지도 이동만 수행');
@@ -435,8 +488,6 @@ export default function Editor() { // 메인 페이지
     });
 
     _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
-
-    
   } // initSearchInput
 
   // 마커와 폴리곤 옵션 초기화 함수
@@ -781,6 +832,8 @@ export default function Editor() { // 메인 페이지
   useEffect(() => { // AT 우측 사이드바 초기화 지점 
     // 초기에 IDLE 상태로 설정
     dispatch(setIdleState(true));
+    dispatch(setCompareBarActive(true)); // CompareBar가 표시되도록 설정
+    console.log("CompareBar 활성화 상태를 true로 설정");
   }, [dispatch]);
 
   //## selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
@@ -1080,80 +1133,13 @@ export default function Editor() { // 메인 페이지
     setIsSearchFocused(false);
   };
 
-  // Google Place 상세 정보 검색
-  const handleGooglePlaceSearch = (placeId) => {
-    console.log('구글 장소 검색:', placeId);
-    
-    const placesService = new google.maps.places.PlacesService(map);
-    
-    placesService.getDetails({
-      placeId: placeId,
-      fields: [
-        'name', 'formatted_address', 'place_id', 'geometry', 'photos',
-        'formatted_phone_number', 'website', 'rating', 'price_level',
-        'opening_hours.weekday_text' // utc_offset 대신 weekday_text만 요청
-      ]
-    }, (detailPlace, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK) {
-        // 직렬화 가능한 형태로 데이터 변환
-        const serializedPlace = {
-          ...detailPlace,
-          geometry: detailPlace.geometry ? {
-            ...detailPlace.geometry,
-            location: detailPlace.geometry.location ? {
-              lat: typeof detailPlace.geometry.location.lat === 'function' ? 
-                   detailPlace.geometry.location.lat() : detailPlace.geometry.location.lat,
-              lng: typeof detailPlace.geometry.location.lng === 'function' ? 
-                   detailPlace.geometry.location.lng() : detailPlace.geometry.location.lng
-            } : null,
-            // viewport 직렬화 처리
-            viewport: detailPlace.geometry.viewport ? {
-              northeast: {
-                lat: typeof detailPlace.geometry.viewport.getNorthEast().lat === 'function' ? 
-                     detailPlace.geometry.viewport.getNorthEast().lat() : 
-                     detailPlace.geometry.viewport.getNorthEast().lat,
-                lng: typeof detailPlace.geometry.viewport.getNorthEast().lng === 'function' ? 
-                     detailPlace.geometry.viewport.getNorthEast().lng() : 
-                     detailPlace.geometry.viewport.getNorthEast().lng
-              },
-              southwest: {
-                lat: typeof detailPlace.geometry.viewport.getSouthWest().lat === 'function' ? 
-                     detailPlace.geometry.viewport.getSouthWest().lat() : 
-                     detailPlace.geometry.viewport.getSouthWest().lat,
-                lng: typeof detailPlace.geometry.viewport.getSouthWest().lng === 'function' ? 
-                     detailPlace.geometry.viewport.getSouthWest().lng() : 
-                     detailPlace.geometry.viewport.getSouthWest().lng
-              }
-            } : null
-          } : null,
-          // opening_hours 직렬화 처리 - 텍스트 배열만 사용
-          opening_hours: detailPlace.opening_hours ? {
-            weekday_text: detailPlace.opening_hours.weekday_text || []
-          } : null,
-          // 사진 배열도 필요한 정보만 추출하여 직렬화
-          photos: detailPlace.photos ? 
-            detailPlace.photos.map(photo => ({ 
-              photo_reference: photo.photo_reference, 
-              height: photo.height, 
-              width: photo.width 
-            })) : []
-        };
-        
-        // 직렬화된 데이터로 액션 디스패치
-        dispatch(compareGooglePlaceData(serializedPlace));
-        
-        console.log('Google Place 상세정보 로드됨:', detailPlace.name);
-      } else {
-        console.error('Google Place 상세정보 로드 실패:', status);
-      }
-    });
-  };
-
   return (
-    <div className={styles.container}>
+    <div className={styles.editorContainer}>
       <Head>
         <title>Editor</title>
       </Head>
+      
+      {/* 기존 좌측 사이드바 */}
       <div className={`${styles.sidebar} ${isSidebarVisible ? '' : styles.hidden}`}>
         <div className={styles.header}>
           <button className={styles.backButton} onClick={toggleSidebar}>←</button>
@@ -1186,13 +1172,15 @@ export default function Editor() { // 메인 페이지
           </li>
         </ul>
       </div>
+      
+      {/* 지도 영역 */}
       <div className={styles.mapContainer}>
         <div id="map" className={styles.map}></div>
         <div ref={searchformRef} className={styles.searchForm}>
           <div className={styles.searchInputContainer}>
-              <input 
+            <input 
               ref={searchInputDomRef}
-                type="text" 
+              type="text" 
               className={styles.searchInput}
               placeholder="장소 검색..."
               onFocus={handleSearchFocus}
@@ -1201,11 +1189,30 @@ export default function Editor() { // 메인 페이지
             />
             <button className={styles.searchButton}>
               <span className={styles.searchIcon}>🔍</span>
-                </button>
-            </div>
-            </div>
-              </div>
-              
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* CompareBar - 우측 사이드바 옆에 위치 */}
+      <CompareBar
+        moveToCurrentLocation={moveToCurrentLocation}
+        mapOverlayHandlers={mapOverlayHandlers}
+        curSelectedShop={curSelectedShop}
+        onShopUpdate={(updatedShop) => {
+          if (updatedShop === null) {
+            // 상점 선택 초기화
+            setCurSelectedShop(null);
+          } else if (curSelectedShop) {
+            // 원래 객체 구조 유지하면서 serverDataset만 업데이트
+            setCurSelectedShop({
+              ...curSelectedShop,
+              serverDataset: updatedShop
+            });
+          }
+        }}
+      />
+      
       {/* 오른쪽 사이드바 */}
       <RightSidebar
         moveToCurrentLocation={moveToCurrentLocation}
@@ -1232,4 +1239,4 @@ export default function Editor() { // 메인 페이지
       />
     </div>
   );
-} 
+}

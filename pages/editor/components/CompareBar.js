@@ -1,7 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
-import { protoServerDataset } from '../dataModels';
 import {
   togglePanel,
   startEdit,
@@ -31,11 +30,10 @@ import {
   selectIsGsearch,
   startCompareModal,
   updateCompareModalTarget,
-  endGsearch
+  endGsearch,
+  selectIsCompareBarActive,
+  toggleCompareBar
 } from '../store/slices/rightSidebarSlice';
-
-// 새로 분리한 CompareModalContainer 컴포넌트 import
-import CompareModalContainer from './CompareModalContainer';
 
 // 값이 비어있는지 확인하는 공통 함수
 const isValueEmpty = (value, fieldName) => {
@@ -74,12 +72,12 @@ const titlesofDataFoam = [
 ];
 
 /**
- * 오른쪽 사이드바 내부 컴포넌트
- * 상점 정보 표시 및 편집 기능 제공
+ * 왼쪽 사이드바 내부 컴포넌트
+ * 비교를 위한 상점 정보 표시 및 편집 기능 제공
  * 
- * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
+ * @returns {React.ReactElement} 왼쪽 사이드바 UI 컴포넌트
  */
-const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandlers, currentShopServerDataSet, onShopUpdate }) => {
+const CompareSidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandlers, currentShopServerDataSet, onShopUpdate }) => {
   // Redux 상태 및 디스패치 가져오기
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
@@ -158,9 +156,10 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
     return true;
   };
 
-  // 이벤트 핸들러
-  const handleEditFoamCardButton = (e) => {
+  // 이벤트 핸들러 (compareBar 접두어 추가)
+  const compareBarHandleEditFoamCardButton = (e) => {
     e.preventDefault();
+    console.log('compareBar: Edit foam card button clicked');
     
     if (isEditing) {
       dispatch(completeEdit());
@@ -172,9 +171,10 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
     }
   };
   
-  const handleConfirmEdit = () => {
+  const compareBarHandleConfirmEdit = () => {
+    console.log('compareBar: Confirm edit clicked');
     // 데이터 저장 없이 모달창만 표시 - startCompareModal 직접 사용
-    dispatch(startCompareModal({  //AT 확인버튼시 비교모달 호출
+    dispatch(startCompareModal({
       reference: { 
         label: '원본', 
         data: originalShopData 
@@ -196,15 +196,15 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
     }));
   };
   
-  const handleCancelEdit = () => {
+  const compareBarHandleCancelEdit = () => {
+    console.log('compareBar: Cancel edit clicked');
     // 취소 시 확인창 표시
-    
-      dispatch(cancelEdit({ mapOverlayHandlers }));
-    
+    dispatch(cancelEdit({ mapOverlayHandlers }));
   };
   
-  const handleFieldEditButtonClick = (e, fieldName) => {
+  const compareBarHandleFieldEditButtonClick = (e, fieldName) => {
     e.preventDefault();
+    console.log(`compareBar: Field edit button clicked for ${fieldName}`);
     
     // 필드 편집 가능하게 설정
     if (inputRefs.current[fieldName]) {
@@ -216,13 +216,13 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
     }
   };
   
-  const handleInputChange = (e) => {
+  const compareBarHandleInputChange = (e) => {
     const { name, value } = e.target;
+    console.log(`compareBar: Input changed for ${name}: ${value}`);
     
     // 단일 업데이트 경로 사용
     dispatch(updateField({ field: name, value }));
     
-    // 배열형 필드 처리 (특수 처리 필요한 경우)
     // 배열형 필드 처리
     if (name === 'businessHours') {
       let processedValue = value;
@@ -237,35 +237,36 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
       
       // 배열 형태로 다시 업데이트
       if (processedValue !== value) {
-    dispatch(updateField({ field: name, value: processedValue }));
+        dispatch(updateField({ field: name, value: processedValue }));
       }
     }
   };
   
-  const handlePinCoordinatesButtonClick = (e) => {
+  const compareBarHandlePinCoordinatesButtonClick = (e) => {
     e.preventDefault();
+    console.log('compareBar: Pin coordinates button clicked');
     
     // Redux 액션 디스패치 - 마커 드로잉 모드 시작
     dispatch(startDrawingMode({ type: 'MARKER' }));
   };
   
-  const handlePathButtonClick = (e) => {
+  const compareBarHandlePathButtonClick = (e) => {
     e.preventDefault();
+    console.log('compareBar: Path button clicked');
     
     // Redux 액션 디스패치 - 폴리곤 드로잉 모드 시작
     dispatch(startDrawingMode({ type: 'POLYGON' }));
   };
 
   // 구글 장소 검색 클릭 처리
-  const handleGooglePlaceSearchClick = (e) => {
+  const compareBarHandleGooglePlaceSearchClick = (e) => {
     e.preventDefault(); // A태그 클릭 방지
+    console.log('compareBar: Google place search clicked');
     
     // 구글 검색 모드 시작
     dispatch(startGsearch());
     
-    
     // 검색창으로 포커스 이동 (존재하는 경우)
-    // 3번만 시도하도록 변경
     let attempt = 0;
     const maxAttempts = 3;
     setTimeout(() => {
@@ -276,15 +277,14 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
         attempt++;
       }
     }, 100);
-
   };
 
   /**
    * 구글 장소 데이터로 직접 비교 모달 표시 (샘플)
-   * 이런 방식으로 컴포넌트에서도 직접 모달 표시 가능
    */
-  const handleDirectShowCompareModal = (googleData) => {
-    // 컴포넌트에서 직접 모달 설정을 구성 - index.js와 동일한 구조 사용
+  const compareBarHandleDirectShowCompareModal = (googleData) => {
+    console.log('compareBar: Direct show compare modal');
+    // 컴포넌트에서 직접 모달 설정을 구성
     dispatch(startCompareModal({
       reference: {
         label: '구글데이터',
@@ -308,7 +308,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
   };
 
   return (
-    <div className={styles.rightSidebar}>
+    <div className={`${styles.rightSidebar} ${styles.compareBarSidebar}`}>
       {/* 상단 버튼 영역 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>
@@ -353,15 +353,15 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
         <div className={styles.rightSidebarButtonContainer}>
           <h3>
             {isIdle 
-              ? "상점 Data" 
-              : (formData.storeName || (!isEditing ? "상점 Data" : "신규상점 추가"))}
+              ? "비교 Data" 
+              : (formData.storeName || (!isEditing ? "비교 Data" : "비교상점 데이터"))}
           </h3>
           
           {/* 수정/완료 버튼 - 상태에 따라 다르게 표시 */}
           {!isIdle && !isConfirming && !isEditing && currentShopServerDataSet && (
             <button 
               className={styles.headerButton} 
-              onClick={handleEditFoamCardButton}
+              onClick={compareBarHandleEditFoamCardButton}
               disabled={status === 'loading'}
             >
               {buttonText}
@@ -372,7 +372,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
             <div className={styles.buttonGroup}>
               <button 
                 className={styles.cancelButton} 
-                onClick={handleCancelEdit}
+                onClick={compareBarHandleCancelEdit}
                 disabled={status === 'loading'}
               >
                 취소
@@ -380,7 +380,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
               {hasChanges && (
                 <button 
                   className={styles.confirmButton} 
-                  onClick={handleConfirmEdit}
+                  onClick={compareBarHandleConfirmEdit}
                   disabled={status === 'loading'}
                 >
                   {status === 'loading' ? '처리 중...' : '확인'}
@@ -388,7 +388,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
               )}
               <button 
                 className={styles.headerButton} 
-                onClick={handleEditFoamCardButton}
+                onClick={compareBarHandleEditFoamCardButton}
                 disabled={status === 'loading'}
               >
                 재수정
@@ -399,18 +399,18 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
               <div className={styles.buttonGroup}>
                 <button 
                   className={styles.cancelButton} 
-                  onClick={handleCancelEdit}
+                  onClick={compareBarHandleCancelEdit}
                   disabled={status === 'loading'}
                 >
                   취소
                 </button>
-            <button 
-              className={styles.headerButton} 
-              onClick={handleEditFoamCardButton}
-              disabled={status === 'loading'}
-            >
-              {buttonText}
-            </button>
+                <button 
+                  className={styles.headerButton} 
+                  onClick={compareBarHandleEditFoamCardButton}
+                  disabled={status === 'loading'}
+                >
+                  {buttonText}
+                </button>
               </div>
             )
           )}
@@ -419,8 +419,8 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
         {/* 상점 정보 폼 */}
         {isIdle ? (
           <div className={styles.emptyStateMessage}>
-            <p>상점에디터mode</p>
-            </div>
+            <p>비교에디터mode</p>
+          </div>
         ) : (
           <form className={styles.rightSidebarForm}>
             {/* 상점 정보 필드들을 배열로부터 렌더링 */}
@@ -431,86 +431,86 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
-                name="pinCoordinates"
-                value={formData.pinCoordinates || ""}
-                onChange={handleInputChange}
-                readOnly={true}
-                className={getInputClassName("pinCoordinates")}
-                ref={el => inputRefs.current.pinCoordinates = el}
-              />
-              {isEditing && (
-                <button
-                  className={styles.inputOverlayButton}
-                  onClick={handlePinCoordinatesButtonClick}
-                  style={{ display: 'block' }}
-                  title="핀 좌표 수정"
-                >
-                  📍
-                </button>
-              )}
-            </div>
-          </div>
+                      <input
+                        type="text"
+                        name="pinCoordinates"
+                        value={formData.pinCoordinates || ""}
+                        onChange={compareBarHandleInputChange}
+                        readOnly={true}
+                        className={getInputClassName("pinCoordinates")}
+                        ref={el => inputRefs.current.pinCoordinates = el}
+                      />
+                      {isEditing && (
+                        <button
+                          className={styles.inputOverlayButton}
+                          onClick={compareBarHandlePinCoordinatesButtonClick}
+                          style={{ display: 'block' }}
+                          title="핀 좌표 수정"
+                        >
+                          📍
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               } else if (item.field === 'path') {
                 return (
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
-                name="path"
-                value={formData.path || ""}
-                onChange={handleInputChange}
-                readOnly={true}
-                className={getInputClassName("path")}
-                ref={el => inputRefs.current.path = el}
-              />
-              {isEditing && (
-                <button
-                  className={styles.inputOverlayButton}
-                  onClick={handlePathButtonClick}
-                  style={{ display: 'block' }}
-                  title="경로 수정"
-                >
-                  🗺️
-                </button>
-              )}
-            </div>
-          </div>
+                      <input
+                        type="text"
+                        name="path"
+                        value={formData.path || ""}
+                        onChange={compareBarHandleInputChange}
+                        readOnly={true}
+                        className={getInputClassName("path")}
+                        ref={el => inputRefs.current.path = el}
+                      />
+                      {isEditing && (
+                        <button
+                          className={styles.inputOverlayButton}
+                          onClick={compareBarHandlePathButtonClick}
+                          style={{ display: 'block' }}
+                          title="경로 수정"
+                        >
+                          🗺️
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               } else if (item.field === 'googleDataId') {
                 return (
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
+                      <input
+                        type="text"
                         name="googleDataId"
                         value={formData.googleDataId || ""}
-                onChange={handleInputChange}
+                        onChange={compareBarHandleInputChange}
                         readOnly={isFieldReadOnly("googleDataId")}
                         className={getInputClassName("googleDataId")}
                         ref={el => inputRefs.current.googleDataId = el}
-                onClick={() => {
+                        onClick={() => {
                           if (isEditing && formData.googleDataId) {
-                            handleFieldEditButtonClick(new Event('click'), "googleDataId");
-                  }
-                }}
-              />
+                            compareBarHandleFieldEditButtonClick(new Event('click'), "googleDataId");
+                          }
+                        }}
+                      />
                       {isEditing && (
-                <button
-                  className={styles.inputOverlayButton}
-                          onClick={handleGooglePlaceSearchClick}
-                  style={{ display: 'block' }}
+                        <button
+                          className={styles.inputOverlayButton}
+                          onClick={compareBarHandleGooglePlaceSearchClick}
+                          style={{ display: 'block' }}
                           title="구글 장소 검색"
-                >
+                        >
                           🔍
-                </button>
-              )}
-            </div>
-          </div>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               } else {
                 // 일반 필드 렌더링
@@ -518,88 +518,88 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
+                      <input
+                        type="text"
                         name={item.field}
                         value={formData[item.field] || ""}
-                onChange={handleInputChange}
+                        onChange={compareBarHandleInputChange}
                         readOnly={isFieldReadOnly(item.field)}
                         className={getInputClassName(item.field)}
                         ref={el => inputRefs.current[item.field] = el}
-                onClick={() => {
+                        onClick={() => {
                           if (isEditing && formData[item.field]) {
-                            handleFieldEditButtonClick(new Event('click'), item.field);
-                  }
-                }}
-              />
+                            compareBarHandleFieldEditButtonClick(new Event('click'), item.field);
+                          }
+                        }}
+                      />
                       {isEditing && formData[item.field] && (
-                <button
-                  className={styles.inputOverlayButton}
-                          onClick={(e) => handleFieldEditButtonClick(e, item.field)}
-                  style={{ display: 'block' }}
-                  title="편집"
-                >
-                  ✏️
-                </button>
-              )}
-            </div>
-          </div>
+                        <button
+                          className={styles.inputOverlayButton}
+                          onClick={(e) => compareBarHandleFieldEditButtonClick(e, item.field)}
+                          style={{ display: 'block' }}
+                          title="편집"
+                        >
+                          ✏️
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               }
             })}
 
-          {/* 이미지 미리보기 영역 */}
-          <div className={styles.imagesPreviewContainer}>
-            <div className={styles.imageSection}>
-              <div className={styles.mainImageContainer}>
-                {formData.mainImage ? (
-                  <img 
-                    src={formData.mainImage} 
-                    alt="메인 이미지" 
-                    className={styles.mainImagePreview}
-                    onError={(e) => {
-                      e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
-                      e.target.alt = "이미지 로드 실패";
-                    }}
-                  />
-                ) : (
-                  <div className={styles.emptyImagePlaceholder}>
-                    <span>메인 이미지</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className={styles.imageSection}>
-              <div className={styles.subImagesContainer}>
-                {formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0 && formData.subImages[0] !== "" ? (
-                  formData.subImages.slice(0, 4).map((imgUrl, index) => (
-                    <div key={index} className={styles.subImageItem}>
-                      <img 
-                        src={imgUrl} 
-                        alt={`서브 이미지 ${index + 1}`} 
-                        className={styles.subImagePreview}
-                        onError={(e) => {
-                          e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
-                          e.target.alt = "이미지 로드 실패";
-                        }}
-                      />
+            {/* 이미지 미리보기 영역 */}
+            <div className={styles.imagesPreviewContainer}>
+              <div className={styles.imageSection}>
+                <div className={styles.mainImageContainer}>
+                  {formData.mainImage ? (
+                    <img 
+                      src={formData.mainImage} 
+                      alt="메인 이미지" 
+                      className={styles.mainImagePreview}
+                      onError={(e) => {
+                        e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
+                        e.target.alt = "이미지 로드 실패";
+                      }}
+                    />
+                  ) : (
+                    <div className={styles.emptyImagePlaceholder}>
+                      <span>메인 이미지</span>
                     </div>
-                  ))
-                ) : (
-                  // 빈 서브 이미지 4개 표시
-                  Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className={styles.subImageItem}>
-                      <div className={styles.emptyImagePlaceholder}>
-                        
+                  )}
+                </div>
+              </div>
+              
+              <div className={styles.imageSection}>
+                <div className={styles.subImagesContainer}>
+                  {formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0 && formData.subImages[0] !== "" ? (
+                    formData.subImages.slice(0, 4).map((imgUrl, index) => (
+                      <div key={index} className={styles.subImageItem}>
+                        <img 
+                          src={imgUrl} 
+                          alt={`서브 이미지 ${index + 1}`} 
+                          className={styles.subImagePreview}
+                          onError={(e) => {
+                            e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
+                            e.target.alt = "이미지 로드 실패";
+                          }}
+                        />
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  ) : (
+                    // 빈 서브 이미지 4개 표시
+                    Array.from({ length: 4 }).map((_, index) => (
+                      <div key={index} className={styles.subImageItem}>
+                        <div className={styles.emptyImagePlaceholder}>
+                          
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
         )}
       </div>
     </div>
@@ -607,22 +607,40 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
 };
 
 /**
- * 오른쪽 사이드바 컴포넌트 (Redux 연결)
+ * 왼쪽 사이드바 컴포넌트 (Redux 연결)
  * 
  * @param {Object} props - 컴포넌트 props
- * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
+ * @returns {React.ReactElement} 왼쪽 사이드바 UI 컴포넌트
  */
-const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedShop, onShopUpdate }) => {
+const CompareBar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedShop, onShopUpdate }) => {
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
   const isCompareModalActive = useSelector(selectIsCompareModalActive);
+  const isCompareBarActive = useSelector(selectIsCompareBarActive);
+  
+  console.log("CompareBar 렌더링: isCompareBarActive =", isCompareBarActive);
+  
+  // CompareBar 활성화 상태가 변경될 때 body 클래스 토글
+  useEffect(() => {
+    if (isCompareBarActive) {
+      document.body.classList.add('compareBarVisible');
+    } else {
+      document.body.classList.remove('compareBarVisible');
+    }
+    
+    // 컴포넌트 언마운트 시 클래스 제거
+    return () => {
+      document.body.classList.remove('compareBarVisible');
+    };
+  }, [isCompareBarActive]);
   
   // 상점 데이터에서 serverDataset 추출
   const currentShopServerDataSet = curSelectedShop?.serverDataset || null;
 
   // 상점 추가 핸들러 (메인 컴포넌트와 공유)
-  const handleAddNewShopItem = (e) => {
+  const compareBarHandleAddNewShopItem = (e) => {
     if (e) e.preventDefault();
+    console.log('compareBar: Add new shop item clicked');
     
     // 외부로 임시 오버레이 정리 함수 호출 (기존 오버레이 정리)
     if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
@@ -636,7 +654,7 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
   // 패널 토글 버튼
   const togglePanelButton = !isPanelVisible && (
     <button 
-      className={styles.floatingPanelToggle}
+      className={`${styles.floatingPanelToggle} ${styles.compareBarPanelToggle}`}
       onClick={() => dispatch(togglePanel())}
       title="패널 표시"
     >
@@ -644,23 +662,25 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
     </button>
   );
 
+  // isCompareBarActive가 false일 때는 null 반환 (렌더링하지 않음)
+  if (!isCompareBarActive) {
+    return null;
+  }
+
   return (
     <>
-      <SidebarContent 
-        addNewShopItem={handleAddNewShopItem}
-        moveToCurrentLocation={moveToCurrentLocation}
-        mapOverlayHandlers={mapOverlayHandlers}
-        currentShopServerDataSet={currentShopServerDataSet}
-        onShopUpdate={onShopUpdate}
-      />
+      <div className={`${styles.compareBarSidebar} ${!isCompareBarActive ? styles.compareBarHidden : ''}`}>
+        <CompareSidebarContent 
+          addNewShopItem={compareBarHandleAddNewShopItem}
+          moveToCurrentLocation={moveToCurrentLocation}
+          mapOverlayHandlers={mapOverlayHandlers}
+          currentShopServerDataSet={currentShopServerDataSet}
+          onShopUpdate={onShopUpdate}
+        />
+      </div>
       {togglePanelButton}
-      
-      {/* 모달 컴포넌트는 조건부 마운트 방식으로 분리
-      {isCompareModalActive && <CompareModalContainer mapOverlayHandlers={mapOverlayHandlers} />} */}
-
-      
     </>
   );
 };
 
-export default RightSidebar; 
+export default CompareBar; 

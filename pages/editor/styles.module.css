@@ -4,25 +4,31 @@
 }
 
 .sidebar {
-  flex: 0 0 380px;
+  flex: 0 0 320px;
+  width: 320px;
   background-color: #fff;
   overflow-y: auto;
   box-shadow: 2px 0 5px rgba(0,0,0,0.1);
   display: flex;
   flex-direction: column;
+  z-index: 50;
 }
 
 .rightSidebar {
-  width: 280px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100vh;
   background-color: #f9f9f9;
   overflow-y: auto;
-  box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   padding: 6px;
-  padding-top: 0; /* 상단 패딩 제거 */
-  position: relative; /* absolute에서 relative로 변경 */
-  z-index: 1; /* z-index 값 낮춤 */
+  padding-top: 0;
+  z-index: 100;
+  border-left: 1px solid #e0e0e0;
 }
 
 /* 모바일 화면에서도 우측 사이드바 표시 */
@@ -132,14 +138,17 @@
 
 .mapContainer {
   flex: 1;
+  height: 100vh;
   position: relative;
-  overflow: hidden;
+  min-width: 300px;
+  margin-right: 640px; /* CompareBar와 RightSidebar 너비만큼 여백 (320px * 2) */
+  transition: margin 0.3s ease;
+  overflow: hidden; /* 지도 내부 내용이 넘치지 않도록 설정 */
 }
 
 .map {
   width: 100%;
   height: 100%;
-  position: relative;
 }
 
 .editor .menuButton {
@@ -1013,7 +1022,7 @@
 }
 
 .rightSidebarCardEditing {
-  border-left: 3px solid #2196f3;
+  
   background-color: #f8f9ff;
 }
 
@@ -1223,4 +1232,70 @@
   background-color: #4dabf7;
   color: white;
   border-color: #4dabf7;
+}
+
+/* CompareBar용 스타일 */
+.compareBarSidebar {
+  position: fixed;
+  top: 0;
+  right: 320px; /* 오른쪽 사이드바 너비만큼 띄우기 */
+  width: 320px;
+  height: 100vh;
+  background-color: #fcfcfc; /* 우측 사이드바와 미묘하게 다른 색상 */
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  z-index: 90; /* 우측 사이드바보다 낮은 z-index */
+  overflow-y: auto;
+  transition: transform 0.3s ease;
+  border-left: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
+}
+
+.compareBarSidebar .rightSidebarCard {
+  background-color: #fcfcfc;
+  border: 1px solid #e0e0e0;
+}
+
+/* CompareBar 토글 버튼 위치 조정 */
+.compareBarPanelToggle {
+  position: fixed;
+  top: 50%;
+  right: 640px; /* 정확히 CompareBar 왼쪽에 위치하도록 조정 */
+  transform: translateY(-50%);
+  background-color: white;
+  border: 1px solid #ccc;
+  border-right: none;
+  padding: 15px 5px;
+  cursor: pointer;
+  z-index: 99;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+/* 컨테이너 레이아웃 조정 - 양쪽 사이드바 고려 */
+.editorContainer {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 사이드바 숨김 처리 시 지도 컨테이너 여백 조정 */
+.compareBarHidden + .mapContainer {
+  width: calc(100% - 320px); /* 오른쪽 사이드바만 고려 */
+  margin-left: 0;
+}
+
+/* 사이드바 숨김 처리 시 지도 컨테이너 여백 조정 */
+.sidebar.hidden ~ .mapContainer {
+  /* margin-left: 0; 수정 사항 */
+}
+
+/* CompareBar 숨김 관련 스타일 */
+.compareBarHidden {
+  transform: translateX(320px); /* 오른쪽으로 이동하여 사라짐 */
+}
+
+/* CompareBar 숨김 시 지도 컨테이너 여백 조정 */
+body:not(.compareBarVisible) .mapContainer {
+  margin-right: 320px; /* RightSidebar만 고려 */
 }

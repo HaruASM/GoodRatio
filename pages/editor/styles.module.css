@@ -832,22 +832,6 @@
   }
 }
 
-/* 모바일 환경 대응 */
-@media (max-width: 1200px) {
-  .rightSidebarCompareModal {
-    right: 0; /* 화면 우측에 붙도록 설정 */
-    width: 300px; /* 같은 너비로 통일 */
-  }
-}
-
-@media (max-width: 576px) {
-  .rightSidebarCompareModal {
-    right: 0;
-    width: 100%;
-    z-index: 1002; /* 사이드바보다 높게 유지 */
-  }
-}
-
 /* 비교 컨테이너 스타일 - 간격 조정 */
 .rightSidebarComparisonContainer {
   display: flex;
@@ -1019,6 +1003,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 8px;
+  height: 44px;
   border-bottom: 1px solid #e0e0e0;
 }
 
@@ -1154,69 +1139,22 @@
   border-color: #4dabf7;
 }
 
-/* CompareBar용 스타일 */
-.compareBarSidebar {
-  position: fixed;
-  left: auto;
+/* compareBarPosition - 위치만 조정하는 클래스 */
+.compareBarPosition {
   right: 320px; /* RightSidebar 너비만큼 오른쪽에서 떨어지게 설정 */
-  top: 0;
-  bottom: 0;
-  width: 320px;
-  height: 100vh;
-  background-color: white;
-  
-  overflow-y: auto;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
   z-index: 99;
-  display: flex; /* flex로 변경 */
-  flex-direction: column; /* 컬럼 방향으로 설정 */
-  padding: 0px 4px 0px 6px;
-
   border-right: 1px solid #e0e0e0;
+  border-left: none;
 }
 
-/* CompareBar에 editorHeader 스타일 적용 */
-.compareBarSidebar .editorHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  border-bottom: 1px solid #eee;
+/* CompareBar 숨김 관련 스타일 */
+.compareBarHidden {
+  transform: translateX(320px); /* 오른쪽으로 이동하여 사라짐 */
 }
 
-.compareBarSidebar .rightSidebarCard {
-  background-color: white;
-  border-radius: 10px;
-  margin: 10px 0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  overflow: hidden;
-}
-
-.compareBarSidebar .rightSidebarFormRow {
-  margin-bottom: 2px; /* RightSidebar와 동일한 margin-bottom 값 적용 */
-  display: flex;
-  align-items: center;
-  padding: 0; /* 패딩 제거 */
-}
-
-.compareBarSidebar .rightSidebarButtonContainer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px; /* RightSidebar와 동일한 padding 적용 */
-  height : 44px;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.compareBarSidebar .rightSidebarForm {
-  padding: 10px 10px 10px; /* RightSidebar와 동일한 padding 적용 */
-  background-color: white;
-}
-
-/* CompareBar의 이미지 컨테이너 스타일 유지 */
-.compareBarSidebar .imagesPreviewContainer {
-  padding: 0; /* 패딩 제거하고 margin만 사용 */
-  margin: 10px 0; /* RightSidebar와 동일한 margin 적용 */
+/* CompareBar 숨김 시 지도 컨테이너 여백 조정 */
+body:not(.compareBarVisible) .mapContainer {
+  margin-right: 320px; /* RightSidebar만 고려 */
 }
 
 /* CompareBar 토글 버튼 위치 조정 */
@@ -1252,14 +1190,4 @@
 /* 사이드바 숨김 처리 시 지도 컨테이너 여백 조정 */
 .sidebar.hidden ~ .mapContainer {
   /* margin-left: 0; 수정 사항 */
-}
-
-/* CompareBar 숨김 관련 스타일 */
-.compareBarHidden {
-  transform: translateX(320px); /* 오른쪽으로 이동하여 사라짐 */
-}
-
-/* CompareBar 숨김 시 지도 컨테이너 여백 조정 */
-body:not(.compareBarVisible) .mapContainer {
-  margin-right: 320px; /* RightSidebar만 고려 */
 }

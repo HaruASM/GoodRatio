@@ -110,7 +110,7 @@ const CompareBar = () => {
   }
 
   return (
-    <div className={`${styles.compareBarSidebar}`}>
+    <div className={`${styles.rightSidebar} ${styles.compareBarPosition}`}>
       {/* 상단 헤더 영역 추가 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>

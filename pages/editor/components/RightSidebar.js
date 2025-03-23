@@ -25,14 +25,15 @@ import {
   selectIsDrawing,
   selectDrawingType,
   selectIsIdle,
-  selectIsGsearch,
+  
   startGsearch,
-  addNewShop,
   setFieldValue,
   clearFieldValue,
   confirmEdit,
   startDrawingMode
 } from '../store/slices/rightSidebarSlice';
+
+import { setCompareBarActive, setSyncGoogleSearch } from '../store/slices/compareBarSlice';
 
 // 값이 비어있는지 확인하는 공통 함수
 const isValueEmpty = (value, fieldName) => {
@@ -76,7 +77,7 @@ const titlesofDataFoam = [
  * 
  * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
  */
-const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandlers, currentShopServerDataSet, onShopUpdate }) => {
+const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocation, mapOverlayHandlers, currentShopServerDataSet, onShopUpdate }) => {
   // Redux 상태 및 디스패치 가져오기
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
@@ -92,7 +93,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
   const isDrawing = useSelector(selectIsDrawing);
   const drawingType = useSelector(selectDrawingType);
   const isIdle = useSelector(selectIsIdle);
-  const isGsearchMode = useSelector(selectIsGsearch);
+  
   
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
@@ -240,8 +241,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
   const handleGooglePlaceSearchClick = (e) => {
     e.preventDefault(); // A태그 클릭 방지
     
-    // 구글 검색 모드 시작
-    dispatch(startGsearch());
+  
     
     
     // 검색창으로 포커스 이동 (존재하는 경우)
@@ -259,7 +259,7 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
 
   };
 
-  // Google에서 데이터 직접 표시 함수
+  // Google에서 데이터 직접 표시 함수 // fix 쓰지 않음. 
   const handleDirectShowCompareModal = (googleData) => {
     // 만약 googleData가 직접 구글 API에서 온 데이터라면 파싱
     const processedData = googleData.geometry ? 
@@ -269,14 +269,6 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
     // 파싱된 데이터 콘솔에 출력
     console.log('[구글 직접 검색 결과 - 상세]', processedData);
     
-    // 요약 정보 출력
-    console.log('[구글 직접 검색 결과 - 요약]', {
-      place: processedData.storeName,
-      address: processedData.address,
-      googleDataId: processedData.googleDataId,
-      pinCoordinates: processedData.pinCoordinates,
-      hasBusinessHours: processedData.businessHours && processedData.businessHours.length > 0
-    });
     
     // 필요한 필드 자동 업데이트
     if (processedData.storeName) {
@@ -346,11 +338,11 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
         </div>
         <button 
           className={styles.addShopButton} 
-          onClick={addNewShopItem}
-          title="상점 추가"
+          onClick={googlePlaceSearchBarButtonHandler}
+          title="구글 장소 검색"
           disabled={isEditing || isConfirming || status === 'loading'}
         >
-          ➕ 상점 추가
+          &lt;구글탐색
         </button>
       </div>
 
@@ -625,17 +617,14 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
   // 상점 데이터에서 serverDataset 추출
   const currentShopServerDataSet = curSelectedShop?.serverDataset || null;
 
-  // 상점 추가 핸들러 (메인 컴포넌트와 공유)
-  const handleAddNewShopItem = (e) => {
+  // 구글탐색 버튼 핸들러
+  const googlePlaceSearchBarButtonHandler = (e) => {
     if (e) e.preventDefault();
     
-    // 외부로 임시 오버레이 정리 함수 호출 (기존 오버레이 정리)
-    if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
-      mapOverlayHandlers.cleanupTempOverlays();
-    }
-    
-    // 새 상점 추가 액션 디스패치
-    dispatch(addNewShop());
+    // CompareBar 활성화
+    dispatch(setSyncGoogleSearch());
+    dispatch(setCompareBarActive(null));
+    console.log('CompareBar 활성화 디스패치됨');
   };
   
   // 패널 토글 버튼
@@ -652,7 +641,7 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
   return (
     <>
       <SidebarContent 
-        addNewShopItem={handleAddNewShopItem}
+        googlePlaceSearchBarButtonHandler={googlePlaceSearchBarButtonHandler}
         moveToCurrentLocation={moveToCurrentLocation}
         mapOverlayHandlers={mapOverlayHandlers}
         currentShopServerDataSet={currentShopServerDataSet}

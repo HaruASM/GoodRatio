@@ -442,7 +442,7 @@ const rightSidebarSlice = createSlice({
     },
     
     // IDLE 상태 설정 액션 추가
-    setIdleState: (state, action) => {
+    setRightSidebarIdleState: (state, action) => {
       state.isIdle = action.payload;
       
       // 구글 검색 상태 초기화
@@ -531,7 +531,7 @@ export const {
   endDrawingMode,
   updateCoordinates,
   addNewShop,
-  setIdleState,
+  setRightSidebarIdleState,
   startGsearch,
   endGsearch,
   toggleCompareBar,

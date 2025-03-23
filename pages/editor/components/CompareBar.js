@@ -1,7 +1,12 @@
 import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
-import { selectIsCompareBarActive, toggleCompareBar } from '../store/slices/rightSidebarSlice';
+import { 
+  selectIsCompareBarActive, 
+  selectCompareBarData,
+  setCompareBarActive,
+  endCompareBar 
+} from '../store/slices/compareBarSlice';
 
 // 상점 데이터 인풋창 타이틀 배열
 const titlesofDataFoam = [
@@ -22,11 +27,32 @@ const titlesofDataFoam = [
 
 /**
  * 왼쪽 사이드바 내부 컴포넌트
- * 비교를 위한 상점 정보 표시 기능 제공 (데이터 바인딩 없음)
+ * 비교를 위한 상점 정보 표시 기능 제공
  * 
  * @returns {React.ReactElement} 왼쪽 사이드바 UI 컴포넌트
  */
 const CompareSidebarContent = () => {
+  // Redux에서 compareBar 데이터 가져오기
+  const compareData = useSelector(selectCompareBarData);
+  
+  // 값이 비어있는지 확인하는 공통 함수
+  const isValueEmpty = (value, fieldName) => {
+    if (value === null || value === undefined) return true;
+    if (value === '') return true;
+    if (Array.isArray(value) && (value.length === 0 || (value.length === 1 && value[0] === ''))) return true;
+    if (fieldName === 'path' || fieldName === 'pinCoordinates') {
+      return !value || value === '';
+    }
+    return false;
+  };
+
+  // 입력 필드 스타일 결정 함수
+  const getInputClassName = (fieldName) => {
+    const value = compareData[fieldName];
+    const isEmpty = isValueEmpty(value, fieldName);
+    return !isEmpty ? styles.filledInput : styles.emptyInput;
+  };
+
   return (
     <div className={`${styles.rightSidebarCard}`}>
       <div className={styles.rightSidebarButtonContainer}>
@@ -42,9 +68,9 @@ const CompareSidebarContent = () => {
               <input
                 type="text"
                 name={item.field}
-                value=""
+                value={compareData[item.field] || ""}
                 readOnly={true}
-                className={styles.emptyInput}
+                className={getInputClassName(item.field)}
               />
             </div>
           </div>
@@ -54,21 +80,49 @@ const CompareSidebarContent = () => {
         <div className={styles.imagesPreviewContainer}>
           <div className={styles.imageSection}>
             <div className={styles.mainImageContainer}>
-              <div className={styles.emptyImagePlaceholder}>
-                <span>메인 이미지</span>
-              </div>
+              {compareData.mainImage ? (
+                <img 
+                  src={compareData.mainImage} 
+                  alt="메인 이미지" 
+                  className={styles.mainImagePreview}
+                  onError={(e) => {
+                    e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
+                    e.target.alt = "이미지 로드 실패";
+                  }}
+                />
+              ) : (
+                <div className={styles.emptyImagePlaceholder}>
+                  <span>메인 이미지</span>
+                </div>
+              )}
             </div>
           </div>
           
           <div className={styles.imageSection}>
             <div className={styles.subImagesContainer}>
-              {/* 빈 서브 이미지 4개 표시 */}
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className={styles.subImageItem}>
-                  <div className={styles.emptyImagePlaceholder}>
+              {compareData.subImages && Array.isArray(compareData.subImages) && compareData.subImages.length > 0 && compareData.subImages[0] !== "" ? (
+                compareData.subImages.slice(0, 4).map((imgUrl, index) => (
+                  <div key={index} className={styles.subImageItem}>
+                    <img 
+                      src={imgUrl} 
+                      alt={`서브 이미지 ${index + 1}`} 
+                      className={styles.subImagePreview}
+                      onError={(e) => {
+                        e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
+                        e.target.alt = "이미지 로드 실패";
+                      }}
+                    />
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                // 빈 서브 이미지 4개 표시
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className={styles.subImageItem}>
+                    <div className={styles.emptyImagePlaceholder}>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -78,7 +132,7 @@ const CompareSidebarContent = () => {
 };
 
 /**
- * 왼쪽 사이드바 컴포넌트 (UI만 표시)
+ * 왼쪽 사이드바 컴포넌트 (Redux 연결)
  * @returns {React.ReactElement} 왼쪽 사이드바 UI 컴포넌트
  */
 const CompareBar = () => {
@@ -99,18 +153,22 @@ const CompareBar = () => {
     };
   }, [isCompareBarActive]);
 
+  // 컴포넌트 마운트 시 데이터 초기화
+  useEffect(() => {
+    
+     return () => {
+      dispatch(endCompareBar());
+    };
+  }, [dispatch]);
+
   // 닫기 버튼 클릭 핸들러
   const handleCloseButtonClick = () => {
-    dispatch(toggleCompareBar());
+    dispatch(endCompareBar());
   };
 
-  // isCompareBarActive가 false일 때는 null 반환 (렌더링하지 않음)
-  if (!isCompareBarActive) {
-    return null;
-  }
-
+  // 내부 조건부 렌더링 제거 (이제 index.js에서 처리함)
   return (
-    <div className={`${styles.rightSidebar} ${styles.compareBarPosition}`}>
+    <div className={`${styles.compareBarSidebar}`}>
       {/* 상단 헤더 영역 추가 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>

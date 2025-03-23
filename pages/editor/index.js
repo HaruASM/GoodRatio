@@ -27,13 +27,17 @@ import {
   updateCoordinates,
   syncExternalShop,
   selectFormData,
-  setIdleState,
-  setCompareBarActive,
-  toggleCompareBar,
-  selectIsCompareBarActive,
+  setRightSidebarIdleState,
   cleanupTempOverlaysThunk
 } from './store/slices/rightSidebarSlice';
+
 import store from './store';
+
+// CompareBar 관련 액션 임포트
+import {
+  setCompareBarActive,
+  selectIsCompareBarActive,
+} from './store/slices/compareBarSlice';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -178,20 +182,13 @@ export default function Editor() { // 메인 페이지
   
   // 폼 데이터는 이제 Redux에서 관리 (로컬 상태 제거)
   const formData = useSelector(selectFormData);
-  
-  // 현재 선택된 섹션의 아이템 리스트를 가져오는 함수
-  const getCurLocalItemlist = async ( sectionName ) => { 
-    if (!sectionName) {
-      console.error('섹션 이름이 지정되지 않았습니다.');
-      return [];
-    }
-    
-    
-    
-    // SectionsDBManager를 통해 데이터 가져오기
-    return await SectionsDBManager.getSectionItems(sectionName);
-  };
 
+    
+  // CompareBar 활성화 상태 가져오기
+  const isActiveCompareBar = useSelector(selectIsCompareBarActive);
+  console.log('CompareBar 활성화 상태:', isActiveCompareBar);
+  
+  
   // 로컬 저장소에서 sectionsDB 저장 함수는 serverUtils.js로 이동했습니다.
 
   // protoServerDataset과 protoShopDataSet은 dataModels.js로 이동했습니다.
@@ -329,31 +326,16 @@ export default function Editor() { // 메인 페이지
         return;
       }
       
-      // 구글 검색 모드(isGsearch)일 때만 compareGooglePlaceData 액션 디스패치
-      const isGsearchActive = store.getState().rightSidebar.isGsearch;
-      
-      if (isGsearchActive) {
+      // (isSyncGoogleSearch&& isCompareBarActive)일 때만 setCompareBarActive 액션 디스패치
+      const isSyncGoogleSearch = store.getState().compareBar.isSyncGoogleSearch;
+      if (isSyncGoogleSearch && isCompareBarActive) {
         // 유틸리티 함수를 사용하여 구글 장소 데이터를 앱 형식으로 변환
         const convertedGoogleData = parseGooglePlaceData(detailPlace, myAPIkeyforMap);
         
         // 파싱된 데이터를 콘솔에 출력
         console.log('[구글 장소 검색 결과 - 상세]', convertedGoogleData);
-        
-        // 주요 필드만 간략하게 로그 출력
-        console.log('[구글 장소 검색 결과 - 요약]', {
-          place: detailPlace.name,
-          address: convertedGoogleData.address,
-          googleDataId: convertedGoogleData.googleDataId,
-          pinCoordinates: convertedGoogleData.pinCoordinates,
-          businessHours: convertedGoogleData.businessHours,
-          hasImages: convertedGoogleData.mainImage !== undefined || (convertedGoogleData.subImages && convertedGoogleData.subImages.length > 0)
-        });
-        
-        console.log('Google Place 데이터로 폼이 업데이트되었습니다.');
-      } else {
-        // 일반 검색 모드에서는 지도 이동만 수행
-        console.log('구글 장소 검색: 지도 이동만 수행');
-      }
+        dispatch(setCompareBarActive(convertedGoogleData));
+      } 
 
       // 지도 이동 로직은 항상 실행
       if (detailPlace.geometry.viewport) {
@@ -701,26 +683,31 @@ export default function Editor() { // 메인 페이지
 
     // 프로그램 언마운트시 필요한 코드
     return () => {
-      if (sharedInfoWindow.current) {        sharedInfoWindow.current.close();      }
+      if (sharedInfoWindow.current) {
+        sharedInfoWindow.current.close();
+      }
       
       if (currentItemListRef.current && currentItemListRef.current.length > 0) {
         currentItemListRef.current.forEach(item => {
-          if (item.itemMarker) {             item.itemMarker.setMap(null);          }
-          if (item.itemPolygon) {            item.itemPolygon.setMap(null);          }
+          if (item.itemMarker) {
+            item.itemMarker.setMap(null);
+          }
+          if (item.itemPolygon) {
+            item.itemPolygon.setMap(null);
+          }
         });
       }
-      if( instMap.current){
-        instMap.current.setMap(null);
-      }
+  
 
+      
     }; // return
   }, []);
 
   // 컴포넌트 마운트 시 IDLE 상태 설정
   useEffect(() => { // AT 우측 사이드바 초기화 지점 
     // 초기에 IDLE 상태로 설정
-    dispatch(setIdleState(true));
-    dispatch(setCompareBarActive(true)); // CompareBar가 표시되도록 설정
+    dispatch(setRightSidebarIdleState(true));
+    
     console.log("CompareBar 활성화 상태를 true로 설정");
   }, [dispatch]);
 
@@ -828,8 +815,6 @@ export default function Editor() { // 메인 페이지
       }
     }
     
-  
-
   }, [curSelectedShop]); //## 추가 종속성 절대 추가 금지. curSelectedShop이 변경될때만 연산되는 useEffect. 
 
   
@@ -1021,6 +1006,8 @@ export default function Editor() { // 메인 페이지
     setIsSearchFocused(false);
   };
 
+  
+
   return (
     <div className={styles.editorContainer}>
       <Head>
@@ -1082,24 +1069,8 @@ export default function Editor() { // 메인 페이지
         </div>
       </div>
       
-      {/* CompareBar - 우측 사이드바 옆에 위치 */}
-      <CompareBar
-        moveToCurrentLocation={moveToCurrentLocation}
-        mapOverlayHandlers={mapOverlayHandlers}
-        curSelectedShop={curSelectedShop}
-        onShopUpdate={(updatedShop) => {
-          if (updatedShop === null) {
-            // 상점 선택 초기화
-            setCurSelectedShop(null);
-          } else if (curSelectedShop) {
-            // 원래 객체 구조 유지하면서 serverDataset만 업데이트
-            setCurSelectedShop({
-              ...curSelectedShop,
-              serverDataset: updatedShop
-            });
-          }
-        }}
-      />
+      {/* CompareBar - 조건부 렌더링 적용 */}
+      {isActiveCompareBar && <CompareBar />}
       
       {/* 오른쪽 사이드바 */}
       <RightSidebar

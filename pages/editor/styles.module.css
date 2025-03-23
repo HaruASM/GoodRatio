@@ -140,8 +140,8 @@
   height: 100vh;
   position: relative;
   min-width: 300px;
-  margin-left: 0;
-  margin-right: 640px; /* CompareBar + RightSidebar 너비 (320px + 320px) */
+  margin-left: 0; /* 좌측 여백 없음 */
+  margin-right: 640px; /* RightSidebar 너비(320px) + CompareBar 너비(320px) */
   transition: margin 0.3s ease;
   overflow: hidden;
 }
@@ -1154,6 +1154,7 @@
 
 /* CompareBar 숨김 시 지도 컨테이너 여백 조정 */
 body:not(.compareBarVisible) .mapContainer {
+  margin-left: 0;
   margin-right: 320px; /* RightSidebar만 고려 */
 }
 
@@ -1190,4 +1191,21 @@ body:not(.compareBarVisible) .mapContainer {
 /* 사이드바 숨김 처리 시 지도 컨테이너 여백 조정 */
 .sidebar.hidden ~ .mapContainer {
   /* margin-left: 0; 수정 사항 */
+}
+
+/* CompareBar 사이드바 기본 스타일 */
+.compareBarSidebar {
+  position: fixed;
+  top: 0;
+  right: 330px; /* RightSidebar의 너비(320px)만큼 오른쪽에서 떨어지게 설정 */
+  width: 250px;
+  height: 100vh;
+  background-color: #f9f9f9;
+  overflow-y: auto;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1); /* 그림자 방향 변경 */
+  display: flex;
+  flex-direction: column;
+  padding: 0px 4px 0px 6px;
+  z-index: 100;
+  border-left: 1px solid #e0e0e0; /* 테두리 방향 변경 */
 }

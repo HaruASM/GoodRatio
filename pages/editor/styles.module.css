@@ -814,94 +814,14 @@
 }
 
 /* 비교 모달 스타일 */
-.rightSidebarCompareModal {
-  position: fixed;
-  top: 0;
-  right: 0; /* 화면 우측에 붙도록 변경 */
-  width: 350px; /* 너비 축소 (480px → 300px) */
-  height: 100vh;
-  background-color: #f9f9f9;
-  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
-  z-index: 1002; /* 사이드바보다 더 높게 설정 */
-  display: flex;
-  flex-direction: column;
-  padding: 10px;
-  transform: translateX(100%);
-  transition: transform 0.3s ease-in-out;
-  overflow-y: auto;
-}
-
-.rightSidebarCompareModal.rightSidebarVisible {
-  transform: translateX(0);
-}
-
-.rightSidebarCompareModalHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 10px;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #ddd;
-}
-
-.rightSidebarCompareModalHeader h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.rightSidebarCompareCard {
-  
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: #fafafa;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  margin-bottom: 15px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.rightSidebarCompareCard h3 {
-  margin-bottom: 10px;
-  margin-top: 0px;
-  font-size: 18px;
-  font-weight: bold;
-  color: #555;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 컬럼 레이블 스타일 */
-.rightSidebarColumnLabel {
-  font-size: 13px;
-  font-weight: 500;
-  color: #555;
-  margin-bottom: 5px;
-  text-align: center;
-}
-
-/* 변경된 필드 하이라이트 - 글자색을 검은색으로 변경 */
-.rightSidebarChangedField {
-  border: 2px solid #ff9800 !important;
-  background-color: #fff8e1;
-}
-
-/* 변경 표시기 스타일 */
-.rightSidebarChangeIndicator {
-  position: absolute;
-  right: -8px;
-  top: -8px;
-  background-color: #ffa726;
-  color: white;
-  font-size: 10px;
-  padding: 2px 4px;
-  border-radius: 10px;
-  white-space: nowrap;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  z-index: 100; /* z-index 값 높임 */
-  pointer-events: none; /* 다른 요소와 상호작용 방지 */
-}
+/* 스타일을 제거할 때 CSS 선택자의 순서와 중첩 구조를 유지해야 합니다 */
+/* 제거할 스타일:
+.rightSidebarCompareModal
+.rightSidebarCompareModal.rightSidebarVisible
+.rightSidebarCompareModalHeader
+.rightSidebarCompareModalHeader h3
+등등
+*/
 
 /* 모바일 환경에서 변경 표시기 조정 */
 @media (max-width: 768px) {

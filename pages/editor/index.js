@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
-import axios from 'axios';
 import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
@@ -11,6 +9,8 @@ import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, pars
 import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData } from './serverUtils';
+// Place 유틸리티 함수 가져오기
+import { parseGooglePlaceData } from './utils/placeUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
 import RightSidebar from './components/RightSidebar';
 import CompareBar from './components/CompareBar';
@@ -27,24 +27,13 @@ import {
   updateCoordinates,
   syncExternalShop,
   selectFormData,
-  
-  
   setIdleState,
-  selectIsGsearch,
-  startEditShop,
-  completeEdit,
-  cancelEdit,
-  confirmEdit,
-  updateField,
-  trackField,
-  closeModal,
-  startCompareModal,
   setCompareBarActive,
   toggleCompareBar,
-  selectIsCompareBarActive
+  selectIsCompareBarActive,
+  cleanupTempOverlaysThunk
 } from './store/slices/rightSidebarSlice';
 import store from './store';
-//import { compareShopData } from './store/utils/rightSidebarUtils';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -109,7 +98,7 @@ const SectionsDBManager = {
         serverDataset: { ...item }
       };
       
-      // 마커와 폴리곤 생성 - 새로운 mapUtils 인터페이스 사용
+      // 마커와 폴리곤 생성 - 새로운 mapUtils 인터페이스 사용 //AT 오버레이 생성위치
       try {
         // 새로운 mapUtils.createOverlaysFromItem 사용
         const overlays = mapUtils.createOverlaysFromItem(clientItem);
@@ -162,8 +151,9 @@ export default function Editor() { // 메인 페이지
   const [overlayMarkerFoamCard, setOverlayMarkerFoamCard] = useState(null);
   const [overlayPolygonFoamCard, setOverlayPolygonFoamCard] = useState(null);
 
-  const searchInputDomRef = useRef(null); // 검색창 참조
-  const searchformRef = useRef(null); // form 요소를 위한 ref 추가
+  const searchInputDomRef = useRef(null);
+  const searchformRef = useRef(null);
+  const mapSearchInputRef = useRef(null);  // 검색 입력 필드 참조 추가
   const [selectedButton, setSelectedButton] = useState('인근');
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(true); // 사이드바 가시성 상태 추가
@@ -179,17 +169,6 @@ export default function Editor() { // 메인 페이지
   // presentMakers 배열은 사용되지 않으므로 제거
   // const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
 
-  // 드로잉 오버레이 객체 저장 상태 추가
-  const [tempOverlays, setTempOverlays] = useState({
-    marker: null,
-    polygon: null
-  });
-  
-  // 임시 오버레이 참조용 ref 추가
-  const tempOverlaysRef = useRef({
-    marker: null,
-    polygon: null
-  });
 
   // curSectionName을 상태로 관리 - 초기값을 null로 설정
   const [curSectionName, setCurSectionName] = useState(null);
@@ -201,7 +180,7 @@ export default function Editor() { // 메인 페이지
   const formData = useSelector(selectFormData);
   
   // 현재 선택된 섹션의 아이템 리스트를 가져오는 함수
-  const getCurLocalItemlist = async (sectionName = curSectionName) => { 
+  const getCurLocalItemlist = async ( sectionName ) => { 
     if (!sectionName) {
       console.error('섹션 이름이 지정되지 않았습니다.');
       return [];
@@ -230,40 +209,8 @@ export default function Editor() { // 메인 페이지
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
 
-
-  // 임시 오버레이 정리 함수
-  const cleanupTempOverlays = () => {
-    console.log('임시 오버레이 정리 함수 호출됨');
-    
-    // 마커 정리
-    if (tempOverlaysRef.current.marker) {
-      // 등록된 이벤트 리스너 제거
-      google.maps.event.clearInstanceListeners(tempOverlaysRef.current.marker);
-      // 마커 맵에서 제거
-      tempOverlaysRef.current.marker.setMap(null);
-      tempOverlaysRef.current.marker = null;
-    }
-    
-    // 폴리곤 정리
-    if (tempOverlaysRef.current.polygon) {
-      // 등록된 이벤트 리스너 제거 (경로 이벤트 포함)
-      if (tempOverlaysRef.current.polygon.getPath) {
-        const path = tempOverlaysRef.current.polygon.getPath();
-        google.maps.event.clearInstanceListeners(path);
-      }
-      google.maps.event.clearInstanceListeners(tempOverlaysRef.current.polygon);
-      // 폴리곤 맵에서 제거
-      tempOverlaysRef.current.polygon.setMap(null);
-      tempOverlaysRef.current.polygon = null;
-    }
-    
-    // 상태도 함께 초기화
-    setTempOverlays({
-      marker: null,
-      polygon: null
-    });
-  };
-  
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapInstance, setMapInstance] = useState(null);
 
   // 드로잉 매니저 상태 감시 및 제어를 위한 useEffect
   useEffect(() => {
@@ -341,11 +288,24 @@ export default function Editor() { // 메인 페이지
 
   const mapOverlayHandlers = useMemo(() => {
     return {
-      cleanupTempOverlays: cleanupTempOverlays
+      cleanupTempOverlays: cleanupTempOverlaysThunk
     };
   }, []);
 
-  // 검색창 
+  // 마커와 폴리곤 옵션 초기화 함수
+  const initMarker = () => { 
+     // MapUtils 초기화 (684라인)
+     if (!mapUtils.initialize()) {
+      console.error('MapUtils 초기화 실패');
+      return;
+     }
+    // 공유 인포윈도우 초기화 (필요한 경우)
+    if (!sharedInfoWindow.current && window.google && window.google.maps) {
+      sharedInfoWindow.current = new window.google.maps.InfoWindow();
+    }
+  }
+  
+  // 검색창 초기화 함수
   const initSearchInput = (_mapInstance) => {
     const inputDom = searchInputDomRef.current;
     if (!inputDom) {
@@ -368,106 +328,28 @@ export default function Editor() { // 메인 페이지
         console.error("구글place 미작동: '" + detailPlace.name + "'");
         return;
       }
-
+      
       // 구글 검색 모드(isGsearch)일 때만 compareGooglePlaceData 액션 디스패치
       const isGsearchActive = store.getState().rightSidebar.isGsearch;
       
       if (isGsearchActive) {
-        // 직렬화 가능한 형태로 데이터 변환
-        const serializedPlace = {
-          ...detailPlace,
-          geometry: detailPlace.geometry ? {
-            ...detailPlace.geometry,
-            location: detailPlace.geometry.location ? {
-              lat: typeof detailPlace.geometry.location.lat === 'function' ? 
-                   detailPlace.geometry.location.lat() : detailPlace.geometry.location.lat,
-              lng: typeof detailPlace.geometry.location.lng === 'function' ? 
-                   detailPlace.geometry.location.lng() : detailPlace.geometry.location.lng
-            } : null,
-            // viewport 직렬화 처리
-            viewport: detailPlace.geometry.viewport ? {
-              northeast: {
-                lat: typeof detailPlace.geometry.viewport.getNorthEast().lat === 'function' ? 
-                     detailPlace.geometry.viewport.getNorthEast().lat() : 
-                     detailPlace.geometry.viewport.getNorthEast().lat,
-                lng: typeof detailPlace.geometry.viewport.getNorthEast().lng === 'function' ? 
-                     detailPlace.geometry.viewport.getNorthEast().lng() : 
-                     detailPlace.geometry.viewport.getNorthEast().lng
-              },
-              southwest: {
-                lat: typeof detailPlace.geometry.viewport.getSouthWest().lat === 'function' ? 
-                     detailPlace.geometry.viewport.getSouthWest().lat() : 
-                     detailPlace.geometry.viewport.getSouthWest().lat,
-                lng: typeof detailPlace.geometry.viewport.getSouthWest().lng === 'function' ? 
-                     detailPlace.geometry.viewport.getSouthWest().lng() : 
-                     detailPlace.geometry.viewport.getSouthWest().lng
-              }
-            } : null
-          } : null,
-          // opening_hours 직렬화 처리 - 텍스트 배열만 사용
-          opening_hours: detailPlace.opening_hours ? {
-            weekday_text: detailPlace.opening_hours.weekday_text || []
-          } : null,
-          // 사진 배열도 필요한 정보만 추출하여 직렬화
-          photos: detailPlace.photos ? 
-            detailPlace.photos.map(photo => ({ 
-              photo_reference: photo.photo_reference, 
-              height: photo.height, 
-              width: photo.width 
-            })) : []
-        };
+        // 유틸리티 함수를 사용하여 구글 장소 데이터를 앱 형식으로 변환
+        const convertedGoogleData = parseGooglePlaceData(detailPlace, myAPIkeyforMap);
         
-        // 구글 장소 데이터를 앱 형식(protoServerDataset)으로 변환
-        const convertedGoogleData = { ...protoServerDataset };
+        // 파싱된 데이터를 콘솔에 출력
+        console.log('[구글 장소 검색 결과 - 상세]', convertedGoogleData);
         
-        // 기본 필드 매핑
-        convertedGoogleData.storeName = serializedPlace.name || '';
-        convertedGoogleData.address = serializedPlace.formatted_address || '';
-        convertedGoogleData.googleDataId = serializedPlace.place_id || '';
+        // 주요 필드만 간략하게 로그 출력
+        console.log('[구글 장소 검색 결과 - 요약]', {
+          place: detailPlace.name,
+          address: convertedGoogleData.address,
+          googleDataId: convertedGoogleData.googleDataId,
+          pinCoordinates: convertedGoogleData.pinCoordinates,
+          businessHours: convertedGoogleData.businessHours,
+          hasImages: convertedGoogleData.mainImage !== undefined || (convertedGoogleData.subImages && convertedGoogleData.subImages.length > 0)
+        });
         
-        // 영업시간 처리 (주간 영업시간 텍스트 배열)
-        if (serializedPlace.opening_hours && serializedPlace.opening_hours.weekday_text) {
-          convertedGoogleData.businessHours = serializedPlace.opening_hours.weekday_text;
-        }
-                
-        // 좌표 처리
-        if (serializedPlace.geometry && serializedPlace.geometry.location) {
-          const { lat, lng } = serializedPlace.geometry.location;
-          convertedGoogleData.pinCoordinates = `${lat},${lng}`;
-        }
-        
-        // 구글place의 이미지는 subImages에 저장장
-          if (serializedPlace.photos.length > 1) {
-            convertedGoogleData.subImages = serializedPlace.photos.slice(1).map(photo => 
-              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${myAPIkeyforMap}`
-            );
-          }
-        
-        
-        // 직접 startCompareModal 액션 디스패치
-        dispatch(startCompareModal({
-          reference: {
-            label: '구글데이터',
-            data: convertedGoogleData  // 변환된 데이터 사용
-          },
-          target: {
-            label: '현재데이터',
-            data: true  // true면 state.editNewShopDataSet 참조
-          },
-          options: {
-            insertMode: true,
-            modalConfig: {
-              title: '구글Place 데이터',
-              button: {
-                text: '', //빈칸. 버튼 미표시
-                action: '' //빈칸. 버튼 미표시
-              }
-            }
-          }
-        }));
-        
-        console.log('Google Place 상세정보 로드됨:', detailPlace.name);
-        console.log('변환된 데이터:', convertedGoogleData);
+        console.log('Google Place 데이터로 폼이 업데이트되었습니다.');
       } else {
         // 일반 검색 모드에서는 지도 이동만 수행
         console.log('구글 장소 검색: 지도 이동만 수행');
@@ -489,19 +371,6 @@ export default function Editor() { // 메인 페이지
 
     _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
   } // initSearchInput
-
-  // 마커와 폴리곤 옵션 초기화 함수
-  const initMarker = () => { 
-     // MapUtils 초기화 (684라인)
-     if (!mapUtils.initialize()) {
-      console.error('MapUtils 초기화 실패');
-      return;
-     }
-    // 공유 인포윈도우 초기화 (필요한 경우)
-    if (!sharedInfoWindow.current && window.google && window.google.maps) {
-      sharedInfoWindow.current = new window.google.maps.InfoWindow();
-    }
-  }
   
   //AT 마커와 폴리곤, 공통 이벤트 바인딩 InitMarker 
   // 공유 인포윈도우 참조
@@ -803,10 +672,13 @@ export default function Editor() { // 메인 페이지
       initShopList();
     });
     instMap.current = _mapInstance;
+    setMapLoaded(true);
+    setMapInstance(_mapInstance);
   } // initializeGoogleMapPage 마침
 
   // 모듈로딩을 순차적으로 진행하기위해필수. 구글모듈-맵모듈-맵로딩idle이벤트-mapinst로 애드온모듈 초기화화
   useEffect(() => { 
+    // 프로그램 마운트시 필요한 코드
     let _cnt = 0;
     let _intervalId = setInterval(() => {
       if (window.google) {
@@ -826,6 +698,22 @@ export default function Editor() { // 메인 페이지
         console.error('구글서비스 로딩 중', _cnt);
       }
     }, 100);
+
+    // 프로그램 언마운트시 필요한 코드
+    return () => {
+      if (sharedInfoWindow.current) {        sharedInfoWindow.current.close();      }
+      
+      if (currentItemListRef.current && currentItemListRef.current.length > 0) {
+        currentItemListRef.current.forEach(item => {
+          if (item.itemMarker) {             item.itemMarker.setMap(null);          }
+          if (item.itemPolygon) {            item.itemPolygon.setMap(null);          }
+        });
+      }
+      if( instMap.current){
+        instMap.current.setMap(null);
+      }
+
+    }; // return
   }, []);
 
   // 컴포넌트 마운트 시 IDLE 상태 설정
@@ -948,7 +836,7 @@ export default function Editor() { // 메인 페이지
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
     if (!curSectionName) return;
 
-    getCurLocalItemlist(curSectionName).then(_sectionItemListfromDB => {
+    SectionsDBManager.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
       if (_sectionItemListfromDB.length > 0) {
         // 현재 아이템 리스트를 이전 값으로 저장 (useRef 사용)
         prevItemListforRelieveOverlays.current = curItemListInCurSection;

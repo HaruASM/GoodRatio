@@ -15,39 +15,23 @@ const initialState = {
   modifiedFields: {},
   // 변경된 필드 목록 추가
   changedFieldsList: [],
-  // 비교 모달 데이터
-  compareModalData: {
-    reference: {
-      label: '',
-      data: null
-    },
-    target: {
-      label: '',
-      data: null
-    },
-    // 모달 UI 관련 설정 추가
-    modalConfig: {
-      title: '비교대상없음',
-      button: {
-        text: '',
-        action: ''
-      }
-    },
-    // 복사 버튼 표시 여부를 결정하는 플래그
-    insertModeModal: false
-  },
+  // 비교 모달 데이터 제거
   status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   error: null,
   // 드로잉 관련 상태 추가
   isDrawing: false,
   drawingType: null, // 'MARKER' 또는 'POLYGON'
-  // 모달 창 관련 상태 추가
-  isCompareModalVisible: false,
+  // 모달 창 관련 상태 제거
   // IDLE 상태 추가 (초기에는 IDLE 상태)
   isIdle: true,
   // 구글 장소 검색 관련 상태 추가
   isGsearch: false,
   isCompareBarActive: true,  // CompareBar 활성화 상태 (초기값은 true로 유지)
+  // 임시 오버레이 상태 추가
+  tempOverlays: {
+    marker: null,
+    polygon: null
+  }
 };
 
 // 비동기 액션: 상점 데이터 저장
@@ -70,15 +54,46 @@ export const saveShopData = createAsyncThunk( // 액션 생성자자
 export const finalConfirmAndSubmit = createAsyncThunk(
   'rightSidebar/finalConfirmAndSubmit',
   async (_, { dispatch, getState }) => {
+    // 일반 액션 디스패치 (최종 확인)
+    dispatch(confirmAndSubmit());
+    
+    // 로딩 상태로 변경
+    dispatch(setStatus('loading'));
+    
     try {
-      // 상태 초기화만 수행 (데이터 저장은 이미 CompareModal에서 수행됨)
-      dispatch(rightSidebarSlice.actions.confirmAndSubmit());
+      // 상태에서 폼 데이터 가져오기
+      const state = getState();
+      const formData = state.rightSidebar.formData;
       
-      return { success: true };
+      // 실제 API 호출 (예: API 호출 관련 코드)
+      // const response = await api.saveShopData(formData);
+      
+      // 저장 성공 액션 디스패치
+      dispatch(saveShopData.fulfilled(formData, 'saveShopData', formData));
+      
+      // 성공 상태로 변경
+      dispatch(setStatus('succeeded'));
+      
+      return formData;
     } catch (error) {
-      console.error('상태 초기화 중 오류 발생:', error);
-      return { success: false, error };
+      // 오류 상태로 변경
+      dispatch(setStatus('failed'));
+      dispatch(setError(error.message));
+      
+      throw error;
     }
+  }
+);
+
+// 임시 오버레이 정리 thunk 액션
+export const cleanupTempOverlaysThunk = createAsyncThunk(
+  'rightSidebar/cleanupTempOverlaysThunk',
+  async (_, { dispatch, getState }) => {
+    // 먼저 상태 업데이트
+    dispatch(cleanupOverlays());
+
+    // 실제 DOM 정리 로직은 컴포넌트에서 처리됨 - 상태 변화에 반응해서
+    return true;
   }
 );
 
@@ -109,7 +124,7 @@ const rightSidebarSlice = createSlice({
     },
     
     // 편집 완료
-    completeEdit: (state) => {
+    completeEdit: (state, action) => {
       // null 체크 강화
       if (!state.originalShopData || !state.editNewShopDataSet) {
         state.isEditing = false;
@@ -153,79 +168,35 @@ const rightSidebarSlice = createSlice({
       state.isGsearch = false;
     },
     
-    // 비교 모달 시작
-    startCompareModal: (state, action) => { //AT startCompareModal 
-      console.log('startCompareModal called', action.payload);
-      
-      // 인자 자체를 객체로 받는 방식으로 변경
-      const { reference, target, options = {} } = action.payload;
-      
-      // options에서 값 추출
-      const { insertMode = false, modalConfig = null } = options;
-      
-      // 기본 modalConfig 설정
-      const defaultModalConfig = {
-        title: '비교대상없음',
-        button: {
-          text: '',
-          action: ''
-        }
-      };
-      
-      // 직접 compareModalData 객체 설정 - 불필요한 중첩 참조 제거
-      state.compareModalData = {
-        reference: {
-          label: reference.label || '',
-          data: reference.data || null
-        },
-        target: {
-          label: target.label || '',
-          data: target.data === true ? state.editNewShopDataSet : target.data
-        },
-        modalConfig: modalConfig || defaultModalConfig,
-        insertModeModal: insertMode === true
-      };
-      
-      // 모달창 표시
-      state.isCompareModalVisible = true;
-    },
-    
-    // 모달 닫기 - 단순히 모달만 닫음
-    closeCompareModal: (state) => {
-      // 모달 닫기
-      state.isCompareModalVisible = false;
-      state.compareModalData = { //초기화용용
-        reference: {
-          label: '',
-          data: null
-        },
-        target: {
-          label: '',
-          data: null
-        },
-        modalConfig: {
-          title: '비교대상없음',
-          button: {
-            text: '',
-            action: ''
-          }
-        },
-        insertModeModal: false
-      };
-    },
-    
-    // 비교 모달의 타겟 데이터 업데이트
-    updateCompareModalTarget: (state, action) => {
-      if (state.compareModalData && state.compareModalData.target) {
-        // 모달의 타겟 데이터 업데이트
-        state.compareModalData.target.data = action.payload;
-        
-        // 실제 편집 중인 데이터도 함께 업데이트
-        if (state.isEditing && state.editNewShopDataSet) {
-          state.editNewShopDataSet = { ...action.payload };
-        }
+    // 확인 액션 추가 (최종 확인 단계로 진행)
+    confirmEdit: (state, action) => {
+      // 임시 오버레이 정리 함수 호출 (액션에서 받은 핸들러 사용)
+      const mapOverlayHandlers = action.payload?.mapOverlayHandlers;
+      if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
+        mapOverlayHandlers.cleanupTempOverlays();
+        console.log('confirmEdit에서 임시 오버레이 정리됨');
       }
+
+      // null 체크 강화
+      if (!state.originalShopData || !state.editNewShopDataSet) {
+        state.isEditing = false;
+        state.isConfirming = false;
+        state.hasChanges = false;
+        return;
+      }
+      
+      // modifiedFields에 기록된 필드가 있는지 먼저 확인
+      const hasChanges = Object.keys(state.modifiedFields).length > 0;
+      
+      // 상태 업데이트
+      state.isEditing = false;
+      state.isConfirming = true; // 확인 상태로 전환
+      state.hasChanges = hasChanges;
+      
+      // modifiedFields는 유지 (재수정 시 수정된 필드 표시를 위해)
     },
+    
+    // 비교 모달 관련 액션 제거
     
     // 최종 확인 및 전송 액션 추가 (리듀서 내부에만 있는 버전)
     confirmAndSubmit: (state, action) => {
@@ -243,7 +214,7 @@ const rightSidebarSlice = createSlice({
       state.originalShopData = null;
       state.editNewShopDataSet = null;
       state.modifiedFields = {};
-      state.isCompareModalVisible = false;
+      // compareModal 관련 상태 제거
       
       // 폼 데이터 초기화
       state.formData = updateFormDataFromShop(null, {});
@@ -274,7 +245,7 @@ const rightSidebarSlice = createSlice({
       state.originalShopData = null;
       state.editNewShopDataSet = null;
       state.modifiedFields = {};
-      state.isCompareModalVisible = false;
+      // compareModal 관련 상태 제거
       
       // 폼 데이터 초기화
       state.formData = updateFormDataFromShop(null, {});
@@ -314,15 +285,6 @@ const rightSidebarSlice = createSlice({
           if (state.formData) {
             state.formData[field] = value;
           }
-          
-          // 비교 모달이 열려있는 경우 모달 데이터도 업데이트
-          if (state.isCompareModalVisible && 
-              state.compareModalData && 
-              state.compareModalData.target && 
-              state.compareModalData.target.data) {
-            // 명시적 객체 복사 대신, 직접 참조 방식 사용
-            state.compareModalData.target.data = state.editNewShopDataSet;
-          }
         }
       } 
       // 여러 필드 업데이트 경우 (기존 updateFormData 기능 통합)
@@ -351,12 +313,6 @@ const rightSidebarSlice = createSlice({
             // 값 업데이트
             state.editNewShopDataSet[field] = value;
           });
-          
-          // 비교 모달 데이터도 업데이트 (필요한 경우)
-          if (state.isCompareModalVisible && 
-              state.compareModalData?.target?.data) {
-            state.compareModalData.target.data = state.editNewShopDataSet;
-          }
         }
       }
     },
@@ -377,6 +333,15 @@ const rightSidebarSlice = createSlice({
       
       // 초기 상태로 되돌림
       return initialState;
+    },
+    
+    // 오버레이 정리 액션 추가
+    cleanupOverlays: (state) => {
+      // 상태 초기화만 수행 (실제 DOM 조작은 thunk에서 수행)
+      state.tempOverlays = {
+        marker: null,
+        polygon: null
+      };
     },
     
     // 외부 상점 데이터와 동기화
@@ -478,12 +443,10 @@ const rightSidebarSlice = createSlice({
     
     // IDLE 상태 설정 액션 추가
     setIdleState: (state, action) => {
-      state.isIdle = action.payload ?? true;
+      state.isIdle = action.payload;
       
-      // IDLE 상태로 변경 시 폼 데이터 초기화 (선택적)
-      if (state.isIdle) {
-        state.formData = updateFormDataFromShop(null, {});
-      }
+      // 구글 검색 상태 초기화
+      state.isGsearch = false;
     },
     
     // 구글 장소 검색 모드 시작 (구글 장소 검색 버튼 클릭 시)
@@ -549,9 +512,6 @@ export const selectIsIdle = (state) => state.rightSidebar.isIdle;
 export const selectIsDrawing = (state) => state.rightSidebar.isDrawing;
 export const selectDrawingType = (state) => state.rightSidebar.drawingType;
 
-// 모달 창 관련 셀렉터
-export const selectIsCompareModalActive = (state) => state.rightSidebar.isCompareModalVisible;
-
 // 구글 장소 검색 관련 셀렉터
 export const selectIsGsearch = (state) => state.rightSidebar.isGsearch;
 
@@ -571,16 +531,14 @@ export const {
   endDrawingMode,
   updateCoordinates,
   addNewShop,
-  closeCompareModal,
-  confirmAndSubmit,
   setIdleState,
   startGsearch,
   endGsearch,
-  startCompareModal,
-  updateCompareModalTarget,
-  confirmComplete,
   toggleCompareBar,
   setCompareBarActive,
+  confirmAndSubmit,
+  confirmEdit,
+  cleanupOverlays
 } = rightSidebarSlice.actions;
 
 export default rightSidebarSlice.reducer; 

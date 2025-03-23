@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
 import { protoServerDataset } from '../dataModels';
+import { parseGooglePlaceData } from '../utils/placeUtils';
 import {
   togglePanel,
   startEdit,
@@ -18,24 +19,20 @@ import {
   selectFormData,
   selectModifiedFields,
   selectEditNewShopDataSet,
+  selectOriginalShopData,
   selectStatus,
   selectError,
-  selectIsCompareModalActive,
-  selectOriginalShopData,
-  startDrawingMode,
-  addNewShop,
-  closeCompareModal,
-  finalConfirmAndSubmit,
+  selectIsDrawing,
+  selectDrawingType,
   selectIsIdle,
-  startGsearch,
   selectIsGsearch,
-  startCompareModal,
-  updateCompareModalTarget,
-  endGsearch
+  startGsearch,
+  addNewShop,
+  setFieldValue,
+  clearFieldValue,
+  confirmEdit,
+  startDrawingMode
 } from '../store/slices/rightSidebarSlice';
-
-// 새로 분리한 CompareModalContainer 컴포넌트 import
-import CompareModalContainer from './CompareModalContainer';
 
 // 값이 비어있는지 확인하는 공통 함수
 const isValueEmpty = (value, fieldName) => {
@@ -92,7 +89,8 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
   const originalShopData = useSelector(selectOriginalShopData);
   const status = useSelector(selectStatus);
   const error = useSelector(selectError);
-  const isCompareModalActive = useSelector(selectIsCompareModalActive);
+  const isDrawing = useSelector(selectIsDrawing);
+  const drawingType = useSelector(selectDrawingType);
   const isIdle = useSelector(selectIsIdle);
   const isGsearchMode = useSelector(selectIsGsearch);
   
@@ -173,27 +171,9 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
   };
   
   const handleConfirmEdit = () => {
-    // 데이터 저장 없이 모달창만 표시 - startCompareModal 직접 사용
-    dispatch(startCompareModal({  //AT 확인버튼시 비교모달 호출
-      reference: { 
-        label: '원본', 
-        data: originalShopData 
-      },
-      target: { 
-        label: '수정본', 
-        data: true  // true면 state.editNewShopDataSet 참조
-      },
-      options: {
-        insertMode: false,
-        modalConfig: {
-          title: '비교후 전송',
-          button: {
-            text: '확정전송',
-            action: 'confirmComplete'
-          }
-        }
-      }
-    }));
+    // startCompareModal 대신 confirmEdit 액션 사용
+    dispatch(confirmEdit({ mapOverlayHandlers }));
+    console.log('수정 내용 확인 처리됨');
   };
   
   const handleCancelEdit = () => {
@@ -279,32 +259,58 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
 
   };
 
-  /**
-   * 구글 장소 데이터로 직접 비교 모달 표시 (샘플)
-   * 이런 방식으로 컴포넌트에서도 직접 모달 표시 가능
-   */
+  // Google에서 데이터 직접 표시 함수
   const handleDirectShowCompareModal = (googleData) => {
-    // 컴포넌트에서 직접 모달 설정을 구성 - index.js와 동일한 구조 사용
-    dispatch(startCompareModal({
-      reference: {
-        label: '구글데이터',
-        data: googleData
-      },
-      target: {
-        label: '현재데이터',
-        data: true // true면 state.editNewShopDataSet 참조
-      },
-      options: {
-        insertMode: true,
-        modalConfig: {
-          title: '구글Place 데이터',
-          button: {
-            text: '',
-            action: ''
-          }
-        }
-      }
-    }));
+    // 만약 googleData가 직접 구글 API에서 온 데이터라면 파싱
+    const processedData = googleData.geometry ? 
+      parseGooglePlaceData(googleData, process.env.NEXT_PUBLIC_MAPS_API_KEY) : 
+      googleData;
+    
+    // 파싱된 데이터 콘솔에 출력
+    console.log('[구글 직접 검색 결과 - 상세]', processedData);
+    
+    // 요약 정보 출력
+    console.log('[구글 직접 검색 결과 - 요약]', {
+      place: processedData.storeName,
+      address: processedData.address,
+      googleDataId: processedData.googleDataId,
+      pinCoordinates: processedData.pinCoordinates,
+      hasBusinessHours: processedData.businessHours && processedData.businessHours.length > 0
+    });
+    
+    // 필요한 필드 자동 업데이트
+    if (processedData.storeName) {
+      dispatch(updateField({ field: 'storeName', value: processedData.storeName }));
+      dispatch(trackField({ field: 'storeName' }));
+    }
+    
+    if (processedData.address) {
+      dispatch(updateField({ field: 'address', value: processedData.address }));
+      dispatch(trackField({ field: 'address' }));
+    }
+    
+    if (processedData.pinCoordinates) {
+      dispatch(updateField({ field: 'pinCoordinates', value: processedData.pinCoordinates }));
+      dispatch(trackField({ field: 'pinCoordinates' }));
+    }
+    
+    if (processedData.businessHours && processedData.businessHours.length) {
+      dispatch(updateField({ field: 'businessHours', value: processedData.businessHours }));
+      dispatch(trackField({ field: 'businessHours' }));
+    }
+    
+    // 이미지 처리 (있는 경우)
+    if (processedData.mainImage) {
+      dispatch(updateField({ field: 'mainImage', value: processedData.mainImage }));
+      dispatch(trackField({ field: 'mainImage' }));
+    }
+    
+    if (processedData.subImages && processedData.subImages.length) {
+      dispatch(updateField({ field: 'subImages', value: processedData.subImages }));
+      dispatch(trackField({ field: 'subImages' }));
+    }
+    
+    console.log('구글 검색 데이터로 폼이 업데이트되었습니다.');
   };
 
   return (
@@ -615,7 +621,6 @@ const SidebarContent = ({ addNewShopItem, moveToCurrentLocation, mapOverlayHandl
 const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedShop, onShopUpdate }) => {
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
-  const isCompareModalActive = useSelector(selectIsCompareModalActive);
   
   // 상점 데이터에서 serverDataset 추출
   const currentShopServerDataSet = curSelectedShop?.serverDataset || null;
@@ -654,11 +659,6 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
         onShopUpdate={onShopUpdate}
       />
       {togglePanelButton}
-      
-      {/* 모달 컴포넌트는 조건부 마운트 방식으로 분리
-      {isCompareModalActive && <CompareModalContainer mapOverlayHandlers={mapOverlayHandlers} />} */}
-
-      
     </>
   );
 };

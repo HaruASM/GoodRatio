@@ -279,15 +279,8 @@ const rightSidebarSlice = createSlice({
     },
     
     // 상태 초기화
-    resetState: (state, action) => {
-      // 임시 오버레이 정리 함수 호출 (액션에서 받은 핸들러 사용)
-      const mapOverlayHandlers = action.payload?.mapOverlayHandlers;
-      if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
-        mapOverlayHandlers.cleanupTempOverlays();
-        console.log('resetState에서 임시 오버레이 정리됨');
-      }
-      
-      // 초기 상태로 되돌림
+    resetState: (state) => {
+      // console.log('resetState에서 임시 오버레이 정리됨');
       return initialState;
     },
     
@@ -328,7 +321,7 @@ const rightSidebarSlice = createSlice({
         }
       } catch (error) {
         // 오류 처리
-        console.error('syncExternalShop 처리 중 오류 발생:', error);
+        // console.error('syncExternalShop 처리 중 오류 발생:', error);
       }
     },
     

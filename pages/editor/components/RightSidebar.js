@@ -174,13 +174,12 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   };
   
   const handleConfirmEdit = () => {
-    // startCompareModal 대신 startConfirm 액션 사용
     dispatch(startConfirm());
     // 편집 상태 종료 (isEditing = false)
     dispatch(endEdit());
     // 오버레이 정리를 컴포넌트에서 직접 처리
     mapOverlayHandlers.cleanupTempOverlays();
-    console.log('수정 내용 확인 처리됨');
+    // console.log('수정 내용 확인 처리됨');
   };
   
   const handleCancelEdit = () => {
@@ -189,7 +188,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     dispatch(endEdit());
     // 오버레이 정리를 컴포넌트에서 직접 처리
     mapOverlayHandlers.cleanupTempOverlays();
-    console.log('편집 취소 처리됨');
+    // console.log('편집 취소 처리됨');
   };
   
   const handleFieldEditButtonClick = (e, fieldName) => {
@@ -249,9 +248,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const handleGooglePlaceSearchClick = (e) => {
     e.preventDefault(); // A태그 클릭 방지
     
-  
-    
-    
+     
     // 검색창으로 포커스 이동 (존재하는 경우)
     // 3번만 시도하도록 변경
     let attempt = 0;
@@ -275,7 +272,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       googleData;
     
     // 파싱된 데이터 콘솔에 출력
-    console.log('[구글 직접 검색 결과 - 상세]', processedData);
+    // console.log('[구글 직접 검색 결과 - 상세]', processedData);
     
     
     // 필요한 필드 자동 업데이트
@@ -310,7 +307,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       dispatch(trackField({ field: 'subImages' }));
     }
     
-    console.log('구글 검색 데이터로 폼이 업데이트되었습니다.');
+    // console.log('구글 검색 데이터로 폼이 업데이트되었습니다.');
   };
 
   return (

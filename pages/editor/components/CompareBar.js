@@ -36,9 +36,9 @@ const CompareSidebarContent = () => {
   const compareData = useSelector(selectCompareBarData);
   
   // 디버깅을 위한 콘솔 로그 추가
-  console.log('CompareBar 데이터:', compareData);
-  console.log('메인 이미지 URL:', compareData.mainImage);
-  console.log('서브 이미지 배열:', compareData.subImages);
+  // console.log('CompareBar 데이터:', compareData);
+  // console.log('메인 이미지 URL:', compareData.mainImage);
+  // console.log('서브 이미지 배열:', compareData.subImages);
   
   // 값이 비어있는지 확인하는 공통 함수
   const isValueEmpty = (value, fieldName) => {

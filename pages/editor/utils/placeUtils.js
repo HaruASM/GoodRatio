@@ -8,79 +8,75 @@ import { protoServerDataset } from '../dataModels';
  */
 export const serializeGooglePlaceData = (detailPlace, apiKey) => {
   if (!detailPlace || !detailPlace.geometry || !detailPlace.geometry.location) {
-    console.error("유효하지 않은 구글 Place 데이터");
+    // console.error("유효하지 않은 구글 Place 데이터");
     return null;
   }
   
   // Google 원본 Photos 객체 디버깅
   if (detailPlace.photos) {
-    console.log('원본 구글 사진 객체 존재, 개수:', detailPlace.photos.length);
+    // console.log('원본 구글 사진 객체 존재, 개수:', detailPlace.photos.length);
     if (detailPlace.photos[0]) {
-      console.log('첫번째 사진 객체 내용:', detailPlace.photos[0]);
+      // console.log('첫번째 사진 객체 내용:', detailPlace.photos[0]);
       // 프로토타입 체인 검사
-      console.log('첫번째 사진 프로토타입:', Object.getPrototypeOf(detailPlace.photos[0]));
+      // console.log('첫번째 사진 프로토타입:', Object.getPrototypeOf(detailPlace.photos[0]));
       // 함수 목록 검사
       const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(detailPlace.photos[0]));
-      console.log('사진 객체 메서드 목록:', methods);
+      // console.log('사진 객체 메서드 목록:', methods);
     }
   } else {
-    console.log('원본 구글 사진 객체 없음');
+    // console.log('원본 구글 사진 객체 없음');
   }
   
   // 사진 객체 처리를 위한 직렬화 로직 추가
   let serializedPhotos = [];
   if (detailPlace.photos && detailPlace.photos.length > 0) {
     serializedPhotos = detailPlace.photos.map((photo, index) => {
-      // photo 객체의 속성 모두 출력
-      console.log(`사진 객체 ${index}의 모든 속성:`, Object.getOwnPropertyNames(photo));
+      // 객체의 모든 속성 확인
+      // console.log(`사진 객체 ${index}의 모든 속성:`, Object.getOwnPropertyNames(photo));
       
-      // photo 객체의 메서드를 직접 호출하여 이미지 URL 생성
-      let photoUrl = null;
+      // 사진 URL 생성 시도
+      let photoUrl = ''; // photoUrl 변수 선언 및 초기화
       
       try {
         // 메서드 호출 테스트 1: getUrl
         if (typeof photo.getUrl === 'function') {
           const originalUrl = photo.getUrl({ maxWidth: 400, maxHeight: 300 });
-          console.log(`원본 getUrl ${index}:`, originalUrl);
+          // console.log(`원본 getUrl ${index}:`, originalUrl);
           
           // Places JavaScript API URL을 Places REST API 형식으로 완전히 재구성
           // 예: maxwidth=400&photoreference=REF&key=KEY
           const photoRef = originalUrl.match(/1s([^&]+)/);
           if (photoRef && photoRef[1]) {
             photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoRef[1]}&key=${apiKey}`;
-            console.log(`getUrl 변환 결과 ${index} [변환 전]:`, originalUrl.substring(0, 100) + '...');
-            console.log(`getUrl 변환 결과 ${index} [변환 후]:`, photoUrl);
+            // console.log(`getUrl 변환 결과 ${index} [변환 전]:`, originalUrl.substring(0, 100) + '...');
+            // console.log(`getUrl 변환 결과 ${index} [변환 후]:`, photoUrl);
           } else {
-            console.error(`getUrl에서 photo_reference를 추출할 수 없음 ${index}`, originalUrl.substring(0, 100) + '...');
+            // console.error(`getUrl에서 photo_reference를 추출할 수 없음 ${index}`, originalUrl.substring(0, 100) + '...');
             photoUrl = originalUrl; // 원본 URL 유지
           }
         } else {
-          console.log(`getUrl이 함수가 아님 ${index}`);
+          // console.log(`getUrl이 함수가 아님 ${index}`);
         }
       } catch (error) {
-        console.error(`getUrl 호출 오류 ${index}:`, error);
+        // console.error(`getUrl 호출 오류 ${index}:`, error);
       }
       
-      // 메서드 호출 테스트 2: 프로토타입에서 메서드 찾기
-      if (!photoUrl) {
-        const proto = Object.getPrototypeOf(photo);
-        if (proto) {
-          const methodNames = Object.getOwnPropertyNames(proto)
-            .filter(name => typeof proto[name] === 'function');
-          
-          console.log(`사진 객체 ${index}의 사용 가능한 메서드:`, methodNames);
-          
-          // 이미지 관련 메서드 탐색
-          const urlMethods = methodNames.filter(name => 
-            name.toLowerCase().includes('url') || 
-            name.toLowerCase().includes('image') || 
-            name.toLowerCase().includes('get')
-          );
-          
-          if (urlMethods.length > 0) {
-            console.log(`잠재적 URL 관련 메서드 ${index}:`, urlMethods);
-          }
-        }
+      // 메서드 2: 다른 메서드 이름 찾기
+      try {
+        // 객체에서 사용 가능한 모든 메서드 찾기
+        const methodNames = Object.getOwnPropertyNames(Object.getPrototypeOf(photo))
+          .filter(prop => typeof photo[prop] === 'function');
+        // console.log(`사진 객체 ${index}의 사용 가능한 메서드:`, methodNames);
+        
+        // URL 관련 가능성이 있는 메서드 찾기
+        const urlMethods = methodNames.filter(name => 
+          name.toLowerCase().includes('url') || 
+          name.toLowerCase().includes('image') || 
+          name.toLowerCase().includes('photo')
+        );
+        // console.log(`잠재적 URL 관련 메서드 ${index}:`, urlMethods);
+      } catch (error) {
+        // console.error(`메서드 찾기 오류 ${index}:`, error);
       }
       
       return {
@@ -173,24 +169,24 @@ export const convertGooglePlaceToServerDataset = (serializedPlace, apiKey) => {
   // 구글 장소의 이미지 처리
   if (serializedPlace.photos && serializedPlace.photos.length > 0) {
     // 디버깅: photo 객체 상세 검사
-    console.log('서버데이터셋 변환 - 사진 데이터:', serializedPlace.photos[0]);
+    // console.log('서버데이터셋 변환 - 사진 데이터:', serializedPlace.photos[0]);
     
     // 첫 번째 이미지를 메인 이미지로 사용
     if (serializedPlace.photos[0]) {
       // getUrl 속성이 있으면 우선 사용 - 직렬화 과정에서 이미 적절히 변환된 URL임
       if (serializedPlace.photos[0].getUrl) {
         convertedData.mainImage = serializedPlace.photos[0].getUrl;
-        console.log('메인 이미지에 getUrl 사용:', convertedData.mainImage);
+        // console.log('메인 이미지에 getUrl 사용:', convertedData.mainImage);
       } 
       // photo_reference가 있으면 API 호출 URL 생성
       else if (serializedPlace.photos[0].photo_reference) {
         convertedData.mainImage = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${serializedPlace.photos[0].photo_reference}&key=${apiKey}`;
-        console.log('메인 이미지에 photo_reference 사용:', convertedData.mainImage);
+        // console.log('메인 이미지에 photo_reference 사용:', convertedData.mainImage);
       }
       else {
-        console.log('메인 이미지 URL 생성 실패 - photo_reference와 getUrl 모두 없음');
+        // console.log('메인 이미지 URL 생성 실패 - photo_reference와 getUrl 모두 없음');
         // 디버깅을 위해 전체 photo 객체 출력
-        console.log('메인 이미지 객체 전체:', JSON.stringify(serializedPlace.photos[0]));
+        // console.log('메인 이미지 객체 전체:', JSON.stringify(serializedPlace.photos[0]));
       }
     }
     
@@ -199,16 +195,16 @@ export const convertGooglePlaceToServerDataset = (serializedPlace, apiKey) => {
       convertedData.subImages = serializedPlace.photos.slice(1).map((photo, index) => {
         // getUrl 속성이 있으면 우선 사용 - 직렬화 과정에서 이미 적절히 변환된 URL임
         if (photo.getUrl) {
-          console.log(`서브 이미지 ${index}에 getUrl 사용`);
+          // console.log(`서브 이미지 ${index}에 getUrl 사용`);
           return photo.getUrl;
         } 
         // photo_reference가 있으면 API 호출 URL 생성
         else if (photo.photo_reference) {
-          console.log(`서브 이미지 ${index}에 photo_reference 사용`);
+          // console.log(`서브 이미지 ${index}에 photo_reference 사용`);
           return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${apiKey}`;
         }
         else {
-          console.log(`서브 이미지 ${index} URL 생성 실패 - photo_reference와 getUrl 모두 없음`);
+          // console.log(`서브 이미지 ${index} URL 생성 실패 - photo_reference와 getUrl 모두 없음`);
           // 빈 문자열 반환 (이미지 로드 실패 시 에러 처리기에서 처리)
           return '';
         }

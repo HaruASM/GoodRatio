@@ -58,7 +58,7 @@ const SectionsDBManager = {
   getSectionItems: async function(sectionName) {
     // 1. 캐시에서 먼저 확인
     if (this._cache.has(sectionName)) {
-      console.log(`SectionsDBManager: 캐시에서 ${sectionName} 데이터 로드 (${this._cache.get(sectionName).length}개 항목)`);
+      // console.log(`SectionsDBManager: 캐시에서 ${sectionName} 데이터 로드 (${this._cache.get(sectionName).length}개 항목)`);
       return this._cache.get(sectionName);
     }
     
@@ -72,10 +72,10 @@ const SectionsDBManager = {
       // 4. 캐시에 저장
       this._cache.set(sectionName, clientItems);
       
-      console.log(`SectionsDBManager: ${sectionName} 데이터 로드 완료 (${clientItems.length}개 항목)`);
+      // console.log(`SectionsDBManager: ${sectionName} 데이터 로드 완료 (${clientItems.length}개 항목)`);
       return clientItems;
     } catch (error) {
-      console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오류`, error);
+      // console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오류`, error);
       return [];
     }
   },
@@ -108,7 +108,7 @@ const SectionsDBManager = {
         clientItem.itemMarker = overlays.marker;
         clientItem.itemPolygon = overlays.polygon;
       } catch (error) {
-        console.error('오버레이 생성 중 오류 발생:', error);
+        // console.error('오버레이 생성 중 오류 발생:', error);
       }
       
       return clientItem;
@@ -124,7 +124,7 @@ const SectionsDBManager = {
     // 캐시만 업데이트 (로컬 스토리지에는 저장하지 않음)
     this._cache.set(sectionName, items);
     
-    console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${items.length}개 항목)`);
+    // console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${items.length}개 항목)`);
 
   },
   
@@ -133,7 +133,7 @@ const SectionsDBManager = {
    */
   clearCache: function() {
     this._cache.clear();
-    console.log('SectionsDBManager: 캐시 초기화됨');
+    // console.log('SectionsDBManager: 캐시 초기화됨');
   }
 };
 
@@ -188,7 +188,7 @@ export default function Editor() { // 메인 페이지
     
   // CompareBar 활성화 상태 가져오기
   const isActiveCompareBar = useSelector(selectIsCompareBarActive);
-  console.log('CompareBar 활성화 상태:', isActiveCompareBar);
+  // console.log('CompareBar 활성화 상태:', isActiveCompareBar);
   
 
   // 로컬 저장소에서 sectionsDB 저장 함수는 serverUtils.js로 이동했습니다.
@@ -306,7 +306,7 @@ export default function Editor() { // 메인 페이지
   const initMarker = () => { 
      // MapUtils 초기화 (684라인)
      if (!mapUtils.initialize()) {
-      console.error('MapUtils 초기화 실패');
+      // console.error('MapUtils 초기화 실패');
       return;
      }
     // 공유 인포윈도우 초기화 (필요한 경우)
@@ -319,7 +319,7 @@ export default function Editor() { // 메인 페이지
   const initSearchInput = (_mapInstance) => {
     const inputDom = searchInputDomRef.current;
     if (!inputDom) {
-      console.error("Search input DOM element not found");
+      // console.error("Search input DOM element not found");
       return;
     }
 
@@ -335,7 +335,7 @@ export default function Editor() { // 메인 페이지
     autocomplete.addListener('place_changed', () => {
       const detailPlace = autocomplete.getPlace();
       if (!detailPlace.geometry || !detailPlace.geometry.location) {
-        console.error("구글place 미작동: '" + detailPlace.name + "'");
+        // console.error("구글place 미작동: '" + detailPlace.name + "'");
         return;
       }
       
@@ -347,15 +347,15 @@ export default function Editor() { // 메인 페이지
         const convertedGoogleData = parseGooglePlaceData(detailPlace, myAPIkeyforMap);
         
         // 이미지 URL 디버깅
-        console.log('[구글 이미지 URL 확인]', {
-          mainImage: convertedGoogleData?.mainImage,
-          hasMainImage: !!convertedGoogleData?.mainImage,
-          subImagesCount: convertedGoogleData?.subImages?.length,
-          apiKey: !!myAPIkeyforMap
-        });
+        // console.log('[구글 이미지 URL 확인]', {
+        //   mainImage: convertedGoogleData?.mainImage,
+        //   hasMainImage: !!convertedGoogleData?.mainImage,
+        //   subImagesCount: convertedGoogleData?.subImages?.length,
+        //   apiKey: !!myAPIkeyforMap
+        // });
         
         // 파싱된 데이터를 콘솔에 출력
-        console.log('[구글 장소 검색 결과 - 상세]', convertedGoogleData);
+        // console.log('[구글 장소 검색 결과 - 상세]', convertedGoogleData);
         dispatch(setCompareBarActive(convertedGoogleData));
       }
 
@@ -609,7 +609,7 @@ export default function Editor() { // 메인 페이지
           setCurrentPosition(pos);
         },
         (error) => {
-          console.error('Geolocation error:', error);
+          // console.error('Geolocation error:', error);
           alert('위치 정보를 가져올 수 없습니다.');
         }
       );
@@ -632,7 +632,7 @@ export default function Editor() { // 메인 페이지
           // console.log('geolocation 에러 : ',error);
         });
     } else {
-      console.error('geolocation 지원 안되는 중');
+      // console.error('geolocation 지원 안되는 중');
     }
 
     //-- g맵 인스턴스 생성
@@ -691,13 +691,19 @@ export default function Editor() { // 메인 페이지
             initGoogleMapPage();// 여기는 window.google과 window.google.maps객체가 로딩 확정된 시점이다 
             clearInterval(_intervalId);
           } else {
-            if (_cnt++ > 10) { clearInterval(_intervalId); console.error('구글맵 로딩 오류'); }
-            console.error('구글맵 로딩 중', _cnt);
+            if (_cnt++ > 10) { 
+              clearInterval(_intervalId); 
+              // console.error('구글맵 로딩 오류'); 
+            }
+            // console.error('구글맵 로딩 중', _cnt);
           }
         }, 100);
       } else {
-        if (_cnt++ > 10) { clearInterval(_intervalId); console.error('구글서비스 로딩 오류'); }
-        console.error('구글서비스 로딩 중', _cnt);
+        if (_cnt++ > 10) { 
+          clearInterval(_intervalId); 
+          // console.error('구글서비스 로딩 오류'); 
+        }
+        // console.error('구글서비스 로딩 중', _cnt);
       }
     }, 100);
 
@@ -728,7 +734,7 @@ export default function Editor() { // 메인 페이지
     // 초기에 IDLE 상태로 설정
     dispatch(setRightSidebarIdleState(true));
     
-    console.log("CompareBar 활성화 상태를 true로 설정");
+    // console.log("CompareBar 활성화 상태를 true로 설정");
   }, [dispatch]);
 
   //## selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
@@ -831,7 +837,7 @@ export default function Editor() { // 메인 페이지
           }
         }
       } catch (error) {
-        console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
+        // console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
       }
     }
 
@@ -849,7 +855,9 @@ export default function Editor() { // 메인 페이지
         setCurItemListInCurSection(_sectionItemListfromDB);
         // 현재 아이템 리스트 참조 업데이트
         currentItemListRef.current = _sectionItemListfromDB;
-      } else console.error('DB에 데이터가 없음'); // 이 경우는 발생 불가. 
+      } else {
+        // console.error('DB에 데이터가 없음'); // 이 경우는 발생 불가.
+      }
     });
   }, [curSectionName]); // 중요: curSectionName만 종속성으로 유지. 추가하지말것것
 
@@ -860,7 +868,7 @@ export default function Editor() { // 메인 페이지
     if(!instMap.current) return;  // 최초 curItemListInCurSection초기화시 1회 이탈
 
     if (!curItemListInCurSection.length) {
-      console.error('아이템 리스트가 비어 있습니다.');
+      // console.error('아이템 리스트가 비어 있습니다.');
       return; 
     }
     
@@ -933,7 +941,7 @@ export default function Editor() { // 메인 페이지
     // 좌측 사이드바 아이템 리스트 업데이트
     const itemListContainer = document.querySelector(`.${styles.itemList}`);
     if (!itemListContainer) {
-      console.error('Item list container not found');
+      // console.error('Item list container not found');
       return;
     }
 
@@ -996,7 +1004,7 @@ export default function Editor() { // 메인 페이지
               instMap.current.setZoom(18);
             }
           } catch (error) {
-            console.error('지도 이동 중 오류 발생:', error);
+            // console.error('지도 이동 중 오류 발생:', error);
           }
         }
       });

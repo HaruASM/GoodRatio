@@ -75,7 +75,7 @@ const isEqual = (val1, val2) => {
 export const checkDataIsChanged = (refItem, editedItem) => {  //AT checkDataIsChanged (작업중) 
   // null 또는 undefined 체크를 명확히 함
   if (!refItem || !editedItem) {
-    console.log('compareShopData: 원본 또는 편집 데이터가 없음', { original: refItem, edited: editedItem });
+    // console.log('compareShopData: 원본 또는 편집 데이터가 없음', { original: refItem, edited: editedItem });
     return [];
   }
   
@@ -87,9 +87,9 @@ export const checkDataIsChanged = (refItem, editedItem) => {  //AT checkDataIsCh
     // 일반 값 비교 - 개선된 isEqual 함수 사용
     if (!isEqual(editedItem[key], refItem[key])) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`필드 ${key}: 값 다름`);
-        console.log('  원본:', refItem[key]);
-        console.log('  편집:', editedItem[key]);
+        // console.log(`필드 ${key}: 값 다름`);
+        // console.log('  원본:', refItem[key]);
+        // console.log('  편집:', editedItem[key]);
       }
       // 변경된 키를 배열에 추가
       keysChanged.push(key);
@@ -97,9 +97,9 @@ export const checkDataIsChanged = (refItem, editedItem) => {  //AT checkDataIsCh
   }
   
   if (keysChanged.length === 0 && process.env.NODE_ENV !== 'production') {
-    console.log('compareShopData: 변경사항 없음');
+    // console.log('compareShopData: 변경사항 없음');
   } else if (process.env.NODE_ENV !== 'production') {
-    console.log('변경된 필드:', keysChanged);
+    // console.log('변경된 필드:', keysChanged);
   }
   
   return keysChanged;

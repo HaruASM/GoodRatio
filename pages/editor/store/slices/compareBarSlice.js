@@ -2,16 +2,16 @@ import { createSlice } from '@reduxjs/toolkit';
 import { protoServerDataset } from '../../dataModels';
 
 const initialState = {
-  isActiveCompareBar: true, // FIXME 추후 false 초기화 
+  isActiveCompareBar: false,
   selectedCompareBarData: { ...protoServerDataset },
-  isSyncGoogleSearch: false
+  isSyncGoogleSearchCompareBar: false // true이면 구글 검색폼 검색시 setCompareBarActive가 호출됨됨
 };
 
 const compareBarSlice = createSlice({
   name: 'compareBar',
   initialState,
   reducers: {
-    // protoServerDataSet객체를 넘겨받아, comparBar에 출력함. 
+    // protoServerDataSet객체를 넘겨받아, comparBar에 출력함. //1회성 출력. begin액션 없음
     setCompareBarActive: (state, action) => {
       
       if (action.payload) {
@@ -26,12 +26,12 @@ const compareBarSlice = createSlice({
 
     // 구글 검색 동기화 상태 설정
     setSyncGoogleSearch: (state) => {
-      state.isSyncGoogleSearch = true;
+      state.isSyncGoogleSearchCompareBar = true; // 구글 검색폼 검색시 setCompareBarActive가 호출됨됨
     },
 
     endCompareBar: (state) => {
       state.isActiveCompareBar = false; 
-      state.isSyncGoogleSearch = false;
+      state.isSyncGoogleSearchCompareBar = false;
       state.selectedCompareBarData = { ...protoServerDataset };
 
     }
@@ -48,6 +48,6 @@ export const {
 // 선택자 함수
 export const selectIsCompareBarActive = (state) => state.compareBar.isActiveCompareBar;
 export const selectCompareBarData = (state) => state.compareBar.selectedCompareBarData;
-export const selectIsSyncGoogleSearch = (state) => state.compareBar.isSyncGoogleSearch;
+export const selectisSyncGoogleSearchCompareBar = (state) => state.compareBar.isSyncGoogleSearchCompareBar;
 
 export default compareBarSlice.reducer; 

@@ -6,6 +6,7 @@ import { compareShopData, updateFormDataFromShop, checkDataIsChanged } from '../
 const initialState = {
   isPanelVisible: true,
   isEditing: false,
+  isEditorOn: false,  // 폼 데이터 입력 과정을 나타내는 상태 추가
   isConfirming: false,
   hasChanges: false,
   originalShopData: null,
@@ -25,13 +26,8 @@ const initialState = {
   // IDLE 상태 추가 (초기에는 IDLE 상태)
   isIdle: true,
   // 구글 장소 검색 관련 상태 추가
-  isGsearch: false,
+  
   isCompareBarActive: true,  // CompareBar 활성화 상태 (초기값은 true로 유지)
-  // 임시 오버레이 상태 추가
-  tempOverlays: {
-    marker: null,
-    polygon: null
-  }
 };
 
 // 비동기 액션: 상점 데이터 저장
@@ -53,9 +49,15 @@ export const saveShopData = createAsyncThunk( // 액션 생성자자
 // 최종 확인 액션 (thunk로 분리)
 export const finalConfirmAndSubmit = createAsyncThunk(
   'rightSidebar/finalConfirmAndSubmit',
-  async (_, { dispatch, getState }) => {
+  async (payload, { dispatch, getState }) => {
     // 일반 액션 디스패치 (최종 확인)
     dispatch(confirmAndSubmit());
+    
+    // 편집 상태 종료 (isEditing = false)
+    dispatch(endEdit());
+    
+    // 오버레이 정리는 컴포넌트에서 직접 호출해야 함
+    // payload?.mapOverlayHandlers?.cleanupTempOverlays?.()
     
     // 로딩 상태로 변경
     dispatch(setStatus('loading'));
@@ -85,18 +87,6 @@ export const finalConfirmAndSubmit = createAsyncThunk(
   }
 );
 
-// 임시 오버레이 정리 thunk 액션
-export const cleanupTempOverlaysThunk = createAsyncThunk(
-  'rightSidebar/cleanupTempOverlaysThunk',
-  async (_, { dispatch, getState }) => {
-    // 먼저 상태 업데이트
-    dispatch(cleanupOverlays());
-
-    // 실제 DOM 정리 로직은 컴포넌트에서 처리됨 - 상태 변화에 반응해서
-    return true;
-  }
-);
-
 // 사이드바 슬라이스 생성 //AT Slice 리듀서, 액션 선언부 
 const rightSidebarSlice = createSlice({
   name: 'rightSidebar',
@@ -110,6 +100,7 @@ const rightSidebarSlice = createSlice({
     // 편집 시작
     startEdit: (state, action) => {
       state.isEditing = true;
+      state.isEditorOn = true;  // 에디터 활성화
       state.isConfirming = false;
       
       // 항상 serverDataset 형식의 데이터로 가정
@@ -123,11 +114,11 @@ const rightSidebarSlice = createSlice({
       // modifiedFields는 유지 (수정된 필드 표시를 위해)
     },
     
-    // 편집 완료
-    completeEdit: (state, action) => {
+    // 편집 완료 (이름 변경: completeEdit -> completeEditor)
+    completeEditor: (state, action) => {
       // null 체크 강화
       if (!state.originalShopData || !state.editNewShopDataSet) {
-        state.isEditing = false;
+        state.isEditorOn = false;  // 에디터 비활성화
         state.isConfirming = false;
         state.hasChanges = false;
         return;
@@ -137,7 +128,7 @@ const rightSidebarSlice = createSlice({
       const hasChanges = Object.keys(state.modifiedFields).length > 0;
       
                
-      state.isEditing = false;
+      state.isEditorOn = false;  // 에디터 비활성화 (isEditing은 유지)
       state.isConfirming = true; // 항상 확인 상태로 전환
       state.hasChanges = hasChanges;
       
@@ -146,15 +137,7 @@ const rightSidebarSlice = createSlice({
     
     // 편집 취소
     cancelEdit: (state, action) => {
-      // 임시 오버레이 정리 함수 호출 (액션에서 받은 핸들러 사용)
-      // 액션 페이로드로 mapOverlayHandlers가 전달되었다면 사용
-      const mapOverlayHandlers = action.payload?.mapOverlayHandlers;
-      if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
-        mapOverlayHandlers.cleanupTempOverlays();
-        console.log('cancelEdit에서 임시 오버레이 정리됨');
-      }
-      
-      state.isEditing = false;
+      state.isEditorOn = false;  // 에디터 비활성화
       state.isConfirming = false;
       state.hasChanges = false;
       state.editNewShopDataSet = null;
@@ -164,22 +147,19 @@ const rightSidebarSlice = createSlice({
       // 취소 시 IDLE 상태로 복귀
       state.isIdle = true;
       
-      // 구글 검색 상태 초기화
-      state.isGsearch = false;
+      // endEdit 액션을 불러 isEditing 상태를 변경
+      // 이 부분은 endEdit 액션이 cancelEdit 이후에 호출되도록 외부에서 처리해야 함
+    },
+    
+    // 편집 종료 (공통 액션)
+    endEdit: (state) => {
+      state.isEditing = false;
     },
     
     // 확인 액션 추가 (최종 확인 단계로 진행)
-    confirmEdit: (state, action) => {
-      // 임시 오버레이 정리 함수 호출 (액션에서 받은 핸들러 사용)
-      const mapOverlayHandlers = action.payload?.mapOverlayHandlers;
-      if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
-        mapOverlayHandlers.cleanupTempOverlays();
-        console.log('confirmEdit에서 임시 오버레이 정리됨');
-      }
-
+    startConfirm: (state, action) => {
       // null 체크 강화
       if (!state.originalShopData || !state.editNewShopDataSet) {
-        state.isEditing = false;
         state.isConfirming = false;
         state.hasChanges = false;
         return;
@@ -189,7 +169,7 @@ const rightSidebarSlice = createSlice({
       const hasChanges = Object.keys(state.modifiedFields).length > 0;
       
       // 상태 업데이트
-      state.isEditing = false;
+      state.isEditorOn = false;  // 에디터 비활성화
       state.isConfirming = true; // 확인 상태로 전환
       state.hasChanges = hasChanges;
       
@@ -200,15 +180,8 @@ const rightSidebarSlice = createSlice({
     
     // 최종 확인 및 전송 액션 추가 (리듀서 내부에만 있는 버전)
     confirmAndSubmit: (state, action) => {
-      // 임시 오버레이 정리 함수 호출 (액션에서 받은 핸들러 사용)
-      const mapOverlayHandlers = action.payload?.mapOverlayHandlers;
-      if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
-        mapOverlayHandlers.cleanupTempOverlays();
-        console.log('confirmAndSubmit에서 임시 오버레이 정리됨');
-      }
-
       // 상태 초기화
-      state.isEditing = false;
+      state.isEditorOn = false;  // 에디터 비활성화
       state.isConfirming = false;
       state.hasChanges = false;
       state.originalShopData = null;
@@ -220,32 +193,15 @@ const rightSidebarSlice = createSlice({
       state.formData = updateFormDataFromShop(null, {});
     },
 
-    button1: (state, action) => {
-      console.log('button1 called', action.payload);
-    },
-    
     // 최종 확인 완료 액션 추가
-    confirmComplete: (state, action) => {
-      console.log('confirmComplete 액션 호출됨', action.payload);
-      
-      // 임시 오버레이 정리 함수 호출 (액션에서 받은 핸들러 사용)
-      const mapOverlayHandlers = action.payload?.mapOverlayHandlers;
-      if (mapOverlayHandlers && typeof mapOverlayHandlers.cleanupTempOverlays === 'function') {
-        mapOverlayHandlers.cleanupTempOverlays();
-        console.log('confirmComplete에서 임시 오버레이 정리됨');
-      }
-      
-      // 여기서 필요한 최종 확인 및 데이터 처리 로직 구현
-      // 예: API 호출, 데이터 검증 등
-      
-      // 상태 초기화 로직은 confirmAndSubmit과 유사
-      state.isEditing = false;
+    completeConfirm: (state, action) => {
+      // 상태 초기화
+      state.isEditorOn = false;  // 에디터 비활성화
       state.isConfirming = false;
       state.hasChanges = false;
       state.originalShopData = null;
       state.editNewShopDataSet = null;
       state.modifiedFields = {};
-      // compareModal 관련 상태 제거
       
       // 폼 데이터 초기화
       state.formData = updateFormDataFromShop(null, {});
@@ -253,7 +209,7 @@ const rightSidebarSlice = createSlice({
       // IDLE 상태로 되돌림
       state.isIdle = true;
     },
-    
+
     // 필드 업데이트 - 단일 업데이트 경로
     updateField: (state, action) => {
       // 단일 필드 업데이트 경우
@@ -335,17 +291,17 @@ const rightSidebarSlice = createSlice({
       return initialState;
     },
     
-    // 오버레이 정리 액션 추가
-    cleanupOverlays: (state) => {
-      // 상태 초기화만 수행 (실제 DOM 조작은 thunk에서 수행)
-      state.tempOverlays = {
-        marker: null,
-        polygon: null
-      };
-    },
-    
     // 외부 상점 데이터와 동기화
     syncExternalShop: (state, action) => {
+      
+      // 편집 모드나 확인 모드일 경우 폼 데이터 동기화 스킵
+      // isEditing = true: 편집 중일 때는 폼 데이터를 사용자 입력으로 유지
+      // isConfirming = true: 확인 단계일 때는 편집 데이터 유지
+      if (state.isEditing ) {
+        return;
+      }
+      
+      
       // shopData가 null인 경우에도 명시적 처리
       if (!action.payload || action.payload.shopData === undefined) {
         // IDLE 상태로 설정하고 폼 데이터 초기화
@@ -353,14 +309,7 @@ const rightSidebarSlice = createSlice({
         state.formData = updateFormDataFromShop(null, {});
         return;
       }
-      
-      // 편집 모드나 확인 모드일 경우 폼 데이터 동기화 스킵
-      // isEditing = true: 편집 중일 때는 폼 데이터를 사용자 입력으로 유지
-      // isConfirming = true: 확인 단계일 때는 편집 데이터 유지
-      if (state.isEditing || state.isConfirming) {
-        return;
-      }
-      
+    
       try {
         // 직접 데이터 사용 (protoServerDataset 구조)
         const shopData = action.payload.shopData;
@@ -387,6 +336,7 @@ const rightSidebarSlice = createSlice({
     addNewShop: (state) => {
       // 상태 초기화
       state.isEditing = true;
+      state.isEditorOn = true;  // 에디터 활성화
       state.isConfirming = false;
       state.hasChanges = false;
       state.modifiedFields = {};
@@ -444,29 +394,6 @@ const rightSidebarSlice = createSlice({
     // IDLE 상태 설정 액션 추가
     setRightSidebarIdleState: (state, action) => {
       state.isIdle = action.payload;
-      
-      // 구글 검색 상태 초기화
-      state.isGsearch = false;
-    },
-    
-    // 구글 장소 검색 모드 시작 (구글 장소 검색 버튼 클릭 시)
-    startGsearch: (state) => {
-      state.isGsearch = true;
-    },
-    
-    // 구글 장소 검색 모드 종료
-    endGsearch: (state) => {
-      state.isGsearch = false;
-    },
-    
-    // CompareBar 토글 액션
-    toggleCompareBar: (state) => {
-      state.isCompareBarActive = !state.isCompareBarActive;
-    },
-    
-    // CompareBar 활성화 상태 설정 액션
-    setCompareBarActive: (state, action) => {
-      state.isCompareBarActive = action.payload;
     },
   },
   
@@ -496,6 +423,7 @@ const rightSidebarSlice = createSlice({
 export const selectRightSidebarState = (state) => state.rightSidebar;
 export const selectIsPanelVisible = (state) => state.rightSidebar.isPanelVisible;
 export const selectIsEditing = (state) => state.rightSidebar.isEditing;
+export const selectIsEditorOn = (state) => state.rightSidebar.isEditorOn;
 export const selectIsConfirming = (state) => state.rightSidebar.isConfirming;
 export const selectHasChanges = (state) => state.rightSidebar.hasChanges;
 export const selectOriginalShopData = (state) => state.rightSidebar.originalShopData;
@@ -512,17 +440,12 @@ export const selectIsIdle = (state) => state.rightSidebar.isIdle;
 export const selectIsDrawing = (state) => state.rightSidebar.isDrawing;
 export const selectDrawingType = (state) => state.rightSidebar.drawingType;
 
-// 구글 장소 검색 관련 셀렉터
-export const selectIsGsearch = (state) => state.rightSidebar.isGsearch;
-
-// CompareBar 활성화 상태 셀렉터
-export const selectIsCompareBarActive = (state) => state.rightSidebar.isCompareBarActive;
-
 export const {
   togglePanel,
   startEdit,
-  completeEdit,
+  completeEditor,
   cancelEdit,
+  endEdit,
   updateField,
   trackField,
   resetState,
@@ -535,10 +458,9 @@ export const {
   startGsearch,
   endGsearch,
   toggleCompareBar,
-  setCompareBarActive,
   confirmAndSubmit,
-  confirmEdit,
-  cleanupOverlays
+  startConfirm,
+  completeConfirm
 } = rightSidebarSlice.actions;
 
 export default rightSidebarSlice.reducer; 

@@ -27,8 +27,7 @@ import {
   updateCoordinates,
   syncExternalShop,
   selectFormData,
-  setRightSidebarIdleState,
-  cleanupTempOverlaysThunk
+  setRightSidebarIdleState
 } from './store/slices/rightSidebarSlice';
 
 import store from './store';
@@ -152,8 +151,8 @@ export default function Editor() { // 메인 페이지
   //const [drawingManager, setDrawingManager] = useState(null);
   const drawingManagerRef = useRef(null);
   const [overlayEditing, setOverlayEditing] = useState(null); // 에디터에서 작업중인 오버레이. 1개만 운용
-  const [overlayMarkerFoamCard, setOverlayMarkerFoamCard] = useState(null);
-  const [overlayPolygonFoamCard, setOverlayPolygonFoamCard] = useState(null);
+  const overlayMarkerFoamCard = useRef(null);
+  const overlayPolygonFoamCard = useRef(null);
 
   const searchInputDomRef = useRef(null);
   const searchformRef = useRef(null);
@@ -163,6 +162,9 @@ export default function Editor() { // 메인 페이지
   const [isSidebarVisible, setIsSidebarVisible] = useState(true); // 사이드바 가시성 상태 추가
   const [isSearchFocused, setIsSearchFocused] = useState(false); // 검색창 포커스 상태 추가
 
+  // 임시 오버레이(마커, 다각형) 관리 - 하나의 상태로 통합
+  const [tempOverlays, setTempOverlays] = useState({ marker: null, polygon: null });
+  
   // sectionsDB 참조 제거 (SectionsDBManager로 완전히 대체)
   
   const [curItemListInCurSection, setCurItemListInCurSection] = useState([]);
@@ -182,13 +184,13 @@ export default function Editor() { // 메인 페이지
   
   // 폼 데이터는 이제 Redux에서 관리 (로컬 상태 제거)
   const formData = useSelector(selectFormData);
-
+  
     
   // CompareBar 활성화 상태 가져오기
   const isActiveCompareBar = useSelector(selectIsCompareBarActive);
   console.log('CompareBar 활성화 상태:', isActiveCompareBar);
   
-  
+
   // 로컬 저장소에서 sectionsDB 저장 함수는 serverUtils.js로 이동했습니다.
 
   // protoServerDataset과 protoShopDataSet은 dataModels.js로 이동했습니다.
@@ -285,9 +287,20 @@ export default function Editor() { // 메인 페이지
 
   const mapOverlayHandlers = useMemo(() => {
     return {
-      cleanupTempOverlays: cleanupTempOverlaysThunk
+      cleanupTempOverlays: () => {
+        // 마커가 있으면 제거
+        if (tempOverlays.marker) {
+          tempOverlays.marker.setMap(null);
+        }
+        // 폴리곤이 있으면 제거
+        if (tempOverlays.polygon) {
+          tempOverlays.polygon.setMap(null);
+        }
+        // 상태 초기화
+        setTempOverlays({ marker: null, polygon: null });
+      }
     };
-  }, []);
+  }, [tempOverlays]);
 
   // 마커와 폴리곤 옵션 초기화 함수
   const initMarker = () => { 
@@ -326,16 +339,25 @@ export default function Editor() { // 메인 페이지
         return;
       }
       
-      // (isSyncGoogleSearch&& isCompareBarActive)일 때만 setCompareBarActive 액션 디스패치
-      const isSyncGoogleSearch = store.getState().compareBar.isSyncGoogleSearch;
-      if (isSyncGoogleSearch && isCompareBarActive) {
+      // (isSyncGoogleSearchCompareBar&& isCompareBarActive)일 때만 setCompareBarActive 액션 디스패치
+      const _isSyncGoogleSearchCompareBar = store.getState().compareBar.isSyncGoogleSearchCompareBar;
+      const _isActiveCompareBar = store.getState().compareBar.isActiveCompareBar;
+      if (_isSyncGoogleSearchCompareBar && _isActiveCompareBar) {
         // 유틸리티 함수를 사용하여 구글 장소 데이터를 앱 형식으로 변환
         const convertedGoogleData = parseGooglePlaceData(detailPlace, myAPIkeyforMap);
+        
+        // 이미지 URL 디버깅
+        console.log('[구글 이미지 URL 확인]', {
+          mainImage: convertedGoogleData?.mainImage,
+          hasMainImage: !!convertedGoogleData?.mainImage,
+          subImagesCount: convertedGoogleData?.subImages?.length,
+          apiKey: !!myAPIkeyforMap
+        });
         
         // 파싱된 데이터를 콘솔에 출력
         console.log('[구글 장소 검색 결과 - 상세]', convertedGoogleData);
         dispatch(setCompareBarActive(convertedGoogleData));
-      } 
+      }
 
       // 지도 이동 로직은 항상 실행
       if (detailPlace.geometry.viewport) {
@@ -473,12 +495,11 @@ export default function Editor() { // 메인 페이지
       }));
       
       // 기존 임시 마커가 있으면 제거
-      if (tempOverlaysRef.current.marker) {
-        tempOverlaysRef.current.marker.setMap(null);
+      if (tempOverlays.marker) {
+        tempOverlays.marker.setMap(null);
       }
       
-      // 새 마커를 임시 오버레이로 저장 (ref와 상태 모두 업데이트)
-      tempOverlaysRef.current.marker = marker;
+      // 새 마커를 임시 오버레이로 저장
       setTempOverlays(prev => ({
         ...prev,
         marker: marker
@@ -519,12 +540,11 @@ export default function Editor() { // 메인 페이지
       }));
       
       // 기존 임시 폴리곤이 있으면 제거
-      if (tempOverlaysRef.current.polygon) {
-        tempOverlaysRef.current.polygon.setMap(null);
+      if (tempOverlays.polygon) {
+        tempOverlays.polygon.setMap(null);
       }
       
       // 새 폴리곤을 임시 오버레이로 저장 (ref와 상태 모두 업데이트)
-      tempOverlaysRef.current.polygon = polygon;
       setTempOverlays(prev => ({
         ...prev,
         polygon: polygon
@@ -814,7 +834,7 @@ export default function Editor() { // 메인 페이지
         console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
       }
     }
-    
+
   }, [curSelectedShop]); //## 추가 종속성 절대 추가 금지. curSelectedShop이 변경될때만 연산되는 useEffect. 
 
   
@@ -1006,7 +1026,19 @@ export default function Editor() { // 메인 페이지
     setIsSearchFocused(false);
   };
 
-  
+  // 컴포넌트 언마운트 시 임시 오버레이 정리
+  useEffect(() => {
+    return () => {
+      // 마커가 있으면 제거
+      if (tempOverlays.marker) {
+        tempOverlays.marker.setMap(null);
+      }
+      // 폴리곤이 있으면 제거
+      if (tempOverlays.polygon) {
+        tempOverlays.polygon.setMap(null);
+      }
+    };
+  }, [tempOverlays]);
 
   return (
     <div className={styles.editorContainer}>
@@ -1053,9 +1085,9 @@ export default function Editor() { // 메인 페이지
         <div id="map" className={styles.map}></div>
         <div ref={searchformRef} className={styles.searchForm}>
           <div className={styles.searchInputContainer}>
-            <input 
+              <input 
               ref={searchInputDomRef}
-              type="text" 
+                type="text" 
               className={styles.searchInput}
               placeholder="장소 검색..."
               onFocus={handleSearchFocus}
@@ -1064,11 +1096,11 @@ export default function Editor() { // 메인 페이지
             />
             <button className={styles.searchButton}>
               <span className={styles.searchIcon}>🔍</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      
+                </button>
+            </div>
+            </div>
+              </div>
+              
       {/* CompareBar - 조건부 렌더링 적용 */}
       {isActiveCompareBar && <CompareBar />}
       
@@ -1098,4 +1130,4 @@ export default function Editor() { // 메인 페이지
       />
     </div>
   );
-}
+} 

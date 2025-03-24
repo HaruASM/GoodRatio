@@ -6,7 +6,7 @@ import { parseGooglePlaceData } from '../utils/placeUtils';
 import {
   togglePanel,
   startEdit,
-  completeEdit,
+  completeEditor,
   cancelEdit,
   updateField,
   trackField,
@@ -25,12 +25,15 @@ import {
   selectIsDrawing,
   selectDrawingType,
   selectIsIdle,
+  selectIsEditorOn,
   
   startGsearch,
   setFieldValue,
   clearFieldValue,
-  confirmEdit,
-  startDrawingMode
+  startConfirm,
+  confirmAndSubmit,
+  startDrawingMode,
+  endEdit
 } from '../store/slices/rightSidebarSlice';
 
 import { setCompareBarActive, setSyncGoogleSearch } from '../store/slices/compareBarSlice';
@@ -82,6 +85,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
   const isEditing = useSelector(selectIsEditing);
+  const isEditorOn = useSelector(selectIsEditorOn);
   const isConfirming = useSelector(selectIsConfirming);
   const hasChanges = useSelector(selectHasChanges);
   const formData = useSelector(selectFormData);
@@ -118,7 +122,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
 
   // 수정 상태에 따른 버튼 텍스트 결정
   let buttonText = "수정";
-  if (isEditing) {
+  if (isEditorOn) {
     buttonText = "수정완료";
   } else if (isConfirming) {
     buttonText = "재수정";
@@ -140,29 +144,27 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     return baseClassName;
   };
 
-  // 입력 필드의 readOnly 상태 결정 함수
+  // 입력 필드가 읽기 전용인지 확인하는 함수
   const isFieldReadOnly = (fieldName) => {
-    // 편집 모드가 아니면 모든 필드 readOnly
-    if (!isEditing) return true;
-    
-    // 편집 모드에서 값이 없는 필드는 자동으로 편집 가능
-    if (!formData[fieldName]) return false;
-    
-    // 수정된 필드는 편집 가능 (inputRefs에서 readOnly 상태 확인)
-    if (inputRefs.current[fieldName] && inputRefs.current[fieldName].readOnly === false) {
-      return false;
+    // 편집 모드가 아니면 모든 필드가 읽기 전용
+    if (!isEditorOn) {
+      return true;
     }
     
-    // 값이 있는 필드는 기본적으로 readOnly (편집 버튼으로 활성화)
-    return true;
+    // 편집 중이면 모든 필드 편집 가능
+    return false;
   };
 
   // 이벤트 핸들러
   const handleEditFoamCardButton = (e) => {
     e.preventDefault();
     
-    if (isEditing) {
-      dispatch(completeEdit());
+    if (isEditorOn) {
+      dispatch(completeEditor());
+      // 편집 종료 시 (isEditing = false)
+      dispatch(endEdit());
+      // 오버레이 정리를 컴포넌트에서 직접 처리
+      mapOverlayHandlers.cleanupTempOverlays();
     } else {
       // 직접 데이터 전달 (serverDataset 구조 사용 않음)
       dispatch(startEdit({ 
@@ -172,16 +174,22 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   };
   
   const handleConfirmEdit = () => {
-    // startCompareModal 대신 confirmEdit 액션 사용
-    dispatch(confirmEdit({ mapOverlayHandlers }));
+    // startCompareModal 대신 startConfirm 액션 사용
+    dispatch(startConfirm());
+    // 편집 상태 종료 (isEditing = false)
+    dispatch(endEdit());
+    // 오버레이 정리를 컴포넌트에서 직접 처리
+    mapOverlayHandlers.cleanupTempOverlays();
     console.log('수정 내용 확인 처리됨');
   };
   
   const handleCancelEdit = () => {
-    // 취소 시 확인창 표시
-    
-      dispatch(cancelEdit({ mapOverlayHandlers }));
-    
+    dispatch(cancelEdit());
+    // 편집 상태 종료 (isEditing = false)
+    dispatch(endEdit());
+    // 오버레이 정리를 컴포넌트에서 직접 처리
+    mapOverlayHandlers.cleanupTempOverlays();
+    console.log('편집 취소 처리됨');
   };
   
   const handleFieldEditButtonClick = (e, fieldName) => {
@@ -310,10 +318,10 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       {/* 상단 버튼 영역 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>
-          {isEditing && !currentShopServerDataSet && (
+          {isEditorOn && !currentShopServerDataSet && (
             <span className={styles.editingStatusText}>신규상점 입력 중...</span>
           )}
-          {isEditing && currentShopServerDataSet && (
+          {isEditorOn && currentShopServerDataSet && (
             <span className={styles.editingStatusText}>데이터 수정 중...</span>
           )}
           {isConfirming && !hasChanges && (
@@ -326,7 +334,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               변경사항이 있습니다
             </span>
           )}
-          {!isEditing && !isConfirming && (
+          {!isEditorOn && !isConfirming && (
             <span className={styles.editingStatusText}></span>
           )}
           {status === 'loading' && (
@@ -340,7 +348,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           className={styles.addShopButton} 
           onClick={googlePlaceSearchBarButtonHandler}
           title="구글 장소 검색"
-          disabled={isEditing || isConfirming || status === 'loading'}
+          disabled={isEditorOn || isConfirming || status === 'loading'}
         >
           &lt;구글탐색
         </button>
@@ -352,11 +360,11 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           <h3>
             {isIdle 
               ? "상점 Data" 
-              : (formData.storeName || (!isEditing ? "상점 Data" : "신규상점 추가"))}
+              : (formData.storeName || (!isEditorOn ? "상점 Data" : "신규상점 추가"))}
           </h3>
           
           {/* 수정/완료 버튼 - 상태에 따라 다르게 표시 */}
-          {!isIdle && !isConfirming && !isEditing && currentShopServerDataSet && (
+          {!isIdle && !isConfirming && !isEditorOn && currentShopServerDataSet && (
             <button 
               className={styles.headerButton} 
               onClick={handleEditFoamCardButton}
@@ -393,7 +401,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               </button>
             </div>
           ) : (
-            isEditing && (
+            isEditorOn && (
               <div className={styles.buttonGroup}>
                 <button 
                   className={styles.cancelButton} 
@@ -438,7 +446,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                 className={getInputClassName("pinCoordinates")}
                 ref={el => inputRefs.current.pinCoordinates = el}
               />
-              {isEditing && (
+              {isEditorOn && (
                 <button
                   className={styles.inputOverlayButton}
                   onClick={handlePinCoordinatesButtonClick}
@@ -465,7 +473,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                 className={getInputClassName("path")}
                 ref={el => inputRefs.current.path = el}
               />
-              {isEditing && (
+              {isEditorOn && (
                 <button
                   className={styles.inputOverlayButton}
                   onClick={handlePathButtonClick}
@@ -492,12 +500,12 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                         className={getInputClassName("googleDataId")}
                         ref={el => inputRefs.current.googleDataId = el}
                 onClick={() => {
-                          if (isEditing && formData.googleDataId) {
+                          if (isEditorOn && formData.googleDataId) {
                             handleFieldEditButtonClick(new Event('click'), "googleDataId");
                   }
                 }}
               />
-                      {isEditing && (
+                      {isEditorOn && (
                 <button
                   className={styles.inputOverlayButton}
                           onClick={handleGooglePlaceSearchClick}
@@ -525,12 +533,12 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                         className={getInputClassName(item.field)}
                         ref={el => inputRefs.current[item.field] = el}
                 onClick={() => {
-                          if (isEditing && formData[item.field]) {
+                          if (isEditorOn && formData[item.field]) {
                             handleFieldEditButtonClick(new Event('click'), item.field);
                   }
                 }}
               />
-                      {isEditing && formData[item.field] && (
+                      {isEditorOn && formData[item.field] && (
                 <button
                   className={styles.inputOverlayButton}
                           onClick={(e) => handleFieldEditButtonClick(e, item.field)}
@@ -622,9 +630,9 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
     if (e) e.preventDefault();
     
     // CompareBar 활성화
-    dispatch(setSyncGoogleSearch());
+    dispatch(setSyncGoogleSearch()); // 구글 검색폼의 데이터가 setCompareBarActive를 호출하며 넘어옴옴
     dispatch(setCompareBarActive(null));
-    console.log('CompareBar 활성화 디스패치됨');
+    
   };
   
   // 패널 토글 버튼

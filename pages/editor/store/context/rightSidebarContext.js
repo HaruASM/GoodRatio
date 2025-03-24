@@ -151,7 +151,7 @@ export const rightSidebarActions = {
     payload: { shopData }
   }),
   
-  completeEdit: () => ({
+  completeEditor: () => ({
     type: RightSidebarActionTypes.EDIT_COMPLETE
   }),
   
@@ -200,7 +200,7 @@ export const RightSidebarProvider = ({ children }) => {
     return {
       togglePanel: () => dispatch(rightSidebarActions.togglePanel()),
       startEdit: (shopData) => dispatch(rightSidebarActions.startEdit(shopData)),
-      completeEdit: () => dispatch(rightSidebarActions.completeEdit()),
+      completeEditor: () => dispatch(rightSidebarActions.completeEditor()),
       cancelEdit: () => dispatch(rightSidebarActions.cancelEdit()),
       confirmEdit: () => dispatch(rightSidebarActions.confirmEdit()),
       updateField: (field, value) => dispatch(rightSidebarActions.updateField(field, value)),

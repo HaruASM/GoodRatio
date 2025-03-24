@@ -35,6 +35,11 @@ const CompareSidebarContent = () => {
   // Redux에서 compareBar 데이터 가져오기
   const compareData = useSelector(selectCompareBarData);
   
+  // 디버깅을 위한 콘솔 로그 추가
+  console.log('CompareBar 데이터:', compareData);
+  console.log('메인 이미지 URL:', compareData.mainImage);
+  console.log('서브 이미지 배열:', compareData.subImages);
+  
   // 값이 비어있는지 확인하는 공통 함수
   const isValueEmpty = (value, fieldName) => {
     if (value === null || value === undefined) return true;
@@ -86,8 +91,9 @@ const CompareSidebarContent = () => {
                   alt="메인 이미지" 
                   className={styles.mainImagePreview}
                   onError={(e) => {
-                    e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
+                    e.target.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
                     e.target.alt = "이미지 로드 실패";
+                    e.target.style.backgroundColor = "#f0f0f0";
                   }}
                 />
               ) : (
@@ -108,8 +114,9 @@ const CompareSidebarContent = () => {
                       alt={`서브 이미지 ${index + 1}`} 
                       className={styles.subImagePreview}
                       onError={(e) => {
-                        e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
+                        e.target.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
                         e.target.alt = "이미지 로드 실패";
+                        e.target.style.backgroundColor = "#f0f0f0";
                       }}
                     />
                   </div>

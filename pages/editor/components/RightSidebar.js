@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
 import { protoServerDataset } from '../dataModels';
-import { parseGooglePlaceData, fetchPlaceDetailById } from '../utils/placeUtils';
+import { parseGooglePlaceData, fetchPlaceDetailById } from '../utils/googlePlaceUtils';
 import {
   togglePanel,
   startEdit,
@@ -693,8 +693,8 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-                      <input
-                        type="text"
+              <input
+                type="text"
                         name="googleDataId"
                         value={activeField === 'googleDataId' ? localInputState.googleDataId || "" : formData.googleDataId || ""}
                         onChange={activeField === 'googleDataId' ? handleLocalInputChange : handleInputChange}
@@ -706,19 +706,19 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                         className={getInputClassName('googleDataId')}
                         ref={el => inputRefs.current.googleDataId = el}
                         autoComplete="off"
-                      />
+              />
                       {isEditorOn && (
-                        <button
-                          className={styles.inputOverlayButton}
+                <button
+                  className={styles.inputOverlayButton}
                           onClick={googlePlaceDetailLoadingHandler}
-                          style={{ display: 'block' }}
+                  style={{ display: 'block' }}
                           title="구글ID디테일 로딩"
-                        >
+                >
                           🔍
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                </button>
+              )}
+            </div>
+          </div>
                 );
               } else {
                 // 일반 필드 렌더링

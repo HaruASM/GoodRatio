@@ -10,7 +10,7 @@ import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData } from './serverUtils';
 // Place 유틸리티 함수 가져오기
-import { parseGooglePlaceData } from './utils/placeUtils';
+import { parseGooglePlaceData } from './utils/googlePlaceUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
 import RightSidebar from './components/RightSidebar';
 import CompareBar from './components/CompareBar';

@@ -514,6 +514,14 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       );
       
       if (placeDetail) {
+        console.log('구글 Place 상세 정보:', placeDetail);
+        // 이미지 데이터가 있는지 확인
+        if (placeDetail.mainImage || (placeDetail.subImages && placeDetail.subImages.length > 0)) {
+          console.log('이미지 데이터 확인:', {
+            mainImage: placeDetail.mainImage,
+            subImages: placeDetail.subImages
+          });
+        }
         dispatch(setCompareBarActive(placeDetail));
       } else {
         console.log('구글 Place 상세 정보를 가져오지 못했습니다.');
@@ -685,19 +693,32 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-                      {renderInput('googleDataId', isFieldReadOnly('googleDataId'))}
+                      <input
+                        type="text"
+                        name="googleDataId"
+                        value={activeField === 'googleDataId' ? localInputState.googleDataId || "" : formData.googleDataId || ""}
+                        onChange={activeField === 'googleDataId' ? handleLocalInputChange : handleInputChange}
+                        onBlur={activeField === 'googleDataId' ? handleInputBlur : undefined}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
+                        onFocus={(e) => handleInputFocus(e, 'googleDataId')}
+                        readOnly={isFieldReadOnly('googleDataId')}
+                        className={getInputClassName('googleDataId')}
+                        ref={el => inputRefs.current.googleDataId = el}
+                        autoComplete="off"
+                      />
                       {isEditorOn && (
-                <button
-                  className={styles.inputOverlayButton}
+                        <button
+                          className={styles.inputOverlayButton}
                           onClick={googlePlaceDetailLoadingHandler}
-                  style={{ display: 'block' }}
-                          title="구글ID디테일로딩"
-                >
+                          style={{ display: 'block' }}
+                          title="구글ID디테일 로딩"
+                        >
                           🔍
-                </button>
-              )}
-            </div>
-          </div>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               } else {
                 // 일반 필드 렌더링

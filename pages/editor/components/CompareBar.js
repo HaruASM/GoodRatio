@@ -69,9 +69,9 @@ const CompareSidebarContent = ({ onClose }) => {
       <div className={styles.rightSidebarButtonContainer}>
         <h3>비교 데이터</h3>
         <button 
-          className={styles.addShopButton} 
+          
           onClick={onClose}
-          title="비교 데이터 닫기"
+          title="비교창 닫기"
         >
           &gt;닫기
         </button>
@@ -146,9 +146,8 @@ const CompareBar = () => {
   return (
     <div className={styles.compareBarWrapper}>
       <div className={styles.rightSidebarCard}>
-        {/* 상단 헤더 영역 추가 */}
-        <div className={styles.editorHeader}>
-        </div>
+        {/* 상단 헤더 영역 제외 */}
+        
         
         <CompareSidebarContent onClose={handleCloseButtonClick} />
       </div>

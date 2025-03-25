@@ -176,17 +176,17 @@ export const convertGooglePlaceToServerDataset = (serializedPlace, apiKey) => {
       // getUrl 속성이 있으면 우선 사용 - 직렬화 과정에서 이미 적절히 변환된 URL임
       if (serializedPlace.photos[0].getUrl) {
         convertedData.mainImage = serializedPlace.photos[0].getUrl;
-        // console.log('메인 이미지에 getUrl 사용:', convertedData.mainImage);
+        console.log('메인 이미지에 getUrl 사용:', convertedData.mainImage);
       } 
       // photo_reference가 있으면 API 호출 URL 생성
       else if (serializedPlace.photos[0].photo_reference) {
-        convertedData.mainImage = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${serializedPlace.photos[0].photo_reference}&key=${apiKey}`;
-        // console.log('메인 이미지에 photo_reference 사용:', convertedData.mainImage);
+        convertedData.mainImage = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${serializedPlace.photos[0].photo_reference}&key=${apiKey}`;
+        console.log('메인 이미지에 photo_reference 사용:', convertedData.mainImage);
       }
       else {
-        // console.log('메인 이미지 URL 생성 실패 - photo_reference와 getUrl 모두 없음');
+        console.log('메인 이미지 URL 생성 실패 - photo_reference와 getUrl 모두 없음');
         // 디버깅을 위해 전체 photo 객체 출력
-        // console.log('메인 이미지 객체 전체:', JSON.stringify(serializedPlace.photos[0]));
+        console.log('메인 이미지 객체 전체:', JSON.stringify(serializedPlace.photos[0]));
       }
     }
     
@@ -195,16 +195,18 @@ export const convertGooglePlaceToServerDataset = (serializedPlace, apiKey) => {
       convertedData.subImages = serializedPlace.photos.slice(1).map((photo, index) => {
         // getUrl 속성이 있으면 우선 사용 - 직렬화 과정에서 이미 적절히 변환된 URL임
         if (photo.getUrl) {
-          // console.log(`서브 이미지 ${index}에 getUrl 사용`);
+          console.log(`서브 이미지 ${index}에 getUrl 사용`);
           return photo.getUrl;
         } 
         // photo_reference가 있으면 API 호출 URL 생성
         else if (photo.photo_reference) {
-          // console.log(`서브 이미지 ${index}에 photo_reference 사용`);
-          return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${apiKey}`;
+          const imgUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photo.photo_reference}&key=${apiKey}`;
+          console.log(`서브 이미지 ${index}에 photo_reference 사용:`, imgUrl);
+          return imgUrl;
         }
         else {
-          // console.log(`서브 이미지 ${index} URL 생성 실패 - photo_reference와 getUrl 모두 없음`);
+          console.log(`서브 이미지 ${index} URL 생성 실패 - photo_reference와 getUrl 모두 없음`);
+          console.log('사진 객체 데이터:', JSON.stringify(photo));
           // 빈 문자열 반환 (이미지 로드 실패 시 에러 처리기에서 처리)
           return '';
         }
@@ -273,6 +275,26 @@ export const fetchPlaceDetailById = async (placeId, apiKey) => {
           
           // 응답 데이터 변환
           const parsedData = parseGooglePlaceData(result, apiKey);
+          
+          // 이미지 데이터가 있는지 확인하고 디버깅
+          if (result.photos && result.photos.length > 0) {
+            console.log(`구글 Place API에서 ${result.photos.length}개의 사진 찾음`);
+            
+            // 이미지 URL 확인
+            if (parsedData.mainImage) {
+              console.log('mainImage URL:', parsedData.mainImage);
+            }
+            
+            if (parsedData.subImages && parsedData.subImages.length > 0) {
+              console.log(`subImages ${parsedData.subImages.length}개 확인`);
+              parsedData.subImages.forEach((url, idx) => {
+                console.log(`subImage[${idx}] URL:`, url);
+              });
+            }
+          } else {
+            console.log('구글 Place API 응답에 사진이 없습니다.');
+          }
+          
           resolve(parsedData);
         } else {
           console.error('구글 Place API 응답 에러:', status);

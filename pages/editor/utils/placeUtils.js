@@ -226,4 +226,62 @@ export const parseGooglePlaceData = (detailPlace, apiKey) => {
   if (!serializedData) return null;
   
   return convertGooglePlaceToServerDataset(serializedData, apiKey);
+};
+
+/**
+ * 구글 Place ID를 이용해서 상세 정보를 가져오는 함수
+ * @param {string} placeId - 구글 Place ID
+ * @param {string} apiKey - 구글 Maps API 키
+ * @returns {Promise<Object>} 구글 Place 상세 데이터 (앱 형식으로 변환됨)
+ */
+export const fetchPlaceDetailById = async (placeId, apiKey) => {
+  if (!placeId || !apiKey) {
+    console.error('Place ID 또는 API 키가 없습니다.');
+    return null;
+  }
+
+  try {
+    // client-side에서 직접 Google API를 호출하면 CORS 이슈가 발생하므로
+    // Google Maps JavaScript API를 사용하여 Place 상세 정보를 가져옵니다.
+    return new Promise((resolve, reject) => {
+      // Google Maps API가 로드되어 있는지 확인
+      if (!window.google || !window.google.maps || !window.google.maps.places) {
+        console.error('Google Maps API가 로드되지 않았습니다.');
+        reject(new Error('Google Maps API가 로드되지 않았습니다.'));
+        return;
+      }
+
+      // Places 서비스 인스턴스 생성
+      const placesService = new window.google.maps.places.PlacesService(
+        // 임시 div 요소 (PlacesService는 지도 또는 HTML 요소가 필요함)
+        document.createElement('div')
+      );
+
+      // 요청할 상세 정보 필드 지정
+      const request = {
+        placeId: placeId,
+        fields: [
+          'name', 'formatted_address', 'geometry', 'formatted_phone_number',
+          'website', 'opening_hours', 'photos', 'place_id'
+        ]
+      };
+
+      // 상세 정보 요청
+      placesService.getDetails(request, (result, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+          console.log('구글 Place API 응답 성공:', result);
+          
+          // 응답 데이터 변환
+          const parsedData = parseGooglePlaceData(result, apiKey);
+          resolve(parsedData);
+        } else {
+          console.error('구글 Place API 응답 에러:', status);
+          reject(new Error(`Google Place API 응답 에러: ${status}`));
+        }
+      });
+    });
+  } catch (error) {
+    console.error('구글 Place 상세 정보 가져오기 실패:', error);
+    return null;
+  }
 }; 

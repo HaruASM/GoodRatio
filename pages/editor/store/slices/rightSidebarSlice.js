@@ -97,21 +97,25 @@ const rightSidebarSlice = createSlice({
       state.isPanelVisible = !state.isPanelVisible;
     },
     
-    // 편집 시작
+    // 에디터 시작 (isEditorOn만 변경하는 새로운 액션)
+    beginEditor: (state) => {
+      state.isEditorOn = true;
+    },
+    
+    // 편집 시작 (수정: 상태 초기화 후 beginEditor 호출)
     startEdit: (state, action) => {
+      // 상태 초기화
+      state.hasChanges = false;
+      state.modifiedFields = {};
+      
+      // 기존 로직 유지
       state.isEditing = true;
-      state.isEditorOn = true;  // 에디터 활성화
+      state.isEditorOn = true;  // beginEditor 효과 포함
       state.isConfirming = false;
       
       // 항상 serverDataset 형식의 데이터로 가정
       state.originalShopData = JSON.parse(JSON.stringify(action.payload.shopData));
       state.editNewShopDataSet = JSON.parse(JSON.stringify(action.payload.shopData));
-
-      // 새로 추가하는 경우에만 modifiedFields 초기화
-      if (!state.isConfirming && !state.hasChanges) {
-        state.hasChanges = false;
-      }
-      // modifiedFields는 유지 (수정된 필드 표시를 위해)
     },
     
     // 편집 완료 (이름 변경: completeEdit -> completeEditor)
@@ -124,15 +128,30 @@ const rightSidebarSlice = createSlice({
         return;
       }
       
-      // modifiedFields에 기록된 필드가 있는지 먼저 확인
-      const hasChanges = Object.keys(state.modifiedFields).length > 0;
+      // 원본과 현재 값을 다시 한번 비교하여 변경사항 필터링
+      const filteredModifiedFields = {};
       
-               
+      // modifiedFields에 있는 항목들만 원본과 비교
+      Object.keys(state.modifiedFields).forEach(field => {
+        const originalValue = state.originalShopData[field];
+        const currentValue = state.editNewShopDataSet[field];
+        
+        // 값이 실제로 다른 경우에만 변경된 필드로 유지
+        if (currentValue !== originalValue) {
+          filteredModifiedFields[field] = true;
+        }
+      });
+      
+      // 필터링된 modifiedFields로 업데이트
+      state.modifiedFields = filteredModifiedFields;
+      
+      // 변경된 필드가 있는지 확인
+      const hasChanges = Object.keys(filteredModifiedFields).length > 0;
+      
+      // 모든 필드 상태 초기화 - 편집 불가능하게 설정
       state.isEditorOn = false;  // 에디터 비활성화 (isEditing은 유지)
       state.isConfirming = true; // 항상 확인 상태로 전환
       state.hasChanges = hasChanges;
-      
-      // modifiedFields는 유지 (재수정 시 수정된 필드 표시를 위해)
     },
     
     // 편집 취소
@@ -435,6 +454,7 @@ export const selectDrawingType = (state) => state.rightSidebar.drawingType;
 
 export const {
   togglePanel,
+  beginEditor,
   startEdit,
   completeEditor,
   cancelEdit,

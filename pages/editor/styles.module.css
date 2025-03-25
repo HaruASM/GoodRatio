@@ -12,13 +12,14 @@
   display: flex;
   flex-direction: column;
   z-index: 50;
+  position: relative;
 }
 
 .rightSidebar {
   position: fixed;
   top: 0;
   right: 0;
-  width: 320px;
+  width: 270px;
   height: 100vh;
   background-color: #f9f9f9;
   overflow-y: auto;
@@ -26,7 +27,7 @@
   display: flex;
   flex-direction: column;
   padding: 0px 4px 0px 6px;
-    z-index: 100;
+  z-index: 50;
   border-left: 1px solid #e0e0e0;
 }
 
@@ -135,15 +136,24 @@
   border-radius: 10px;
 }
 
+.editorContainer {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
 .mapContainer {
   flex: 1;
   height: 100vh;
   position: relative;
   min-width: 300px;
   margin-left: 0; /* 좌측 여백 없음 */
-  margin-right: 640px; /* RightSidebar 너비(320px) + CompareBar 너비(320px) */
+  margin-right: 270px; /* RightSidebar 너비만큼만 고려 */
   transition: margin 0.3s ease;
   overflow: hidden;
+  z-index: 10; /* 레이어 순서 조정 */
 }
 
 .map {
@@ -418,25 +428,33 @@
   border-radius: 8px;
 }
 
-.subImagesGrid {
-  flex: 1;
+.subImagesContainer {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 5px;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 5px; /* 이미지 그리드 간격 표준화 */
+  width: 100%;
+  height: 100%;
 }
 
 .subImageItem {
   position: relative;
-  border-radius: 8px;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid #eaeaea;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
 }
 
-.subImage {
+.subImagePreview {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .emptySubImage {
@@ -747,23 +765,26 @@
   height: auto;
 }
 
-/* 이미지 미리보기 영역 */
+/* 이미지 미리보기 영역 - 서브 이미지 간 간격 5px로 지정 */
 .imagesPreviewContainer {
   display: flex;
-  margin-top: 10px;
-  margin-bottom: 10px;
-  gap: 10px;
+  margin-top: 2px;
+  gap: 5px; /* 서브 이미지 컨테이너와 동일한 간격으로 설정 */
+  height: 150px;
 }
 
 .imageSection {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .mainImageContainer {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 150px;
+  height: 100%;
   border: 1px dashed #ccc;
   border-radius: 4px;
   overflow: hidden;
@@ -773,31 +794,6 @@
   max-width: 100%;
   max-height: 150px;
   object-fit: contain;
-}
-
-.subImagesContainer {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 5px;
-  height: 150px;
-}
-
-.subImageItem {
-  width: 100%;
-  height: 100%;
-  border: 1px solid #eaeaea;
-  border-radius: 4px;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.subImagePreview {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .emptyImagePlaceholder {
@@ -920,7 +916,7 @@
 .rightSidebarCard {
   background-color: white;
   border-radius: 10px;
-  margin: 10px 0;
+  margin-top: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   overflow: hidden;
 }
@@ -932,7 +928,7 @@
 
 /* 우측 사이드바 폼 스타일 */
 .rightSidebarForm {
-  padding: 10px 10px 10px;
+  padding: 6px 6px 6px;
   background-color: white;
 }
 
@@ -944,7 +940,7 @@
 }
 
 .rightSidebarFormRow span {
-  flex: 1.0;
+  flex: 2;
   font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
@@ -991,10 +987,11 @@
 
 /* 우측 사이드바 입력 컨테이너 스타일 */
 .rightSidebarInputContainer {
-  flex: 1.7;
+  flex: 3;
   position: relative;
   display: flex;
   align-items: center;
+ 
 }
 
 /* 우측 사이드바 버튼 컨테이너 스타일 */
@@ -1003,7 +1000,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 8px;
-  height: 44px;
+  height: 30px;
   border-bottom: 1px solid #e0e0e0;
 }
 
@@ -1112,100 +1109,209 @@
   align-items: center;
 }
 
-/* 화살표 복사 버튼 스타일 */
-.copyButton {
+/* compareBar 위치 조정 클래스 */
+.compareBarWrapper {
   position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1px solid #ccc;
-  background-color: #f1f3f5;
-  color: #495057;
-  font-weight: bold;
+  top: 25px;
+  right: 278px;
+  width: 230px;
+  max-height: 80vh;
+  z-index: 49;
+  
+}
+
+/* CompareBar 내부 컨텐츠 스타일은 rightSidebar 스타일 재활용 */
+.compareBarSection {
+  margin-bottom: 10px;
+}
+
+/* 비교 데이터 적용 버튼 스타일 */
+.copyButton {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  margin-left: 5px;
+  font-size: 12px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  transition: all 0.2s ease;
+  transition: background-color 0.3s;
 }
 
 .copyButton:hover {
-  background-color: #4dabf7;
-  color: white;
-  border-color: #4dabf7;
+  background-color: #45a049;
 }
 
-/* compareBarPosition - 위치만 조정하는 클래스 */
-.compareBarPosition {
-  right: 320px; /* RightSidebar 너비만큼 오른쪽에서 떨어지게 설정 */
-  z-index: 99;
-  border-right: 1px solid #e0e0e0;
-  border-left: none;
-}
-
-/* CompareBar 숨김 관련 스타일 */
-.compareBarHidden {
-  transform: translateX(320px); /* 오른쪽으로 이동하여 사라짐 */
-}
-
-/* CompareBar 숨김 시 지도 컨테이너 여백 조정 */
-body:not(.compareBarVisible) .mapContainer {
-  margin-left: 0;
-  margin-right: 320px; /* RightSidebar만 고려 */
-}
-
-/* CompareBar 토글 버튼 위치 조정 */
-.compareBarPanelToggle {
-  position: fixed;
-  top: 50%;
-  right: 646px; /* 320px(compareBar) + 320px(rightSidebar) + 6px(여백) */
-  transform: translateY(-50%);
-  background-color: white;
-  border: 1px solid #ccc;
-  border-right: none;
-  padding: 15px 5px;
-  cursor: pointer;
-  z-index: 99;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-}
-
-/* 컨테이너 레이아웃 조정 - 양쪽 사이드바 고려 */
-.editorContainer {
-  display: flex;
-  width: 100%;
-  height: 100vh;
+/* 추가된 이미지 오버레이 스타일 */
+.subImageWithOverlay {
   position: relative;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
-/* 사이드바 숨김 처리 시 지도 컨테이너 여백 조정 */
-.compareBarHidden + .mapContainer {
-  width: calc(100% - 320px); /* 오른쪽 사이드바만 고려 */
-  margin-left: 0;
+.imageCountOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 4px;
 }
 
-/* 사이드바 숨김 처리 시 지도 컨테이너 여백 조정 */
-.sidebar.hidden ~ .mapContainer {
-  /* margin-left: 0; 수정 사항 */
-}
-
-/* CompareBar 사이드바 기본 스타일 */
-.compareBarSidebar {
+/* 이미지 갤러리 모달 스타일 */
+.galleryOverlay {
   position: fixed;
   top: 0;
-  right: 330px; /* RightSidebar의 너비(320px)만큼 오른쪽에서 떨어지게 설정 */
-  width: 250px;
+  left: 0;
+  width: 100vw;
   height: 100vh;
-  background-color: #f9f9f9;
-  overflow-y: auto;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1); /* 그림자 방향 변경 */
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 0;
+  margin: 0;
+}
+
+.galleryContent {
+  position: relative;
+  max-width: 1000px;
+  width: 100%;
+  background-color: #111;
+  border-radius: 8px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  padding: 0px 4px 0px 6px;
-  z-index: 100;
-  border-left: 1px solid #e0e0e0; /* 테두리 방향 변경 */
+  max-height: 90vh;
+}
+
+.galleryCloseBtn {
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  font-size: 28px;
+  color: #fff;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.galleryCloseBtn:hover {
+  color: #ff4444;
+}
+
+.galleryMainImage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 70vh;
+  position: relative;
+  padding: 0 40px;
+}
+
+.galleryImageContainer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.galleryImage {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.galleryNavBtn {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.3);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.galleryNavBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.galleryNavBtn:first-child {
+  left: 0;
+}
+
+.galleryNavBtn:last-child {
+  right: 0;
+}
+
+.galleryThumbnails {
+  display: flex;
+  padding: 10px 0;
+  overflow-x: auto;
+  margin-top: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #333 #111;
+}
+
+.galleryThumbnails::-webkit-scrollbar {
+  height: 6px;
+}
+
+.galleryThumbnails::-webkit-scrollbar-track {
+  background: #111;
+}
+
+.galleryThumbnails::-webkit-scrollbar-thumb {
+  background-color: #333;
+  border-radius: 6px;
+}
+
+.galleryThumbnail {
+  flex: 0 0 80px;
+  height: 60px;
+  margin-right: 8px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.galleryThumbnail:hover {
+  opacity: 0.9;
+}
+
+.galleryThumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.activeThumbnail {
+  border-color: #4dabf7;
+  opacity: 1;
+}
+
+.galleryCounter {
+  color: #aaa;
+  text-align: center;
+  margin-top: 10px;
+  font-size: 14px;
 }

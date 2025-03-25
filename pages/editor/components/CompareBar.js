@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+
 import styles from '../styles.module.css';
 import { 
   selectIsCompareBarActive, 
@@ -7,6 +8,8 @@ import {
   setCompareBarActive,
   endCompareBar 
 } from '../store/slices/compareBarSlice';
+import { updateField } from '../store/slices/rightSidebarSlice';
+import ImageSectionManager from './ImageSectionManager';
 
 // 상점 데이터 인풋창 타이틀 배열
 const titlesofDataFoam = [
@@ -29,11 +32,14 @@ const titlesofDataFoam = [
  * 왼쪽 사이드바 내부 컴포넌트
  * 비교를 위한 상점 정보 표시 기능 제공
  * 
+ * @param {Object} props - 컴포넌트 속성
+ * @param {Function} props.onClose - 닫기 버튼 클릭 시 호출될 함수
  * @returns {React.ReactElement} 왼쪽 사이드바 UI 컴포넌트
  */
-const CompareSidebarContent = () => {
+const CompareSidebarContent = ({ onClose }) => {
   // Redux에서 compareBar 데이터 가져오기
   const compareData = useSelector(selectCompareBarData);
+  
   
   // 디버깅을 위한 콘솔 로그 추가
   // console.log('CompareBar 데이터:', compareData);
@@ -62,7 +68,15 @@ const CompareSidebarContent = () => {
     <div className={`${styles.rightSidebarCard}`}>
       <div className={styles.rightSidebarButtonContainer}>
         <h3>비교 데이터</h3>
+        <button 
+          className={styles.addShopButton} 
+          onClick={onClose}
+          title="비교 데이터 닫기"
+        >
+          &gt;닫기
+        </button>
       </div>
+      
       
       <form className={styles.rightSidebarForm}>
         {/* 상점 정보 필드들을 배열로부터 렌더링 */}
@@ -81,57 +95,12 @@ const CompareSidebarContent = () => {
           </div>
         ))}
         
-        {/* 이미지 미리보기 영역 */}
-        <div className={styles.imagesPreviewContainer}>
-          <div className={styles.imageSection}>
-            <div className={styles.mainImageContainer}>
-              {compareData.mainImage ? (
-                <img 
-                  src={compareData.mainImage} 
-                  alt="메인 이미지" 
-                  className={styles.mainImagePreview}
-                  onError={(e) => {
-                    e.target.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-                    e.target.alt = "이미지 로드 실패";
-                    e.target.style.backgroundColor = "#f0f0f0";
-                  }}
-                />
-              ) : (
-                <div className={styles.emptyImagePlaceholder}>
-                  <span>메인 이미지</span>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className={styles.imageSection}>
-            <div className={styles.subImagesContainer}>
-              {compareData.subImages && Array.isArray(compareData.subImages) && compareData.subImages.length > 0 && compareData.subImages[0] !== "" ? (
-                compareData.subImages.slice(0, 4).map((imgUrl, index) => (
-                  <div key={index} className={styles.subImageItem}>
-                    <img 
-                      src={imgUrl} 
-                      alt={`서브 이미지 ${index + 1}`} 
-                      className={styles.subImagePreview}
-                      onError={(e) => {
-                        e.target.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-                        e.target.alt = "이미지 로드 실패";
-                        e.target.style.backgroundColor = "#f0f0f0";
-                      }}
-                    />
-                  </div>
-                ))
-              ) : (
-                // 빈 서브 이미지 4개 표시
-                Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className={styles.subImageItem}>
-                    <div className={styles.emptyImagePlaceholder}>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+        {/* 이미지 미리보기 섹션 */}
+        <div className={styles.compareBarSection}>
+          <ImageSectionManager 
+            mainImage={compareData?.mainImage}
+            subImages={compareData?.subImages}
+          />
         </div>
       </form>
     </div>
@@ -175,22 +144,14 @@ const CompareBar = () => {
 
   // 내부 조건부 렌더링 제거 (이제 index.js에서 처리함)
   return (
-    <div className={`${styles.compareBarSidebar}`}>
-      {/* 상단 헤더 영역 추가 */}
-      <div className={styles.editorHeader}>
-        <div className={styles.statusMessage}>
-          <span className={styles.editingStatusText}>비교 데이터</span>
+    <div className={styles.compareBarWrapper}>
+      <div className={styles.rightSidebarCard}>
+        {/* 상단 헤더 영역 추가 */}
+        <div className={styles.editorHeader}>
         </div>
-        <button 
-          className={styles.addShopButton} 
-          onClick={handleCloseButtonClick}
-          title="비교 데이터 닫기"
-        >
-          &gt;닫기
-        </button>
+        
+        <CompareSidebarContent onClose={handleCloseButtonClick} />
       </div>
-      
-      <CompareSidebarContent />
     </div>
   );
 };

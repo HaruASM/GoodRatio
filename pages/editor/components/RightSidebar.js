@@ -1,8 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
 import { protoServerDataset } from '../dataModels';
-import { parseGooglePlaceData } from '../utils/placeUtils';
+import { parseGooglePlaceData, fetchPlaceDetailById } from '../utils/placeUtils';
 import {
   togglePanel,
   startEdit,
@@ -33,10 +33,12 @@ import {
   startConfirm,
   confirmAndSubmit,
   startDrawingMode,
-  endEdit
+  endEdit,
+  beginEditor
 } from '../store/slices/rightSidebarSlice';
 
 import { setCompareBarActive, setSyncGoogleSearch } from '../store/slices/compareBarSlice';
+import ImageSectionManager from './ImageSectionManager';
 
 // 값이 비어있는지 확인하는 공통 함수
 const isValueEmpty = (value, fieldName) => {
@@ -120,13 +122,51 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     ? `${styles.rightSidebarCard} ${styles.rightSidebarCardEditing}` 
     : styles.rightSidebarCard;
 
-  // 수정 상태에 따른 버튼 텍스트 결정
-  let buttonText = "수정";
-  if (isEditorOn) {
-    buttonText = "수정완료";
-  } else if (isConfirming) {
-    buttonText = "재수정";
-  }
+  // 수정 버튼 렌더링 부분 (기존 코드를 이 코드로 대체)
+  const EditButton = () => {
+    const dispatch = useDispatch();
+    const isIdle = useSelector(selectIsIdle);
+    const isEditing = useSelector(selectIsEditing);
+    const isEditorOn = useSelector(selectIsEditorOn);
+    
+    // Command 패턴: 상태에 따른 명령 객체 정의
+    const buttonCommands = {
+      IDLE: {
+        text: '수정',
+        action: () => dispatch(startEdit({ shopData: currentShopServerDataSet }))
+      },
+      EDITOR_ON: {
+        text: '수정완료',
+        action: () => dispatch(completeEditor())
+      },
+      RE_EDIT: {
+        text: '재수정',
+        action: () => dispatch(beginEditor())
+      }
+    };
+    
+    // 현재 상태에 따라 적절한 명령 선택
+    let currentCommand;
+    if (isIdle) {
+      currentCommand = buttonCommands.IDLE;
+    } else if (isEditorOn) {
+      currentCommand = buttonCommands.EDITOR_ON;
+    } else if (isEditing && !isEditorOn) {
+      currentCommand = buttonCommands.RE_EDIT;
+    } else {
+      // 기본값
+      currentCommand = buttonCommands.IDLE;
+    }
+    
+    return (
+      <button 
+        className={styles.editButton}
+        onClick={currentCommand.action}
+      >
+        {currentCommand.text}
+      </button>
+    );
+  };
 
   // 입력 필드 스타일 결정 함수
   const getInputClassName = (fieldName) => {
@@ -144,32 +184,253 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     return baseClassName;
   };
 
+  // 상태 추가
+  const [localInputState, setLocalInputState] = useState({});
+  const [activeField, setActiveField] = useState(null);
+  const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
+
   // 입력 필드가 읽기 전용인지 확인하는 함수
   const isFieldReadOnly = (fieldName) => {
+    // 현재 활성화된 필드는 편집 가능
+    if (fieldName === activeField) {
+      return false;
+    }
+
     // 편집 모드가 아니면 모든 필드가 읽기 전용
     if (!isEditorOn) {
       return true;
     }
     
-    // 편집 중이면 모든 필드 편집 가능
+    // 핀 좌표와 경로는 항상 읽기 전용 (버튼으로만 수정 가능)
+    if (fieldName === 'pinCoordinates' || fieldName === 'path') {
+      return true;
+    }
+    
+    // 편집 모드에서 빈 필드는 항상 편집 가능
+    if (isEditorOn && (!formData[fieldName] || formData[fieldName] === "")) {
+      return false;
+    }
+    
+    // 편집 모드에서 값이 있는 필드는 읽기 전용으로 설정
+    if (formData && formData[fieldName]) {
+      return true; // 값이 있으면 읽기 전용
+    }
+    
+    // 그 외에는 편집 가능
     return false;
   };
 
-  // 이벤트 핸들러
+  // 필드 편집 버튼 클릭 핸들러
+  const handleFieldEditButtonClick = (e, fieldName) => {
+    e.preventDefault();
+    
+    // 이미 활성화된 필드가 있다면 먼저 저장
+    if (activeField && activeField !== fieldName) {
+      const currentValue = localInputState[activeField];
+      if (currentValue !== undefined) {
+        dispatch(updateField({ field: activeField, value: currentValue }));
+      }
+    }
+    
+    // 현재 formData의 값을 로컬 상태에 복사
+    setLocalInputState(prev => ({
+      ...prev,
+      [fieldName]: formData[fieldName] || ""
+    }));
+    
+    // 필드 활성화
+    setActiveField(fieldName);
+    
+    // readonly 해제 및 포커스
+    setTimeout(() => {
+      if (inputRefs.current[fieldName]) {
+        inputRefs.current[fieldName].readOnly = false;
+        inputRefs.current[fieldName].focus();
+      }
+    }, 50);
+  };
+
+  // 로컬 입력 변경 핸들러에 디버깅 로그 추가
+  const handleLocalInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    console.log(`[LocalInputChange] field: ${name}, value: "${value}", isComposing: ${isComposing}`);
+    
+    // IME 입력 중이 아닐 때만 상태 업데이트
+    if (!isComposing) {
+      // 로컬 상태만 업데이트
+      setLocalInputState(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
+  // IME 이벤트 핸들러에 디버깅 로그 추가
+  const handleCompositionStart = (e) => {
+    const { name } = e.target;
+    console.log(`[CompositionStart] field: ${name}`);
+    setIsComposing(true);
+  };
+
+  // IME 입력 종료 이벤트 핸들러
+  const handleCompositionEnd = (e) => {
+    const { name, value } = e.target;
+    console.log(`[CompositionEnd] field: ${name}, value: "${value}"`);
+    
+    setIsComposing(false);
+    // 입력 종료 시 값 업데이트
+    setLocalInputState(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // 입력 완료 시 Redux 상태 업데이트 - 지연 처리로 개선
+  const handleInputBlur = (e) => {
+    const { name } = e.target;
+    const value = localInputState[name];
+    const originalValue = formData[name];
+    
+    console.log(`[InputBlur] field: ${name}, value: "${value}", original: "${originalValue}", isComposing: ${isComposing}`);
+    
+    // IME 입력 중이면 무시
+    if (isComposing) {
+      console.log('[InputBlur] Ignoring blur during composition');
+      return;
+    }
+    
+    // 300ms 지연 후 처리 - 포커스 문제 방지
+    setTimeout(() => {
+      console.log(`[InputBlur-Delayed] field: ${name}, value: "${value}", original: "${originalValue}"`);
+      
+      // 활성 필드 초기화
+      setActiveField(null);
+      
+      // Redux 상태 업데이트
+      if (value !== undefined) {
+        // 값이 실제로 변경되었는지 확인
+        const hasChanged = value !== originalValue;
+        console.log(`[InputBlur-Delayed] 값 변경 여부: ${hasChanged}`);
+        
+        // 항상 업데이트하여 일관된 상태 유지
+        dispatch(updateField({ field: name, value }));
+        
+        // 값이 변경된 경우에만 추적 필드에 추가
+        if (hasChanged) {
+          console.log(`[InputBlur-Delayed] 추적 필드 추가: ${name}`);
+          dispatch(trackField({ field: name }));
+        }
+        
+        // 배열형 필드 특수 처리
+        if (name === 'businessHours') {
+          // 기존 로직 유지
+          let processedValue = value;
+          if (value === '' || value.trim() === '') {
+            processedValue = [""];
+          } else {
+            processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
+            if (processedValue.length === 0) {
+              processedValue = [""];
+            }
+          }
+          
+          if (processedValue !== value) {
+            dispatch(updateField({ field: name, value: processedValue }));
+          }
+        }
+      }
+    }, 300);
+  };
+
+  // 필드 포커스 이벤트 핸들러 수정 - 빈 필드 문제 해결
+  const handleInputFocus = (e, fieldName) => {
+    const { name } = e.target;
+    console.log(`[InputFocus] field: ${name}, activeField: ${activeField}, isReadOnly: ${isFieldReadOnly(fieldName)}`);
+    
+    // 중요: 빈 필드이거나 편집 모드에서 필드에 포커스할 때 활성화
+    if (isEditorOn && (!formData[fieldName] || activeField === fieldName)) {
+      console.log(`[InputFocus] 빈 필드 활성화: ${fieldName}`);
+      
+      // 활성 필드 설정
+      setActiveField(fieldName);
+      
+      // 로컬 상태 초기화 (현재 값으로)
+      setLocalInputState(prev => ({
+        ...prev,
+        [fieldName]: formData[fieldName] || ""
+      }));
+      
+      // readOnly 해제
+      if (inputRefs.current[fieldName]) {
+        inputRefs.current[fieldName].readOnly = false;
+      }
+    }
+    
+    // 이미 활성화된 경우 전체 선택
+    if (activeField === fieldName && inputRefs.current[fieldName]) {
+      inputRefs.current[fieldName].select();
+    }
+  };
+
+  // 일반 필드용 입력 컴포넌트 - 로컬 상태 사용 및 디버깅 로그 추가
+  const renderInput = (fieldName, readOnly) => {
+    const isActive = fieldName === activeField;
+    const value = isActive ? localInputState[fieldName] || "" : formData[fieldName] || "";
+    
+    return (
+      <>
+        <input
+          type="text"
+          name={fieldName}
+          value={value}
+          onChange={isActive ? handleLocalInputChange : handleInputChange}
+          onBlur={isActive ? handleInputBlur : undefined}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onFocus={(e) => handleInputFocus(e, fieldName)}
+          readOnly={readOnly}
+          className={getInputClassName(fieldName)}
+          ref={el => inputRefs.current[fieldName] = el}
+          autoComplete="off"
+          onClick={() => {
+            // 빈 필드 클릭 시 활성화 (중요 수정)
+            if (isEditorOn && (!formData[fieldName] || formData[fieldName] === "")) {
+              console.log(`[Click] 빈 필드 클릭: ${fieldName}`);
+              handleInputFocus({target: {name: fieldName}}, fieldName);
+            }
+            // 기존 값 있는 필드 클릭 처리
+            else if (isEditorOn && formData[fieldName] && !isFieldReadOnly(fieldName)) {
+              handleFieldEditButtonClick(new Event('click'), fieldName);
+            }
+          }}
+        />
+        {/* 필드 편집 버튼 - 편집 모드일 때만 표시 */}
+        {isEditorOn && formData[fieldName] && !isActive && (
+          <button
+            className={styles.inputOverlayButton}
+            onClick={(e) => handleFieldEditButtonClick(e, fieldName)}
+            style={{ display: 'block' }}
+            title="편집"
+          >
+            ✏️
+          </button>
+        )}
+      </>
+    );
+  };
+
+  // 기존 handleEditFoamCardButton 함수를 Command 패턴에 맞게 수정
   const handleEditFoamCardButton = (e) => {
     e.preventDefault();
     
-    if (isEditorOn) {
+    // Command 패턴: 상태에 따른 액션 분기
+    if (isIdle) {
+      dispatch(startEdit({ shopData: currentShopServerDataSet }));
+    } else if (isEditorOn) {
       dispatch(completeEditor());
-      // 편집 종료 시 (isEditing = false)
-      dispatch(endEdit());
-      // 오버레이 정리를 컴포넌트에서 직접 처리
-      mapOverlayHandlers.cleanupTempOverlays();
-    } else {
-      // 직접 데이터 전달 (serverDataset 구조 사용 않음)
-      dispatch(startEdit({ 
-        shopData: currentShopServerDataSet
-      }));
+    } else if (isEditing && !isEditorOn) {
+      dispatch(beginEditor());
     }
   };
   
@@ -189,19 +450,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     // 오버레이 정리를 컴포넌트에서 직접 처리
     mapOverlayHandlers.cleanupTempOverlays();
     // console.log('편집 취소 처리됨');
-  };
-  
-  const handleFieldEditButtonClick = (e, fieldName) => {
-    e.preventDefault();
-    
-    // 필드 편집 가능하게 설정
-    if (inputRefs.current[fieldName]) {
-      inputRefs.current[fieldName].readOnly = false;
-      inputRefs.current[fieldName].focus();
-      
-      // 필드 변경 추적
-      dispatch(trackField({ field: fieldName }));
-    }
   };
   
   const handleInputChange = (e) => {
@@ -244,70 +492,35 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     dispatch(startDrawingMode({ type: 'POLYGON' }));
   };
 
-  // 구글 장소 검색 클릭 처리
-  const handleGooglePlaceSearchClick = (e) => {
-    e.preventDefault(); // A태그 클릭 방지
+  // 구글 장소 ID로 상세 정보를 가져오는 핸들러
+  const googlePlaceDetailLoadingHandler = async (e) => {
+    e.preventDefault();
     
-     
-    // 검색창으로 포커스 이동 (존재하는 경우)
-    // 3번만 시도하도록 변경
-    let attempt = 0;
-    const maxAttempts = 3;
-    setTimeout(() => {
-      if(attempt < maxAttempts) {
-        const searchInput = document.querySelector('[data-testid="place-search-input"]');
-        if (searchInput) 
-          searchInput.focus();
-        attempt++;
+    // 현재 googleDataId 필드 값 가져오기
+    const googlePlaceId = formData.googleDataId;
+    
+    if (!googlePlaceId) {
+      console.log('구글 Place ID가 입력되지 않았습니다.');
+      return;
+    }
+    
+    console.log(`구글 Place ID로 상세 정보 요청: ${googlePlaceId}`);
+    
+    try {
+      // Google Place 상세 정보 가져오기
+      const placeDetail = await fetchPlaceDetailById(
+        googlePlaceId, 
+        process.env.NEXT_PUBLIC_MAPS_API_KEY
+      );
+      
+      if (placeDetail) {
+        dispatch(setCompareBarActive(placeDetail));
+      } else {
+        console.log('구글 Place 상세 정보를 가져오지 못했습니다.');
       }
-    }, 100);
-
-  };
-
-  // Google에서 데이터 직접 표시 함수 // fix 쓰지 않음. 
-  const handleDirectShowCompareModal = (googleData) => {
-    // 만약 googleData가 직접 구글 API에서 온 데이터라면 파싱
-    const processedData = googleData.geometry ? 
-      parseGooglePlaceData(googleData, process.env.NEXT_PUBLIC_MAPS_API_KEY) : 
-      googleData;
-    
-    // 파싱된 데이터 콘솔에 출력
-    // console.log('[구글 직접 검색 결과 - 상세]', processedData);
-    
-    
-    // 필요한 필드 자동 업데이트
-    if (processedData.storeName) {
-      dispatch(updateField({ field: 'storeName', value: processedData.storeName }));
-      dispatch(trackField({ field: 'storeName' }));
+    } catch (error) {
+      console.error('구글 Place 상세 정보 요청 중 오류 발생:', error);
     }
-    
-    if (processedData.address) {
-      dispatch(updateField({ field: 'address', value: processedData.address }));
-      dispatch(trackField({ field: 'address' }));
-    }
-    
-    if (processedData.pinCoordinates) {
-      dispatch(updateField({ field: 'pinCoordinates', value: processedData.pinCoordinates }));
-      dispatch(trackField({ field: 'pinCoordinates' }));
-    }
-    
-    if (processedData.businessHours && processedData.businessHours.length) {
-      dispatch(updateField({ field: 'businessHours', value: processedData.businessHours }));
-      dispatch(trackField({ field: 'businessHours' }));
-    }
-    
-    // 이미지 처리 (있는 경우)
-    if (processedData.mainImage) {
-      dispatch(updateField({ field: 'mainImage', value: processedData.mainImage }));
-      dispatch(trackField({ field: 'mainImage' }));
-    }
-    
-    if (processedData.subImages && processedData.subImages.length) {
-      dispatch(updateField({ field: 'subImages', value: processedData.subImages }));
-      dispatch(trackField({ field: 'subImages' }));
-    }
-    
-    // console.log('구글 검색 데이터로 폼이 업데이트되었습니다.');
   };
 
   return (
@@ -362,13 +575,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           
           {/* 수정/완료 버튼 - 상태에 따라 다르게 표시 */}
           {!isIdle && !isConfirming && !isEditorOn && currentShopServerDataSet && (
-            <button 
-              className={styles.headerButton} 
-              onClick={handleEditFoamCardButton}
-              disabled={status === 'loading'}
-            >
-              {buttonText}
-            </button>
+            <EditButton />
           )}
           
           {isConfirming ? (
@@ -389,13 +596,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                   {status === 'loading' ? '처리 중...' : '확인'}
                 </button>
               )}
-              <button 
-                className={styles.headerButton} 
-                onClick={handleEditFoamCardButton}
-                disabled={status === 'loading'}
-              >
-                재수정
-              </button>
+              <EditButton />
             </div>
           ) : (
             isEditorOn && (
@@ -407,13 +608,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                 >
                   취소
                 </button>
-            <button 
-              className={styles.headerButton} 
-              onClick={handleEditFoamCardButton}
-              disabled={status === 'loading'}
-            >
-              {buttonText}
-            </button>
+            <EditButton />
               </div>
             )
           )}
@@ -442,6 +637,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                 readOnly={true}
                 className={getInputClassName("pinCoordinates")}
                 ref={el => inputRefs.current.pinCoordinates = el}
+                        autoComplete="off"
               />
               {isEditorOn && (
                 <button
@@ -469,6 +665,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                 readOnly={true}
                 className={getInputClassName("path")}
                 ref={el => inputRefs.current.path = el}
+                        autoComplete="off"
               />
               {isEditorOn && (
                 <button
@@ -488,26 +685,13 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
-                        name="googleDataId"
-                        value={formData.googleDataId || ""}
-                onChange={handleInputChange}
-                        readOnly={isFieldReadOnly("googleDataId")}
-                        className={getInputClassName("googleDataId")}
-                        ref={el => inputRefs.current.googleDataId = el}
-                onClick={() => {
-                          if (isEditorOn && formData.googleDataId) {
-                            handleFieldEditButtonClick(new Event('click'), "googleDataId");
-                  }
-                }}
-              />
+                      {renderInput('googleDataId', isFieldReadOnly('googleDataId'))}
                       {isEditorOn && (
                 <button
                   className={styles.inputOverlayButton}
-                          onClick={handleGooglePlaceSearchClick}
+                          onClick={googlePlaceDetailLoadingHandler}
                   style={{ display: 'block' }}
-                          title="구글 장소 검색"
+                          title="구글ID디테일로딩"
                 >
                           🔍
                 </button>
@@ -521,30 +705,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
-                        name={item.field}
-                        value={formData[item.field] || ""}
-                onChange={handleInputChange}
-                        readOnly={isFieldReadOnly(item.field)}
-                        className={getInputClassName(item.field)}
-                        ref={el => inputRefs.current[item.field] = el}
-                onClick={() => {
-                          if (isEditorOn && formData[item.field]) {
-                            handleFieldEditButtonClick(new Event('click'), item.field);
-                  }
-                }}
-              />
-                      {isEditorOn && formData[item.field] && (
-                <button
-                  className={styles.inputOverlayButton}
-                          onClick={(e) => handleFieldEditButtonClick(e, item.field)}
-                  style={{ display: 'block' }}
-                  title="편집"
-                >
-                  ✏️
-                </button>
-              )}
+                      {renderInput(item.field, isFieldReadOnly(item.field))}
             </div>
           </div>
                 );
@@ -552,56 +713,10 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
             })}
 
           {/* 이미지 미리보기 영역 */}
-          <div className={styles.imagesPreviewContainer}>
-            <div className={styles.imageSection}>
-              <div className={styles.mainImageContainer}>
-                {formData.mainImage ? (
-                  <img 
-                    src={formData.mainImage} 
-                    alt="메인 이미지" 
-                    className={styles.mainImagePreview}
-                    onError={(e) => {
-                      e.target.src = "https://via.placeholder.com/200x150?text=이미지+로드+실패";
-                      e.target.alt = "이미지 로드 실패";
-                    }}
-                  />
-                ) : (
-                  <div className={styles.emptyImagePlaceholder}>
-                    <span>메인 이미지</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className={styles.imageSection}>
-              <div className={styles.subImagesContainer}>
-                {formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0 && formData.subImages[0] !== "" ? (
-                  formData.subImages.slice(0, 4).map((imgUrl, index) => (
-                    <div key={index} className={styles.subImageItem}>
-                      <img 
-                        src={imgUrl} 
-                        alt={`서브 이미지 ${index + 1}`} 
-                        className={styles.subImagePreview}
-                        onError={(e) => {
-                          e.target.src = "https://via.placeholder.com/100x75?text=로드+실패";
-                          e.target.alt = "이미지 로드 실패";
-                        }}
-                      />
-                    </div>
-                  ))
-                ) : (
-                  // 빈 서브 이미지 4개 표시
-                  Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className={styles.subImageItem}>
-                      <div className={styles.emptyImagePlaceholder}>
-                        
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
+            <ImageSectionManager 
+              mainImage={formData.mainImage} 
+              subImages={formData.subImages} 
+            />
         </form>
         )}
       </div>

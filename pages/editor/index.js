@@ -642,6 +642,10 @@ export default function Editor() { // 메인 페이지
       center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
       zoom: 15, // 초기 줌 레벨을 15로 설정 (폴리곤이 보이는 레벨)
       mapTypeControl: false,
+      fullscreenControl: true, // 전체화면 버튼 활성화
+      fullscreenControlOptions: {
+        position: window.google.maps.ControlPosition.LEFT_BOTTOM // 전체화면 버튼 위치를 왼쪽 하단으로 설정
+      }
     });
     //-- g맵 인스턴스 생성 끝끝
 

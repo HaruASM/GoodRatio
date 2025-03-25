@@ -1,3 +1,6 @@
+/**
+ * 구글 Place Photo API 프록시 핸들러
+ */
 export default async function handler(req, res) {
   const { photo_reference, maxwidth = 400 } = req.query;
   

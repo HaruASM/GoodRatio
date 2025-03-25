@@ -4,7 +4,8 @@ import { protoServerDataset } from '../../dataModels';
 const initialState = {
   isActiveCompareBar: false,
   selectedCompareBarData: { ...protoServerDataset },
-  isSyncGoogleSearchCompareBar: false // true이면 구글 검색폼 검색시 setCompareBarActive가 호출됨됨
+  isSyncGoogleSearchCompareBar: false, // true이면 구글 검색폼 검색시 setCompareBarActive가 호출됨됨
+  isInserting: false // 삽입 모드 상태 추가
 };
 
 const compareBarSlice = createSlice({
@@ -32,8 +33,21 @@ const compareBarSlice = createSlice({
     endCompareBar: (state) => {
       state.isActiveCompareBar = false; 
       state.isSyncGoogleSearchCompareBar = false;
+      state.isInserting = false; // 삽입 모드도 초기화
       state.selectedCompareBarData = { ...protoServerDataset };
-
+    },
+    
+    // 삽입 모드 시작 액션 수정 - rightSidebar 편집 모드 활성화 위한 속성 업데이트
+    beginInserting: (state) => {
+      state.isInserting = true;
+      state.isSyncGoogleSearchCompareBar = false; // 구글 검색 동기화 비활성화
+      // 실제 rightSidebar의 startEdit과 beginEditor는 thunk 액션에서 호출
+    },
+    
+    // 삽입 모드 종료 액션 추가
+    endInserting: (state) => {
+      state.isInserting = false;
+      state.selectedCompareBarData = { ...protoServerDataset };
     }
   }
 }); 
@@ -43,11 +57,14 @@ export const {
   setCompareBarActive,
   setSyncGoogleSearch,
   endCompareBar,
+  beginInserting,
+  endInserting
 } = compareBarSlice.actions;
 
 // 선택자 함수
 export const selectIsCompareBarActive = (state) => state.compareBar.isActiveCompareBar;
 export const selectCompareBarData = (state) => state.compareBar.selectedCompareBarData;
 export const selectisSyncGoogleSearchCompareBar = (state) => state.compareBar.isSyncGoogleSearchCompareBar;
+export const selectIsInserting = (state) => state.compareBar.isInserting;
 
 export default compareBarSlice.reducer; 

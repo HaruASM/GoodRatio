@@ -1,0 +1,49 @@
+7e735641b04480dbd12dbb386e34ed2b7adcb6c6<|ENT|><|RY|>정적자원관련 로그간소화<|COM|><|MIT|>
+12f183bc14595869b73e944260a0e74837ff9fe9<|ENT|><|RY|>이미지 호출 서버API 추가. CORS이슈<|COM|><|MIT|>
+eb0e0e82eb270efbf4bd6cd094edd2fadb8caa82<|ENT|><|RY|>갤러리 썸내일 추가<|COM|><|MIT|>
+45c06b6d17dab3a408deffb1452ce49b59bd7319<|ENT|><|RY|>이미지 갤러리 추가<|COM|><|MIT|>
+51c6e7f2c5da2bf98e4f45c3a1a8de2b05dcd468<|ENT|><|RY|>로그 삭제<|COM|><|MIT|>
+27bee32cc530bad7f71989a9c8616ae58098980d<|ENT|><|RY|>구글탐색->탐색 UI 출력<|COM|><|MIT|>
+8405ddf725ae96ac0ddababfd46c02e3e789fc7c<|ENT|><|RY|>구글place데이터 연동 - compareBar<|COM|><|MIT|>
+cde753a39e9dc005a07dcb28c936883c16405ec0<|ENT|><|RY|>CSS 정리-compareModal삭제, compareBar는 rightSidebar의 css 재사용<|COM|><|MIT|>
+ea865a1c4a1302bc5c921d50897466203cf85dba<|ENT|><|RY|>기존 상점비교모달창 제거<|COM|><|MIT|>
+af3192200e2af8adaaecbe654ee0e4f0b4f4e325<|ENT|><|RY|>comparebar UI설정<|COM|><|MIT|>
+dc8c8d7a87f3a7d4fb016198aadf60ef4ed05517<|ENT|><|RY|>상점비교 모달 재 생성하기로 함<|COM|><|MIT|>
+c0edcc2c4318cb2f1c1306d054635f8f66ddb304<|ENT|><|RY|>구글검색결과 반영 로직 개선<|COM|><|MIT|>
+bc7907e64a8b9fa31a577d5d724e46cb98febfc1<|ENT|><|RY|>에디터 기능 개선 및 비교화면 개선<|COM|><|MIT|>
+5393877cd99ff24df88387e94742eaf1c7c72f94<|ENT|><|RY|>상점자료 비교로직 개편<|COM|><|MIT|>
+4900135005efe08bc9937e3791f287d47c0c43b8<|ENT|><|RY|>상점 수정내용  모달창 추가<|COM|><|MIT|>
+c93c9916147afd012444e784b85959849f98cd8a<|ENT|><|RY|>서버 송신 개편<|COM|><|MIT|>
+5acae2d5def7bbb86579fc5871ad1564fc023a5b<|ENT|><|RY|>에디터창 개선<|COM|><|MIT|>
+c038e28506da03c656b71df6d93e1997245ebd9a<|ENT|><|RY|>우측사이드바 기능 추가/모듈 분리/리덕스 추가<|COM|><|MIT|>
+96e2cd31b845017c68f06ba6ac35dcf4cf70d89f<|ENT|><|RY|>Redux 마이그레이션 완료: ActionTypes, editUtils 의존성 제거 및 데이터 흐름 개선<|COM|><|MIT|>
+039b911ab0c0a798085a4ad67f5ac0fa8af2a980<|ENT|><|RY|>right sidebar 구조조정중1<|COM|><|MIT|>
+579fe4253e714c8edd16965410d0f46c3fd4e6da<|ENT|><|RY|>맵유틸 코드 분리<|COM|><|MIT|>
+275efe95f202a0c32442c12baae49f72bb64a541<|ENT|><|RY|>오버레이 구조 수정<|COM|><|MIT|>
+97d1c45bd1d3901fdee470b487a989c8914e64ac<|ENT|><|RY|>모듈분리후 리팩토링중 TODO마킹<|COM|><|MIT|>
+ba18dc4bd8880a1bb01a3c9ee507f5cc84dfb1f4<|ENT|><|RY|>코드 분리 시도중<|COM|><|MIT|>
+2131d816791c4487041687247f14969cf9f444a3<|ENT|><|RY|>상태관리패턴 정리및 수정, 액션플래그로 상태값 변경 관리. editActions.js별도 모듈화<|COM|><|MIT|>7e735641b04480dbd12dbb386e34ed2b7adcb6c6<|ENT|><|RY|>정적자원관련 로그간소화<|COM|><|MIT|>
+12f183bc14595869b73e944260a0e74837ff9fe9<|ENT|><|RY|>이미지 호출 서버API 추가. CORS이슈<|COM|><|MIT|>
+eb0e0e82eb270efbf4bd6cd094edd2fadb8caa82<|ENT|><|RY|>갤러리 썸내일 추가<|COM|><|MIT|>
+45c06b6d17dab3a408deffb1452ce49b59bd7319<|ENT|><|RY|>이미지 갤러리 추가<|COM|><|MIT|>
+51c6e7f2c5da2bf98e4f45c3a1a8de2b05dcd468<|ENT|><|RY|>로그 삭제<|COM|><|MIT|>
+27bee32cc530bad7f71989a9c8616ae58098980d<|ENT|><|RY|>구글탐색->탐색 UI 출력<|COM|><|MIT|>
+8405ddf725ae96ac0ddababfd46c02e3e789fc7c<|ENT|><|RY|>구글place데이터 연동 - compareBar<|COM|><|MIT|>
+cde753a39e9dc005a07dcb28c936883c16405ec0<|ENT|><|RY|>CSS 정리-compareModal삭제, compareBar는 rightSidebar의 css 재사용<|COM|><|MIT|>
+ea865a1c4a1302bc5c921d50897466203cf85dba<|ENT|><|RY|>기존 상점비교모달창 제거<|COM|><|MIT|>
+af3192200e2af8adaaecbe654ee0e4f0b4f4e325<|ENT|><|RY|>comparebar UI설정<|COM|><|MIT|>
+dc8c8d7a87f3a7d4fb016198aadf60ef4ed05517<|ENT|><|RY|>상점비교 모달 재 생성하기로 함<|COM|><|MIT|>
+c0edcc2c4318cb2f1c1306d054635f8f66ddb304<|ENT|><|RY|>구글검색결과 반영 로직 개선<|COM|><|MIT|>
+bc7907e64a8b9fa31a577d5d724e46cb98febfc1<|ENT|><|RY|>에디터 기능 개선 및 비교화면 개선<|COM|><|MIT|>
+5393877cd99ff24df88387e94742eaf1c7c72f94<|ENT|><|RY|>상점자료 비교로직 개편<|COM|><|MIT|>
+4900135005efe08bc9937e3791f287d47c0c43b8<|ENT|><|RY|>상점 수정내용  모달창 추가<|COM|><|MIT|>
+c93c9916147afd012444e784b85959849f98cd8a<|ENT|><|RY|>서버 송신 개편<|COM|><|MIT|>
+5acae2d5def7bbb86579fc5871ad1564fc023a5b<|ENT|><|RY|>에디터창 개선<|COM|><|MIT|>
+c038e28506da03c656b71df6d93e1997245ebd9a<|ENT|><|RY|>우측사이드바 기능 추가/모듈 분리/리덕스 추가<|COM|><|MIT|>
+96e2cd31b845017c68f06ba6ac35dcf4cf70d89f<|ENT|><|RY|>Redux 마이그레이션 완료: ActionTypes, editUtils 의존성 제거 및 데이터 흐름 개선<|COM|><|MIT|>
+039b911ab0c0a798085a4ad67f5ac0fa8af2a980<|ENT|><|RY|>right sidebar 구조조정중1<|COM|><|MIT|>
+579fe4253e714c8edd16965410d0f46c3fd4e6da<|ENT|><|RY|>맵유틸 코드 분리<|COM|><|MIT|>
+275efe95f202a0c32442c12baae49f72bb64a541<|ENT|><|RY|>오버레이 구조 수정<|COM|><|MIT|>
+97d1c45bd1d3901fdee470b487a989c8914e64ac<|ENT|><|RY|>모듈분리후 리팩토링중 TODO마킹<|COM|><|MIT|>
+ba18dc4bd8880a1bb01a3c9ee507f5cc84dfb1f4<|ENT|><|RY|>코드 분리 시도중<|COM|><|MIT|>
+2131d816791c4487041687247f14969cf9f444a3<|ENT|><|RY|>상태관리패턴 정리및 수정, 액션플래그로 상태값 변경 관리. editActions.js별도 모듈화<|COM|><|MIT|>

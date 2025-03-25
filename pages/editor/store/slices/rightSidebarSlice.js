@@ -26,8 +26,6 @@ const initialState = {
   // IDLE 상태 추가 (초기에는 IDLE 상태)
   isIdle: true,
   // 구글 장소 검색 관련 상태 추가
-  
-  isCompareBarActive: true,  // CompareBar 활성화 상태 (초기값은 true로 유지)
 };
 
 // 비동기 액션: 상점 데이터 저장

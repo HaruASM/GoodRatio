@@ -356,9 +356,14 @@
 }
 
 .disabledButton {
-  text-decoration: line-through; /* 텍스트에 줄 긋기 */
-  cursor: not-allowed; /* 비활성화된 상태의 커서 */
-  opacity: 0.6; /* 비활성화된 상태의 투명도 */
+  background-color: #cccccc !important;
+  color: #666666 !important;
+  cursor: not-allowed !important;
+  opacity: 0.7;
+}
+
+.disabledButton:hover {
+  background-color: #cccccc !important;
 }
 
 .inputOverlayButton {
@@ -1317,4 +1322,35 @@
   text-align: center;
   margin-top: 10px;
   font-size: 14px;
+}
+
+/* CompareBar의 필드 삽입 버튼 스타일 */
+.insertFieldButton {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 1;
+}
+
+.insertFieldButton:hover {
+  background-color: #45a049;
+}
+
+/* 활성화된 버튼 스타일 */
+.activeButton {
+  background-color: #f44336;
+  color: white;
+}
+
+.activeButton:hover {
+  background-color: #d32f2f;
 }

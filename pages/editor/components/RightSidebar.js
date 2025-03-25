@@ -37,7 +37,7 @@ import {
   beginEditor
 } from '../store/slices/rightSidebarSlice';
 
-import { setCompareBarActive, setSyncGoogleSearch } from '../store/slices/compareBarSlice';
+import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../store/slices/compareBarSlice';
 import ImageSectionManager from './ImageSectionManager';
 
 // 값이 비어있는지 확인하는 공통 함수
@@ -99,6 +99,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const isDrawing = useSelector(selectIsDrawing);
   const drawingType = useSelector(selectDrawingType);
   const isIdle = useSelector(selectIsIdle);
+  const isInsertingMode = useSelector(selectIsInserting);
   
   
   // 입력 필드 참조 객체
@@ -444,9 +445,17 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   };
   
   const handleCancelEdit = () => {
+    // 기존 액션 디스패치
     dispatch(cancelEdit());
+    
     // 편집 상태 종료 (isEditing = false)
     dispatch(endEdit());
+    
+    // compareBar가 isInserting 모드이면 endCompareBar 액션 디스패치
+    if (isInsertingMode) {
+      dispatch(endCompareBar());
+    }
+    
     // 오버레이 정리를 컴포넌트에서 직접 처리
     mapOverlayHandlers.cleanupTempOverlays();
     // console.log('편집 취소 처리됨');

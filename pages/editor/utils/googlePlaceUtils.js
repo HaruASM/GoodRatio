@@ -12,6 +12,53 @@ const getProxiedPhotoUrl = (photoReference, maxWidth = 400) => {
 };
 
 /**
+ * photo_reference 추출 헬퍼 함수
+ * @param {Object} photo - 구글 Place API 사진 객체
+ * @returns {string} 추출된 photo_reference 또는 빈 문자열
+ */
+const extractPhotoReference = (photo) => {
+  if (!photo) return '';
+  
+  // 1. 직접 속성에서 추출 시도
+  if (photo.photo_reference) return photo.photo_reference;
+  
+  // 2. getUrl 메서드에서 추출 시도
+  try {
+    if (typeof photo.getUrl === 'function') {
+      const url = photo.getUrl();
+      const match = url.match(/photo_reference=([^&]+)/i) || url.match(/1s([^&]+)/);
+      return match ? match[1] : '';
+    }
+  } catch (error) {
+    console.error('Photo reference 추출 실패:', error);
+  }
+  
+  return '';
+};
+
+/**
+ * 이미지 URLs 생성 함수 - 메인 이미지와 서브 이미지를 한 번에 처리
+ * @param {Array} photos - 구글 Place API 사진 객체 배열
+ * @returns {Object} mainImageRef와 subImageRefs를 포함한 객체 (photo_reference ID만 저장)
+ */
+const getImageReferences = (photos) => {
+  if (!photos || !Array.isArray(photos) || photos.length === 0) {
+    return { mainImageRef: '', subImageRefs: [] };
+  }
+  
+  // 메인 이미지 reference 추출 (첫 번째 이미지)
+  const mainPhoto = photos[0];
+  const mainImageRef = extractPhotoReference(mainPhoto);
+  
+  // 서브 이미지 reference 추출 (나머지 이미지)
+  const subImageRefs = photos.slice(1)
+    .map(photo => extractPhotoReference(photo))
+    .filter(ref => ref); // 빈 참조 필터링
+  
+  return { mainImageRef, subImageRefs };
+};
+
+/**
  * 구글 Place API로부터 받은 장소 데이터를 앱에서 사용하는 형식으로 직렬화
  * @param {Object} detailPlace - 구글 Place API 응답 객체
  * @param {string} apiKey - 구글 Maps API 키 (이미지 URL 생성용)
@@ -27,26 +74,8 @@ export const serializeGooglePlaceData = (detailPlace, apiKey) => {
   let serializedPhotos = [];
   if (detailPlace.photos && detailPlace.photos.length > 0) {
     serializedPhotos = detailPlace.photos.map((photo, index) => {
-      // photo_reference 추출
-      let photoReference = '';
-      
-      // photo_reference 속성 확인
-      if (photo.photo_reference) {
-        photoReference = photo.photo_reference;
-      } else {
-        // getUrl 메서드에서 photo_reference를 추출 시도
-        try {
-          if (typeof photo.getUrl === 'function') {
-            const originalUrl = photo.getUrl();
-            const photoRefMatch = originalUrl.match(/1s([^&]+)/);
-            if (photoRefMatch && photoRefMatch[1]) {
-              photoReference = photoRefMatch[1];
-            }
-          }
-        } catch (error) {
-          console.error(`photo_reference 추출 오류 ${index}:`, error);
-        }
-      }
+      // photo_reference 추출 (개선된 함수 사용)
+      const photoReference = extractPhotoReference(photo);
       
       // 프록시된 이미지 URL 생성
       const photoUrl = photoReference ? getProxiedPhotoUrl(photoReference) : '';
@@ -138,21 +167,19 @@ export const convertGooglePlaceToServerDataset = (serializedPlace, apiKey) => {
     convertedData.pinCoordinates = `${lat},${lng}`;
   }
   
-  // 구글 장소의 이미지 처리
+  // 구글 장소의 이미지 처리 (photo_reference ID만 저장)
   if (serializedPlace.photos && serializedPlace.photos.length > 0) {
-    // 첫 번째 이미지를 메인 이미지로 사용
-    if (serializedPlace.photos[0]) {
-      if (serializedPlace.photos[0].getUrl) {
-        convertedData.mainImage = serializedPlace.photos[0].getUrl;
-      }
-    }
+    // 이미지 reference ID 추출
+    const { mainImageRef, subImageRefs } = getImageReferences(
+      serializedPlace.photos.map(photo => ({
+        photo_reference: photo.photo_reference,
+        getUrl: typeof photo.getUrl === 'function' ? photo.getUrl : undefined
+      }))
+    );
     
-    // 나머지 이미지를 서브 이미지로 사용
-    if (serializedPlace.photos.length > 1) {
-      convertedData.subImages = serializedPlace.photos.slice(1)
-        .map(photo => photo.getUrl)
-        .filter(url => url); // 빈 문자열 필터링
-    }
+    // photo_reference만 저장
+    convertedData.mainImage = mainImageRef;
+    convertedData.subImages = subImageRefs;
   }
   
   return convertedData;

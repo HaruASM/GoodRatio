@@ -532,6 +532,47 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     }
   };
 
+  // 이미지 편집 핸들러
+  const handleEditImagesOfGallery = () => {
+    // TODO: 이미지 편집 로직 구현
+    console.log('이미지 편집 기능 구현 예정');
+    setIsImageSelectionMode(true);
+  };
+  
+  // 이미지 선택 모드 상태
+  const [isImageSelectionMode, setIsImageSelectionMode] = useState(false);
+  
+  // 이미지 선택 완료 처리
+  const handleImagesSelected = (selectedImages) => {
+    if (selectedImages && selectedImages.length > 0) {
+      // 선택된 이미지 배열 처리
+      console.log('선택된 이미지:', selectedImages);
+      
+      // 현재 subImages 배열 가져오기
+      const currentSubImages = formData.subImages || [];
+      
+      // 모든 선택된 이미지를 기존 subImages 배열에 추가
+      const updatedSubImages = [...currentSubImages, ...selectedImages];
+      
+      // subImages 필드만 업데이트
+      dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
+      
+      // 트래킹 필드에 추가
+      dispatch(trackField({ field: 'subImages' }));
+      
+      console.log('이미지가 subImages 배열에 추가되었습니다.');
+    }
+    
+    // 선택 모드 종료
+    setIsImageSelectionMode(false);
+  };
+  
+  // 이미지 선택 취소 처리
+  const handleCancelImageSelection = () => {
+    setIsImageSelectionMode(false);
+    console.log('이미지 편집이 취소되었습니다.');
+  };
+
   return (
     <div className={styles.rightSidebar}>
       {/* 상단 버튼 영역 */}
@@ -735,10 +776,24 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
             })}
 
           {/* 이미지 미리보기 영역 */}
+          <div className={styles.compareBarSection}>
             <ImageSectionManager 
               mainImage={formData.mainImage} 
-              subImages={formData.subImages} 
+              subImages={formData.subImages}
+              onImagesSelected={handleImagesSelected}
+              onCancelSelection={handleCancelImageSelection}
+              isSelectionMode={isImageSelectionMode}
             />
+            {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
+            {isEditorOn && (
+              <div 
+                className={styles.imageSectionOverlay}
+                onClick={handleEditImagesOfGallery}
+              >
+                <span className={styles.imageSectionOverlayText}>이미지 편집</span>
+              </div>
+            )}
+          </div>
         </form>
         )}
       </div>

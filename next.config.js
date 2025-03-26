@@ -38,7 +38,13 @@ const nextConfig = {
   experimental: {
     turbo: {
       // 빈 객체로도 유효한 설정
+      resolveAlias: {
+        // HMR 문제 해결을 위한 설정
+      },
     },
+    // Next.js 15와 호환성 향상을 위한 추가 설정
+    webVitalsAttribution: ['CLS', 'LCP'],
+    optimizePackageImports: ['react', 'react-dom'],
   },
   
   // 개발 서버 설정

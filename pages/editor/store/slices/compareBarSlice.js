@@ -44,10 +44,10 @@ const compareBarSlice = createSlice({
       // 실제 rightSidebar의 startEdit과 beginEditor는 thunk 액션에서 호출
     },
     
-    // 삽입 모드 종료 액션 추가
-    endInserting: (state) => {
+    // 삽입 모드 종료 액션 추가 //endCompareBar와 동일한 로직이라서, endCompareBar를 사용중 
+    endInserting: (state) => { 
       state.isInserting = false;
-      state.selectedCompareBarData = { ...protoServerDataset };
+      state.isSyncGoogleSearchCompareBar = true;
     }
   }
 }); 

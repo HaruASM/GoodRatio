@@ -534,33 +534,60 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
 
   // 이미지 편집 핸들러
   const handleEditImagesOfGallery = () => {
-    // TODO: 이미지 편집 로직 구현
-    console.log('이미지 편집 기능 구현 예정');
+    // 현재 이미지 배열 생성 (mainImage + subImages)
+    const currentImages = [];
+    
+    // mainImage가 있으면 추가
+    if (formData.mainImage) {
+      currentImages.push(formData.mainImage);
+    }
+    
+    // subImages가 있으면 추가
+    if (formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0) {
+      currentImages.push(...formData.subImages);
+    }
+    
+    // 이미지 순서 편집 모드 활성화
     setIsImageSelectionMode(true);
+    setEditMode(true);
   };
   
   // 이미지 선택 모드 상태
   const [isImageSelectionMode, setIsImageSelectionMode] = useState(false);
+  const [isEditMode, setEditMode] = useState(false);
   
   // 이미지 선택 완료 처리
   const handleImagesSelected = (selectedImages) => {
     if (selectedImages && selectedImages.length > 0) {
-      // 선택된 이미지 배열 처리
-      console.log('선택된 이미지:', selectedImages);
+      console.log('선택/편집된 이미지:', selectedImages);
       
-      // 현재 subImages 배열 가져오기
-      const currentSubImages = formData.subImages || [];
-      
-      // 모든 선택된 이미지를 기존 subImages 배열에 추가
-      const updatedSubImages = [...currentSubImages, ...selectedImages];
-      
-      // subImages 필드만 업데이트
-      dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
-      
-      // 트래킹 필드에 추가
-      dispatch(trackField({ field: 'subImages' }));
-      
-      console.log('이미지가 subImages 배열에 추가되었습니다.');
+      if (isEditMode) {
+        // 순서 편집 모드인 경우: 첫 번째 이미지는 메인, 나머지는 서브 이미지로 설정
+        const mainImg = selectedImages[0];
+        const subImgs = selectedImages.slice(1);
+        
+        // Redux 상태 업데이트
+        dispatch(updateField({ field: 'mainImage', value: mainImg }));
+        dispatch(updateField({ field: 'subImages', value: subImgs }));
+        
+        // 변경 필드 추적
+        dispatch(trackField({ field: 'mainImage' }));
+        dispatch(trackField({ field: 'subImages' }));
+        
+        console.log('이미지 순서가 업데이트되었습니다.');
+        
+        // 편집 모드 종료
+        setEditMode(false);
+      } else {
+        // 선택 모드인 경우: 이전 로직 유지 (모든 이미지를 subImages에 추가)
+        const currentSubImages = formData.subImages || [];
+        const updatedSubImages = [...currentSubImages, ...selectedImages];
+        
+        dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
+        dispatch(trackField({ field: 'subImages' }));
+        
+        console.log('이미지가 subImages 배열에 추가되었습니다.');
+      }
     }
     
     // 선택 모드 종료
@@ -570,6 +597,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   // 이미지 선택 취소 처리
   const handleCancelImageSelection = () => {
     setIsImageSelectionMode(false);
+    setEditMode(false);
     console.log('이미지 편집이 취소되었습니다.');
   };
 
@@ -782,7 +810,12 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               subImages={formData.subImages}
               onImagesSelected={handleImagesSelected}
               onCancelSelection={handleCancelImageSelection}
-              isSelectionMode={isImageSelectionMode}
+              isSelectionMode={isImageSelectionMode && !isEditMode}
+              isEditMode={isEditMode}
+              editImages={isEditMode ? [
+                ...(formData.mainImage ? [formData.mainImage] : []), 
+                ...(formData.subImages || [])
+              ] : []}
             />
             {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
             {isEditorOn && (

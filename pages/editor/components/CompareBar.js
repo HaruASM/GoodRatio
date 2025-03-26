@@ -104,7 +104,17 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   // 데이터에 유효한 필드가 있는지 확인
   const hasValidData = hasAnyValidField(compareData);
 
-  // 이미지 선택 완료 처리 콜백
+  // 이미지 선택 모드 상태
+  const [isImageSelectionMode, setIsImageSelectionMode] = useState(false);
+
+  // 이미지 미리보기 섹션에서 선택 모드 활성화
+  const handleInsertImagesToRightsidebar = () => {
+    setIsImageSelectionMode(true);
+    // 순서 편집 모드 비활성화 - 명시적으로 선택 모드만 사용
+    console.log('이미지 선택 모드 활성화');
+  };
+  
+  // 이미지 선택 완료 처리
   const handleImagesSelected = (selectedImages) => {
     if (selectedImages && selectedImages.length > 0) {
       // 선택된 이미지 배열을 콘솔에 출력
@@ -131,19 +141,11 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     // 선택 모드 종료
     setIsImageSelectionMode(false);
   };
-
-  // 이미지 선택 모드 상태
-  const [isImageSelectionMode, setIsImageSelectionMode] = useState(false);
-
-  // 이미지 미리보기 섹션에서 선택 모드 활성화
-  const handleInsertImagesToRightsidebar = () => {
-    setIsImageSelectionMode(true);
-  };
   
   // 이미지 선택 취소 처리
   const handleCancelImageSelection = () => {
     setIsImageSelectionMode(false);
-    console.log('이미지 선택이 취소되었습니다.');
+    console.log('이미지 편집이 취소되었습니다.');
   };
 
   return (
@@ -224,6 +226,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
             onImagesSelected={handleImagesSelected}
             onCancelSelection={handleCancelImageSelection}
             isSelectionMode={isImageSelectionMode}
+            isEditMode={false}
           />
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}
           {isInserting && (

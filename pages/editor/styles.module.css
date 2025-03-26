@@ -1522,18 +1522,18 @@
 
 /* 이미지 오류 표시 스타일 */
 .imageErrorPlaceholder {
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f0f0;
-  color: #ff4444;
+  height: 100%;
+  background-color: #f8f9fa;
+  color: #6c757d;
   font-size: 14px;
   text-align: center;
-  padding: 10px;
   border-radius: 4px;
-  border: 1px dashed #ff4444;
+  border: 1px dashed #dee2e6;
+  min-height: 120px;
+  width: 100%;
 }
 
 .thumbnailErrorPlaceholder {
@@ -1550,7 +1550,267 @@
 }
 
 .errorItem {
-  opacity: 0.8;
-  border-color: #ff4444;
-  cursor: not-allowed !important;
+  position: relative;
+  background-color: #fff3f3;
+  border: 1px solid #ffcdd2;
+}
+
+.errorItem img {
+  display: none;
+}
+
+.errorItem.drag-over {
+  border: 2px dashed #ff6b6b !important;
+  background-color: #fff3f3 !important;
+}
+
+.errorItem .imageOrderNumber,
+.errorItem .imageOrderLabel {
+  background-color: #ff6b6b;
+}
+
+.errorItem .dragHandle {
+  background-color: #ff6b6b;
+}
+
+/* 이미지 순서 편집 관련 스타일 */
+.imageOrderingContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f5f5f5;
+  padding: 10px;
+}
+
+/* 이미지 그리드 레이아웃 (좌우 나열) */
+.imageOrderingGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+  width: 100%;
+}
+
+.imageOrderingGridItem {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: grab;
+  position: relative;
+  transition: all 0.2s ease;
+  height: 175px;
+}
+
+.imageOrderingGridItem:hover {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.imageOrderingGridItem:active {
+  cursor: grabbing;
+}
+
+.imageOrderingGridItem img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin: 5px 0;
+}
+
+.imageOrderLabel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 8px;
+  background-color: rgba(30, 144, 255, 0.8);
+  color: white;
+  font-size: 14px;
+  text-align: center;
+  border-radius: 4px 4px 0 0;
+  font-weight: bold;
+  z-index: 2;
+}
+
+/* 메인 이미지 아이템 강조 스타일 */
+.mainImageItem {
+  background-color: #f0f8ff;
+  border: 2px solid #1e90ff;
+  transform: scale(1.02);
+  box-shadow: 0 3px 10px rgba(0, 120, 255, 0.2);
+}
+
+.mainImageItem .imageOrderLabel {
+  background-color: #1e90ff;
+  color: white;
+}
+
+.mainImageItem .imageOrderNumber {
+  background-color: #1e90ff;
+}
+
+.imageOrderNumber {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background-color: #666;
+  color: white;
+  border-radius: 50%;
+  font-weight: bold;
+  z-index: 2;
+  font-size: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.mainImageItem .imageOrderNumber {
+  background-color: #1e90ff;
+}
+
+.imageOrderingControls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 5px;
+}
+
+.removeImageButton {
+  background-color: transparent;
+  border: none;
+  color: #ff6b6b;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.removeImageButton:hover {
+  background-color: #ff6b6b;
+  color: white;
+}
+
+/* 기존 리스트 스타일 유지 (기존 코드와 호환성 유지) */
+.imageOrderingList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.imageOrderingItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: move;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.imageOrderingItem:hover {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.imageOrderingItem img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.imageOrderingTitle {
+  font-weight: bold;
+  color: #333;
+}
+
+/* 선택된 이미지 스타일 향상 */
+.selectedImage {
+  border: 2px solid #4caf50 !important;
+}
+
+.imageSelectedIcon {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  background-color: #4caf50;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 드래그 앤 드롭 관련 스타일 */
+.imageOrderingGridItem.dragging {
+  cursor: grabbing;
+  opacity: 0.5;
+  transform: scale(1.05);
+  z-index: 10;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.imageOrderingGridItem.drag-over {
+  border: 2px dashed #4dabf7;
+  background-color: rgba(77, 171, 247, 0.1);
+}
+
+.mainImageItem.drag-over {
+  border: 2px dashed #1e90ff;
+  background-color: rgba(30, 144, 255, 0.1);
+}
+
+/* 드래그 그립 아이콘 추가 */
+.dragHandle {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  cursor: move;
+  z-index: 3;
+  color: white;
+  font-size: 14px;
+}
+
+.mainImageItem .dragHandle {
+  background-color: #1e90ff;
+}
+
+/* 드래그 앤 드롭 가이드 텍스트 */
+.dragInstructions {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  font-style: italic;
 }

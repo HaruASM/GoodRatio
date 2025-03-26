@@ -19,7 +19,7 @@
   position: fixed;
   top: 0;
   right: 0;
-  width: 270px;
+  width: 280px;
   height: 100vh;
   background-color: #f9f9f9;
   overflow-y: auto;
@@ -356,14 +356,14 @@
 }
 
 .disabledButton {
-  background-color: #cccccc !important;
+  
   color: #666666 !important;
   cursor: not-allowed !important;
-  opacity: 0.7;
+  opacity: 0.5;
 }
 
 .disabledButton:hover {
-  background-color: #cccccc !important;
+  opacity: 0.7;
 }
 
 .inputOverlayButton {
@@ -1014,7 +1014,7 @@
 
 /* 우측 사이드바 상점명 스타일 */
 .rightSidebarButtonContainer h3 {
-  max-width: 120px;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1121,7 +1121,7 @@
 .compareBarWrapper {
   position: absolute;
   top: 41px;
-  right: 273px;
+  right: 283px;
   width: 230px;
   max-height: 80vh;
   z-index: 49;
@@ -1343,14 +1343,4 @@
 
 .insertFieldButton:hover {
   background-color: #45a049;
-}
-
-/* 활성화된 버튼 스타일 */
-.activeButton {
-  background-color: #f44336;
-  color: white;
-}
-
-.activeButton:hover {
-  background-color: #d32f2f;
 }

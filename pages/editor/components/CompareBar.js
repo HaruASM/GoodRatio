@@ -13,10 +13,12 @@ import {
 } from '../store/slices/compareBarSlice';
 import { 
   updateField,
-  startEdit,
+  trackField,
+  startEditYourself,
   beginEditor,
   selectIsEditing,
-  selectIsEditorOn
+  selectIsEditorOn,
+  selectFormData
 } from '../store/slices/rightSidebarSlice';
 import ImageSectionManager from './ImageSectionManager';
 
@@ -92,6 +94,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar }) => {
     // 필드 값이 비어있지 않은 경우에만 삽입
     if (!isValueEmpty(value, field)) {
       dispatch(updateField({ field, value }));
+      dispatch(trackField({ field }));
       console.log(`필드 '${field}' 삽입: ${value}`);
     }
   };
@@ -129,7 +132,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar }) => {
           <button 
             onClick={onClose}
             title="비교창 닫기"
-            className={styles.activeButton}
+            
           > 
             완료
           </button>
@@ -236,11 +239,10 @@ const CompareBar = () => {
       dispatch(beginInserting());
       
       // rightSidebar의 에디터 상태 활성화
-      // isEditing이 false일 때만 startEdit 호출
+      // isEditing이 false일 때만 startEditYourself 호출
       if (!isEditing) {
-        dispatch(startEdit({ 
-          shopData: { ...compareData } // compareBar의 데이터를 shopData로 전달
-        }));
+        // rightSidebar가 자신의 formData를 사용하도록 startEditYourself 호출
+        dispatch(startEditYourself());
       }
       
       // isEditorOn이 false일 때만 beginEditor 호출
@@ -257,6 +259,7 @@ const CompareBar = () => {
         <CompareSidebarContent 
           onClose={handleCloseButtonClick} 
           onInsertToRightSidebar={handleInsertButtonClick} 
+          on
         />
       </div>
     </div>

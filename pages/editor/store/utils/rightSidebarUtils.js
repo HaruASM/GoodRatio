@@ -26,11 +26,8 @@ const isEqual = (val1, val2) => {
     if (val1.length === 1 && val2.length === 1 && 
         (val1[0] === "" && val2[0] === "")) return true;
     
-    // 배열 내용 비교
-    for (let i = 0; i < val1.length; i++) {
-      if (!isEqual(val1[i], val2[i])) return false;
-    }
-    return true;
+    // 배열 내용 비교 - JSON 문자열로 변환하여 비교 (객체나 중첩 배열에도 효과적)
+    return JSON.stringify(val1) === JSON.stringify(val2);
   }
   
   // 객체 비교 (날짜, 정규식 등 특수 객체는 제외)
@@ -118,6 +115,16 @@ export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
   // 데이터는 직접 사용 (shopData가 없으면 protoServerDataset 사용)
   const data = shopData || protoServerDataset;
   
+  // 배열 필드 처리 헬퍼 함수
+  const formatArrayField = (field) => {
+    if (!field) return "";
+    if (Array.isArray(field)) {
+      if (field.length === 0 || (field.length === 1 && field[0] === "")) return "";
+      return field.join(', ');
+    }
+    return field;
+  };
+
   return {
     ...currentFormData,
     storeName: data.storeName || "",
@@ -125,16 +132,12 @@ export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
     alias: data.alias || "",
     comment: data.comment || "",
     locationMap: data.locationMap || "",
-    businessHours: Array.isArray(data.businessHours) 
-      ? (data.businessHours.length > 0 && !(data.businessHours.length === 1 && data.businessHours[0] === "")) 
-        ? data.businessHours.join(', ') 
-        : "" 
-      : (data.businessHours || ""),
-    hotHours: data.hotHours || "",
-    discountHours: data.discountHours || "",
+    businessHours: formatArrayField(data.businessHours),
+    hotHours: formatArrayField(data.hotHours),
+    discountHours: formatArrayField(data.discountHours),
     address: data.address || "",
     mainImage: data.mainImage || "",
-    pinCoordinates: (data.pinCoordinates && data.pinCoordinates.trim() !== '') ? "등록됨" : "",
+    pinCoordinates: (data.pinCoordinates && data.pinCoordinates.trim && data.pinCoordinates.trim() !== '') ? "등록됨" : "",
     path: (Array.isArray(data.path) && data.path.length > 0 && !(data.path.length === 1 && data.path[0] === "")) ? "등록됨" : "",
     categoryIcon: data.categoryIcon || "",
     googleDataId: data.googleDataId || "",

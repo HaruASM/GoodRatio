@@ -116,6 +116,22 @@ const rightSidebarSlice = createSlice({
       state.editNewShopDataSet = JSON.parse(JSON.stringify(action.payload.shopData));
     },
     
+    // 내부적으로 현재 formData를 사용하여 편집 시작하는 액션 추가
+    startEditYourself: (state) => {
+      // 상태 초기화
+      state.hasChanges = false;
+      state.modifiedFields = {};
+      
+      // 기존 로직 유지
+      state.isEditing = true;
+      state.isEditorOn = true;  // beginEditor 효과 포함
+      state.isConfirming = false;
+      
+      // 현재 formData를 원본 및 편집 데이터로 사용
+      state.originalShopData = JSON.parse(JSON.stringify(state.formData));
+      state.editNewShopDataSet = JSON.parse(JSON.stringify(state.formData));
+    },
+    
     // 편집 완료 (이름 변경: completeEdit -> completeEditor)
     completeEditor: (state, action) => {
       // null 체크 강화
@@ -127,15 +143,27 @@ const rightSidebarSlice = createSlice({
       }
       
       // 원본과 현재 값을 다시 한번 비교하여 변경사항 필터링
+      state.modifiedFields = {}; 
       const filteredModifiedFields = {};
       
-      // modifiedFields에 있는 항목들만 원본과 비교
-      Object.keys(state.modifiedFields).forEach(field => {
+      // originalShopData의 모든 필드에 대해 비교
+      Object.keys(state.originalShopData).forEach(field => {
         const originalValue = state.originalShopData[field];
         const currentValue = state.editNewShopDataSet[field];
         
         // 값이 실제로 다른 경우에만 변경된 필드로 유지
-        if (currentValue !== originalValue) {
+        let isDifferent = false;
+        
+        // 배열 비교 특별 처리
+        if (Array.isArray(originalValue) && Array.isArray(currentValue)) {
+          // JSON 문자열로 변환하여 비교 (깊은 비교)
+          isDifferent = JSON.stringify(originalValue) !== JSON.stringify(currentValue);
+        } else {
+          // 일반 값 비교
+          isDifferent = currentValue !== originalValue;
+        }
+        
+        if (isDifferent) {
           filteredModifiedFields[field] = true;
         }
       });
@@ -242,9 +270,20 @@ const rightSidebarSlice = createSlice({
             originalValue = state.originalShopData[field];
           }
           
-          // 새 값 설정
           // 변경사항 추적을 위해 원본 값과 비교
-          if (value !== originalValue) {
+          let isDifferent = false;
+          
+          // 배열 비교 특별 처리
+          if (Array.isArray(originalValue) && Array.isArray(value)) {
+            // JSON 문자열로 변환하여 비교 (깊은 비교)
+            isDifferent = JSON.stringify(originalValue) !== JSON.stringify(value);
+          } else {
+            // 일반 값 비교
+            isDifferent = value !== originalValue;
+          }
+          
+          // 새 값 설정
+          if (isDifferent) {
             state.modifiedFields[field] = true;
           } else {
             // 값이 원래대로 되돌아왔다면 수정된 필드에서 제거
@@ -259,7 +298,7 @@ const rightSidebarSlice = createSlice({
             state.formData[field] = value;
           }
         }
-      } 
+      }
       // 여러 필드 업데이트 경우 (기존 updateFormData 기능 통합)
       else if (action.payload) {
         // 전달된 모든 필드에 대해 처리
@@ -277,10 +316,25 @@ const rightSidebarSlice = createSlice({
         if (state.editNewShopDataSet) {
           Object.entries(formUpdates).forEach(([field, value]) => {
             // 수정값 추적
-            if (state.originalShopData && value !== state.originalShopData[field]) {
-              state.modifiedFields[field] = true;
-            } else {
-              delete state.modifiedFields[field];
+            if (state.originalShopData) {
+              const originalValue = state.originalShopData[field];
+              
+              let isDifferent = false;
+              
+              // 배열 비교 특별 처리
+              if (Array.isArray(originalValue) && Array.isArray(value)) {
+                // JSON 문자열로 변환하여 비교 (깊은 비교)
+                isDifferent = JSON.stringify(originalValue) !== JSON.stringify(value);
+              } else {
+                // 일반 값 비교
+                isDifferent = value !== originalValue;
+              }
+              
+              if (isDifferent) {
+                state.modifiedFields[field] = true;
+              } else {
+                delete state.modifiedFields[field];
+              }
             }
             
             // 값 업데이트
@@ -454,6 +508,7 @@ export const {
   togglePanel,
   beginEditor,
   startEdit,
+  startEditYourself,
   completeEditor,
   cancelEdit,
   endEdit,

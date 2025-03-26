@@ -543,12 +543,12 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           {isEditorOn && currentShopServerDataSet && (
             <span className={styles.editingStatusText}>데이터 수정 중...</span>
           )}
-          {isConfirming && !hasChanges && (
+          {isConfirming && !hasChanges && !isEditorOn && (
             <span className={styles.editingStatusText}>
               변경사항 없음
             </span>
           )}
-          {isConfirming && hasChanges && (
+          {isConfirming && hasChanges && !isEditorOn && (
             <span className={styles.editingStatusText}>
               변경사항이 있습니다
             </span>
@@ -626,7 +626,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
         {/* 상점 정보 폼 */}
         {isIdle ? (
           <div className={styles.emptyStateMessage}>
-            <p>상점에디터mode</p>
+            <p>상점에디터터</p>
             </div>
         ) : (
           <form className={styles.rightSidebarForm}>

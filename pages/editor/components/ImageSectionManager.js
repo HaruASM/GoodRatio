@@ -308,8 +308,10 @@ const ImageSectionManager = forwardRef(({
       // 로드 실패 이미지인지 확인
       const hasError = imageErrors[`edit-${index}`];
       
-      if (!hasError && e.target.tagName === 'IMG') {
-        e.dataTransfer.setDragImage(e.target, 20, 20);
+      if (!hasError && e.target.querySelector('img')) {
+        // 이미지 요소를 찾아 드래그 이미지로 설정
+        const imgElement = e.target.querySelector('img');
+        e.dataTransfer.setDragImage(imgElement, 20, 20);
       } else {
         // 이미지가 아니거나 로드 실패 상태인 경우
         // 해당 요소 자체를 드래그 이미지로 사용
@@ -319,7 +321,7 @@ const ImageSectionManager = forwardRef(({
         }
       }
     } catch (err) {
-      // console.log('setDragImage 미지원 브라우저:', err);
+      console.log('드래그 이미지 설정 실패:', err);
     }
     
     // 드래그 중임을 시각적으로 표시
@@ -344,6 +346,21 @@ const ImageSectionManager = forwardRef(({
     
     // 드롭 효과 설정
     e.dataTransfer.dropEffect = 'move';
+    
+    // 그리드 레이아웃에서 시각적 피드백 강화
+    const items = document.querySelectorAll(`.${styles.imageOrderEditorItem}`);
+    items.forEach(item => {
+      const itemIndex = parseInt(item.getAttribute('data-index'), 10);
+      if (itemIndex === index) {
+        item.style.borderStyle = 'dashed';
+        item.style.borderColor = '#4CAF50';
+        item.style.background = 'rgba(76, 175, 80, 0.1)';
+      } else if (itemIndex !== draggedItem) {
+        item.style.borderStyle = '';
+        item.style.borderColor = '';
+        item.style.background = '';
+      }
+    });
   }, [draggedItem]);
 
   // 드롭 이벤트 처리
@@ -367,6 +384,14 @@ const ImageSectionManager = forwardRef(({
       toIndex
     }));
     
+    // 스타일 초기화
+    const items = document.querySelectorAll(`.${styles.imageOrderEditorItem}`);
+    items.forEach(item => {
+      item.style.borderStyle = '';
+      item.style.borderColor = '';
+      item.style.background = '';
+    });
+    
     // 드래그 상태 초기화
     dispatch(clearDraggedItem());
   }, [draggedItem, dispatch]);
@@ -376,9 +401,12 @@ const ImageSectionManager = forwardRef(({
     // 모든 드래그 관련 상태 초기화
     dispatch(clearDraggedItem());
     
-    // 드래그 중 CSS 클래스 제거
-    document.querySelectorAll(`.${styles.isImageDragging}`).forEach(el => {
+    // 드래그 중 CSS 클래스 및 인라인 스타일 제거
+    document.querySelectorAll(`.${styles.imageOrderEditorItem}`).forEach(el => {
       el.classList.remove(styles.isImageDragging);
+      el.style.borderStyle = '';
+      el.style.borderColor = '';
+      el.style.background = '';
     });
   }, [dispatch]);
 
@@ -395,26 +423,23 @@ const ImageSectionManager = forwardRef(({
 
   // 이미지 순서 편집 취소
   const cancelImageOrderEdit = useCallback(() => {
+    // Redux 상태 초기화
     dispatch(closeImageOrderEditor());
     
-    // 편집 취소 콜백 호출
-    if (onCancelSelection && typeof onCancelSelection === 'function') {
-      onCancelSelection();
-    }
-  }, [dispatch, onCancelSelection]);
+    // 스타일 초기화
+    setTimeout(() => {
+      document.querySelectorAll(`.${styles.imageOrderEditorItem}`).forEach(el => {
+        el.classList.remove(styles.isImageDragging);
+        el.style.borderStyle = '';
+        el.style.borderColor = '';
+        el.style.background = '';
+      });
+    }, 0);
+  }, [dispatch]);
 
   // 이미지 선택 모달 렌더링
   const renderImageSelectionModal = () => {
-    // console.log('이미지 선택 모달 렌더링 함수 호출됨', { 
-    //   isModalOpen, 
-    //   isBrowserReady,
-    //   source,
-    //   reduxSource,
-    //   hasSelectedImages: selectedImages?.length > 0
-    // });
-    
     if (!isModalOpen || !isBrowserReady) {
-      // console.log('모달 조건 불충족: 렌더링 취소', {isModalOpen, isBrowserReady});
       return null;
     }
 
@@ -434,9 +459,37 @@ const ImageSectionManager = forwardRef(({
       imageRefsToShow = getValidImageRefs(reduxMainImage, reduxSubImages);
     }
     
-    // console.log('이미지 선택 모달 렌더링 시작', {
-    //   imageRefsCount: imageRefsToShow.length
-    // });
+    // 마우스 이벤트 핸들러
+    const handleMouseMove = (e, index) => {
+      const tooltip = e.currentTarget.querySelector(`.${styles.imageTooltip}`);
+      if (tooltip) {
+        tooltip.style.left = `${e.clientX}px`;
+        tooltip.style.top = `${e.clientY}px`;
+      }
+    };
+    
+    // 터치 이벤트 핸들러
+    const handleTouchStart = (e, imageRef) => {
+      // 현재 터치된 요소에 클래스 추가
+      e.currentTarget.classList.add(styles.isImageTouched);
+      
+      // 터치 이벤트의 위치 계산
+      const touch = e.touches[0];
+      if (touch) {
+        const tooltip = e.currentTarget.querySelector(`.${styles.imageTooltip}`);
+        if (tooltip) {
+          tooltip.style.left = `${touch.clientX}px`;
+          tooltip.style.top = `${touch.clientY}px`;
+        }
+      }
+    };
+    
+    const handleTouchEnd = (e, imageRef) => {
+      // 터치 종료 시 클래스 제거
+      e.currentTarget.classList.remove(styles.isImageTouched);
+      // 이미지 선택 토글
+      handleToggleImageSelection(imageRef);
+    };
 
     // 모달 렌더링
     return (
@@ -465,6 +518,9 @@ const ImageSectionManager = forwardRef(({
                       key={`select-${index}-${imageRef}`} 
                       className={`${styles.imageSelectionItem} ${isSelected ? styles.isSelectedImage : ''}`}
                       onClick={() => handleToggleImageSelection(imageRef)}
+                      onMouseMove={(e) => handleMouseMove(e, index)}
+                      onTouchStart={(e) => handleTouchStart(e, imageRef)}
+                      onTouchEnd={(e) => handleTouchEnd(e, imageRef)}
                     >
                       <div className={styles.imageContainerItem}>
                         {!hasError ? (
@@ -481,6 +537,20 @@ const ImageSectionManager = forwardRef(({
                         {isSelected && (
                           <div className={styles.selectedOverlayContainer}>
                             <span className={styles.checkmarkIcon}>✓</span>
+                          </div>
+                        )}
+                      </div>
+                      {/* 툴팁(미리보기) 추가 */}
+                      <div className={styles.imageTooltip}>
+                        {!hasError ? (
+                          <img 
+                            src={getProxiedPhotoUrl(imageRef, 400)} 
+                            alt={`이미지 ${index + 1} 미리보기`}
+                            onError={() => handleImageLoadError(`tooltip-${index}`)}
+                          />
+                        ) : (
+                          <div className={styles.imageErrorTooltip}>
+                            <span>이미지를 불러올 수 없습니다</span>
                           </div>
                         )}
                       </div>
@@ -612,7 +682,7 @@ const ImageSectionManager = forwardRef(({
     // 순서 편집 모달 렌더링
     return (
       <div className={styles.modalOverlay}>
-        <div className={styles.modalContentContainer}>
+        <div className={styles.modalContentContainer} style={{ width: '95%', maxWidth: '900px' }}>
           <div className={styles.modalHeaderContainer}>
             <h3>이미지 순서 편집</h3>
             <button 
@@ -627,6 +697,8 @@ const ImageSectionManager = forwardRef(({
           <div className={styles.modalBodyContainer}>
             <p className={styles.orderInstructions}>
               이미지를 드래그하여 순서를 변경하세요. 첫 번째 이미지가 메인 이미지로 사용됩니다.
+              <br />
+              <small>각 이미지를 드래그하여 원하는 위치로 옮길 수 있습니다. 이미지 우측 상단의 화살표 아이콘을 활용하세요.</small>
             </p>
             
             <div className={styles.imageOrderEditorListContainer}>
@@ -640,18 +712,55 @@ const ImageSectionManager = forwardRef(({
                   onDragEnd={handleDragEnd}
                   data-index={index}
                   className={`${styles.imageOrderEditorItem} ${draggedItem === index ? styles.isImageDragging : ''}`}
+                  onMouseMove={(e) => {
+                    const tooltip = e.currentTarget.querySelector(`.${styles.imageTooltip}`);
+                    if (tooltip) {
+                      tooltip.style.left = `${e.clientX}px`;
+                      tooltip.style.top = `${e.clientY}px`;
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    e.currentTarget.classList.add(styles.isImageTouched);
+                    
+                    // 터치 이벤트의 위치 계산
+                    const touch = e.touches[0];
+                    if (touch) {
+                      const tooltip = e.currentTarget.querySelector(`.${styles.imageTooltip}`);
+                      if (tooltip) {
+                        tooltip.style.left = `${touch.clientX}px`;
+                        tooltip.style.top = `${touch.clientY}px`;
+                      }
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    e.currentTarget.classList.remove(styles.isImageTouched);
+                  }}
                 >
-                  <div className={styles.imageOrderNumberContainer}>{index + 1}</div>
+                  <div className={styles.imageOrderNumberContainer}></div>
                   <div className={styles.imageOrderThumbnailContainer}>
                     <img 
-                      src={getProxiedPhotoUrl(imageRef, 100)} 
+                      src={getProxiedPhotoUrl(imageRef, 180)} 
                       alt={`이미지 ${index + 1}`}
                       onError={() => handleImageLoadError(`edit-${index}`)}
                     />
                   </div>
-                  <div className={styles.imageOrderDragHandleButton}>
-                    <span>≡</span>
-                </div>
+                  <div className={styles.imageOrderDragHandleButton} title="드래그하여 순서 변경">
+                    <span>↕</span>
+                  </div>
+                  {/* 툴팁(미리보기) 추가 */}
+                  <div className={styles.imageTooltip}>
+                    {!imageErrors[`edit-${index}`] ? (
+                      <img 
+                        src={getProxiedPhotoUrl(imageRef, 400)} 
+                        alt={`이미지 ${index + 1} 미리보기`}
+                        onError={() => handleImageLoadError(`tooltip-edit-${index}`)}
+                      />
+                    ) : (
+                      <div className={styles.imageErrorTooltip}>
+                        <span>이미지를 불러올 수 없습니다</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
         </div>

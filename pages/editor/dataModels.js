@@ -34,8 +34,8 @@ export const protoServerDataset = {
   discountHours: "",
   address: "",
   mainImage: "",
-  mainImages: [""],
-  subImages: [""], // Google Place API에서 가져온 이미지를 저장할 배열
+  mainImages: [""], // 개별적으로 업로드할 이미지의 서버 구별값을 저장할 배열(아직 미사용)
+  subImages: [""], // Google Place API에서 가져온 이미지의 구별값을 저장할 배열. 서버api에 해당 구별값을 전송해서 CORS문제 해결된 이미지 주소값 가져옴
   pinCoordinates: "",
   categoryIcon: "",
   googleDataId: "",

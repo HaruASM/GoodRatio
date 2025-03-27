@@ -39,6 +39,11 @@ import {
 
 import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../store/slices/compareBarSlice';
 import ImageSectionManager from './ImageSectionManager';
+import { 
+  openImageOrderEditor,
+  selectIsImageSelectionMode,
+  selectIsImageOrderEditorOpen  
+} from '../store/slices/imageManagerSlice';
 
 // 값이 비어있는지 확인하는 공통 함수
 const isValueEmpty = (value, fieldName) => {
@@ -532,73 +537,64 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     }
   };
 
+  // 이미지 관리 관련 상태 및 Redux 상태
+  const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
+  const isImageOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
+  const imageSectionManagerRef = useRef(null);
+  
   // 이미지 편집 핸들러
   const handleEditImagesOfGallery = () => {
-    // 현재 이미지 배열 생성 (mainImage + subImages)
-    const currentImages = [];
-    
-    // mainImage가 있으면 추가
-    if (formData.mainImage) {
-      currentImages.push(formData.mainImage);
-    }
-    
-    // subImages가 있으면 추가
-    if (formData.subImages && Array.isArray(formData.subImages) && formData.subImages.length > 0) {
-      currentImages.push(...formData.subImages);
-    }
-    
-    // 이미지 순서 편집 모드 활성화
-    setIsImageSelectionMode(true);
-    setEditMode(true);
+    // 이미지 순서 편집기 열기 (Redux 액션 사용)
+    dispatch(openImageOrderEditor({
+      source: 'rightSidebar',
+      mainImage: formData.mainImage,
+      subImages: formData.subImages
+    }));
   };
-  
-  // 이미지 선택 모드 상태
-  const [isImageSelectionMode, setIsImageSelectionMode] = useState(false);
-  const [isEditMode, setEditMode] = useState(false);
   
   // 이미지 선택 완료 처리
   const handleImagesSelected = (selectedImages) => {
     if (selectedImages && selectedImages.length > 0) {
-      console.log('선택/편집된 이미지:', selectedImages);
+      // 선택된 이미지 배열 깊은 복사 (문자열 배열이므로 JSON 방식 사용)
+      const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImages || []));
       
-      if (isEditMode) {
-        // 순서 편집 모드인 경우: 첫 번째 이미지는 메인, 나머지는 서브 이미지로 설정
-        const mainImg = selectedImages[0];
-        const subImgs = selectedImages.slice(1);
-        
-        // Redux 상태 업데이트
-        dispatch(updateField({ field: 'mainImage', value: mainImg }));
-        dispatch(updateField({ field: 'subImages', value: subImgs }));
-        
-        // 변경 필드 추적
+      // 유효한 이미지만 필터링
+      const validImages = selectedImagesCopy.filter(img => 
+        img && typeof img === 'string' && img.trim() !== ''
+      );
+      
+      if (!validImages.length) return;
+      
+      // 현재 폼 데이터의 이미지 상태 가져오기
+      const currentMainImage = formData.mainImage;
+      const currentSubImages = Array.isArray(formData.subImages) ? 
+        [...formData.subImages] : [];
+      
+      // 선택된 이미지가 1개이고 메인 이미지가 없는 경우: 메인 이미지로 설정
+      if (validImages.length === 1 && !currentMainImage) {
+        dispatch(updateField({ field: 'mainImage', value: validImages[0] }));
         dispatch(trackField({ field: 'mainImage' }));
-        dispatch(trackField({ field: 'subImages' }));
+      } 
+      // 그 외의 경우: 모든 이미지를 서브 이미지에 추가
+      else {
+        // 중복 이미지 필터링
+        const newImages = validImages.filter(img => 
+          img !== currentMainImage && !currentSubImages.includes(img)
+        );
         
-        console.log('이미지 순서가 업데이트되었습니다.');
-        
-        // 편집 모드 종료
-        setEditMode(false);
-      } else {
-        // 선택 모드인 경우: 이전 로직 유지 (모든 이미지를 subImages에 추가)
-        const currentSubImages = formData.subImages || [];
-        const updatedSubImages = [...currentSubImages, ...selectedImages];
-        
-        dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
-        dispatch(trackField({ field: 'subImages' }));
-        
-        console.log('이미지가 subImages 배열에 추가되었습니다.');
+        // 추가할 이미지가 있으면 서브 이미지 배열에 추가
+        if (newImages.length > 0) {
+          const updatedSubImages = [...currentSubImages, ...newImages];
+          dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
+          dispatch(trackField({ field: 'subImages' }));
+        }
       }
     }
-    
-    // 선택 모드 종료
-    setIsImageSelectionMode(false);
   };
   
   // 이미지 선택 취소 처리
   const handleCancelImageSelection = () => {
-    setIsImageSelectionMode(false);
-    setEditMode(false);
-    console.log('이미지 편집이 취소되었습니다.');
+    // 모달은 자동으로 닫힘
   };
 
   return (
@@ -804,23 +800,23 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
             })}
 
           {/* 이미지 미리보기 영역 */}
-          <div className={styles.compareBarSection}>
+          <div className={styles.imageSectionPreviewContainer}>
             <ImageSectionManager 
+              ref={imageSectionManagerRef}
               mainImage={formData.mainImage} 
               subImages={formData.subImages}
               onImagesSelected={handleImagesSelected}
-              onCancelSelection={handleCancelImageSelection}
-              isSelectionMode={isImageSelectionMode && !isEditMode}
-              isEditMode={isEditMode}
-              editImages={isEditMode ? [
-                ...(formData.mainImage ? [formData.mainImage] : []), 
-                ...(formData.subImages || [])
-              ] : []}
+              onCancelImageSelection={handleCancelImageSelection}
+              source="rightSidebar"
             />
             {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
             {isEditorOn && (
+              (formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '') || 
+              (Array.isArray(formData.subImages) && formData.subImages.length > 0 && 
+                formData.subImages.some(img => img && typeof img === 'string' && img.trim() !== ''))
+            ) && (
               <div 
-                className={styles.imageSectionOverlay}
+                className={styles.imageSectionOverlayContainer}
                 onClick={handleEditImagesOfGallery}
               >
                 <span className={styles.imageSectionOverlayText}>이미지 편집</span>

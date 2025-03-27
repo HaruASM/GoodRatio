@@ -1,142 +1,236 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import styles from '../styles.module.css';
 
-/**
- * 구글 Place Photo Reference를 이용해 서버 API 라우트를 통한 이미지 URL 생성
- * @param {string} photoReference - 구글 Place API 사진 참조 ID
- * @param {number} maxWidth - 이미지 최대 너비
- * @returns {string} 프록시된 이미지 URL
- */
-const getProxiedPhotoUrl = (photoReference, maxWidth = 500) => {
-  if (!photoReference) return '';
-  return `/api/place-photo?photo_reference=${photoReference}&maxwidth=${maxWidth}`;
-};
+import {
+  selectIsImageGalleryOpen,
+  selectIsImageSelectionMode,
+  selectIsImageOrderEditorOpen,
+  selectMainImage,
+  selectSubImages,
+  selectSelectedImages,
+  selectEditedImages,
+  selectCurrentImageIndex,
+  selectDraggedItemIndex,
+  openImageGallery,
+  closeImageGallery,
+  setCurrentImageIndex,
+  openImageSelectionMode,
+  closeImageSelectionMode,
+  toggleImageSelection,
+  confirmImageSelection,
+  openImageOrderEditor,
+  closeImageOrderEditor,
+  confirmImageOrder,
+  setDraggedItem,
+  clearDraggedItem,
+  moveImage
+} from '../store/slices/imageManagerSlice';
+
+// 유틸리티 함수 가져오기
+import { getProxiedPhotoUrl, getValidImageRefs, handleImageError } from '../utils/imageHelpers';
 
 /**
  * 이미지 관리 컴포넌트 - 메인 이미지와 서브 이미지를 출력하고 관리
  * 
  * @param {Object} props - 컴포넌트 props
  * @param {string} props.mainImage - 메인 이미지 photo_reference
- * @param {Array<string>} props.subImages - 서브 이미지 photo_reference 배열
+ * @param {string} props.subImages - 서브 이미지 photo_reference 배열
  * @param {Function} props.onImagesSelected - 이미지 선택 완료 시 호출될 콜백 함수
  * @param {Function} props.onCancelSelection - 이미지 선택 취소 시 호출될 콜백 함수
  * @param {boolean} props.isSelectionMode - 이미지 선택 모드 활성화 여부
- * @param {boolean} props.isEditMode - 이미지 순서 편집 모드 활성화 여부
- * @param {Array<string>} props.editImages - 편집할 이미지 배열 (순서 편집 모드에서 사용)
+ * @param {string} props.source - 컴포넌트 소스 식별자 ('rightSidebar' 또는 'compareBar')
  * @returns {React.ReactElement} 이미지 관리 UI 컴포넌트
  */
-const ImageSectionManager = ({ 
-  mainImage, 
-  subImages, 
+const ImageSectionManager = forwardRef(({ 
+  mainImage: propMainImage, 
+  subImages: propSubImages, 
   onImagesSelected, 
   onCancelSelection, 
   isSelectionMode = false,
-  isEditMode = false,
-  editImages = []
-}) => {
-  // photo_reference 배열 상태 관리
+  source = 'rightSidebar'
+}, ref) => {
+  const dispatch = useDispatch();
+  
+  // Redux 상태 가져오기
+  const isGalleryOpen = useSelector(selectIsImageGalleryOpen);
+  const isModalOpen = useSelector(selectIsImageSelectionMode);
+  const isOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
+  const reduxMainImage = useSelector(selectMainImage);
+  const reduxSubImages = useSelector(selectSubImages);
+  const selectedImages = useSelector(selectSelectedImages);
+  const availableImages = useSelector(state => state.imageManager.availableImages);
+  const editedImages = useSelector(selectEditedImages);
+  const currentImageIndex = useSelector(selectCurrentImageIndex);
+  const draggedItem = useSelector(selectDraggedItemIndex);
+  const reduxSource = useSelector(state => state.imageManager.source);
+  
+  // 이전 모달 상태를 추적하는 ref 추가
+  const prevModalOpenRef = useRef(false);
+  
+  // 로컬 상태 (Redux로 관리하지 않는 상태)
   const [imageRefs, setImageRefs] = useState([]);
-  
-  // 선택된 이미지 상태 관리
-  const [selectedImages, setSelectedImages] = useState([]);
-
-  // 이미지 순서 편집 상태 관리
-  const [editedImages, setEditedImages] = useState([]);
-  const [draggedItem, setDraggedItem] = useState(null);
-
-  // 선택 모드 상태
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // 순서 편집 모드 상태
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  
-  // 이미지 로드 오류 상태
   const [imageErrors, setImageErrors] = useState({});
+  const [isBrowserReady, setIsBrowserReady] = useState(false);
+  
+  // 편의를 위한 별칭 (props에서 전달받은 값 또는 Redux 상태 사용)
+  const mainImage = propMainImage !== undefined ? propMainImage : reduxMainImage;
+  const subImages = propSubImages !== undefined ? propSubImages : reduxSubImages;
+  
+  // ref를 통해 외부에서 접근 가능한 함수 노출
+  useImperativeHandle(ref, () => ({
+    openImageOrderEditor: () => {
+      dispatch(openImageOrderEditor({
+        source,
+        mainImage,
+        subImages
+      }));
+    }
+  }));
   
   // 초기 이미지 데이터 설정
   useEffect(() => {
-    // mainImage와 subImages가 photo_reference인 경우 직접 병합
-    const initialImageRefs = [];
-    
-    if (mainImage) {
-      initialImageRefs.push(mainImage);
-    }
-    
-    if (subImages && Array.isArray(subImages) && subImages.length > 0) {
-      initialImageRefs.push(...subImages);
-    }
-    
+    // 유효한 이미지 참조만 필터링하여 설정
+    const initialImageRefs = getValidImageRefs(mainImage, subImages);
     setImageRefs(initialImageRefs);
+    
+    // 이미지 에러 상태 초기화
+    setImageErrors({});
   }, [mainImage, subImages]);
-
-  // 편집 모드에서 이미지 배열 초기화
-  useEffect(() => {
-    if (isEditMode && editImages && editImages.length > 0) {
-      setEditedImages([...editImages]);
-      setIsEditModalOpen(true);
-    }
-  }, [isEditMode, editImages]);
 
   // 서브 이미지 관련 계산
   const hasValidSubImages = imageRefs.length > 1;
   const totalSubImages = hasValidSubImages ? imageRefs.length - 1 : 0;
   const additionalImages = totalSubImages > 4 ? totalSubImages - 3 : 0;
 
-  // 갤러리 상태 관리
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isBrowserReady, setIsBrowserReady] = useState(false);
-  
+  // 브라우저 준비 상태 설정
   useEffect(() => {
+    // 브라우저 환경이면 준비 상태 설정
+    if (typeof window !== 'undefined') {
     setIsBrowserReady(true);
-  }, []);
+    }
+    
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      // 모달이 열려있는 상태로 컴포넌트가 언마운트될 때 정리
+      if (isModalOpen) {
+        dispatch(closeImageSelectionMode());
+      }
+    };
+  }, [dispatch]);
   
   // 이미지 선택 모드가 활성화되면 모달 열기
   useEffect(() => {
     if (isSelectionMode && !isModalOpen) {
-      setIsModalOpen(true);
-      setSelectedImages([]);
+      dispatch(openImageSelectionMode({
+        source,
+        mainImage,
+        subImages
+      }));
     }
-  }, [isSelectionMode, isModalOpen]);
+  }, [isSelectionMode, isModalOpen, dispatch, source, mainImage, subImages]);
+
+  // 이미지 선택 완료 이벤트 핸들러 - 무한 루프 방지를 위한 정교한 조건 추가
+  useEffect(() => {
+    // 모달이 닫힌 경우에만 처리 (이전에는 열려있었지만 지금은 닫힌 경우)
+    const wasModalOpen = prevModalOpenRef.current;
+    const isModalClosed = !isModalOpen;
+    
+    if (wasModalOpen && isModalClosed) {
+      // console.log('모달 닫힘 감지: 이미지 처리 시작', {
+      //   selectedImagesCount: selectedImages?.length || 0
+      // });
+      
+      // 선택된 이미지가 있는 경우
+      if (selectedImages && selectedImages.length > 0) {
+        // 선택된 이미지 유효성 검증
+        const validSelectedImages = selectedImages.filter(
+          img => img && typeof img === 'string' && img.trim() !== ''
+        );
+        
+        if (validSelectedImages.length > 0 && typeof onImagesSelected === 'function') {
+          // 콜백 한 번만 호출하도록 ref 설정
+          prevModalOpenRef.current = false;
+          onImagesSelected(validSelectedImages);
+        }
+      } else if (typeof onCancelSelection === 'function') {
+        // 선택된 이미지가 없으면 취소로 간주
+        prevModalOpenRef.current = false;
+        onCancelSelection();
+      }
+    } else {
+      // 현재 모달 상태를 ref에 저장
+      prevModalOpenRef.current = isModalOpen;
+    }
+  }, [isModalOpen, selectedImages, onImagesSelected, onCancelSelection]);
 
   // 이미지 로드 오류 처리
-  const handleImageError = (index) => {
-    setImageErrors(prev => ({ ...prev, [index]: true }));
-    console.error(`이미지 로드 실패: 인덱스 ${index}`);
-  };
+  const handleImageLoadError = useCallback((index) => {
+    // 이미지 오류 처리
+    setImageErrors(prev => ({
+      ...prev,
+      ...handleImageError(index, imageRefs)
+    }));
+  }, [imageRefs]);
 
   // 갤러리 제어 함수들
-  const openGallery = (index) => {
-    if (isSelectionMode || isEditMode) return; // 선택 모드나 편집 모드에서는 갤러리 열지 않음
+  const openGallery = useCallback((index) => {
+    // 선택 모드나 편집 모드에서는 갤러리 열지 않음
+    if (isSelectionMode || isOrderEditorOpen) return;
     
-    setCurrentImageIndex(index);
-    setIsGalleryOpen(true);
-    document.body.style.overflow = 'hidden';
-  };
+    // 유효한 이미지가 있는지 확인
+    const validImageRefs = getValidImageRefs(mainImage, subImages);
+    if (validImageRefs.length === 0) return;
+    
+    // 갤러리 열기
+    dispatch(openImageGallery({
+      index,
+      source,
+      images: { mainImage, subImages }
+    }));
+  }, [isSelectionMode, isOrderEditorOpen, mainImage, subImages, dispatch, source]);
   
-  const closeGallery = () => {
-    setIsGalleryOpen(false);
+  const closeGallery = useCallback(() => {
+    dispatch(closeImageGallery());
     document.body.style.overflow = '';
-  };
+  }, [dispatch]);
   
-  const prevImage = () => {
-    setCurrentImageIndex((prevIndex) => 
-      prevIndex === 0 ? imageRefs.length - 1 : prevIndex - 1
-    );
-  };
+  const prevImage = useCallback(() => {
+    // 갤러리에 표시할 이미지 배열
+    const galleryImages = imageRefs.length > 0 ? imageRefs : 
+      getValidImageRefs(reduxMainImage, reduxSubImages);
+    
+    if (galleryImages.length <= 1) return;
+    
+    const newIndex = currentImageIndex <= 0 ? galleryImages.length - 1 : currentImageIndex - 1;
+    dispatch(setCurrentImageIndex(newIndex));
+  }, [imageRefs, reduxMainImage, reduxSubImages, currentImageIndex, dispatch]);
   
-  const nextImage = () => {
-    setCurrentImageIndex((prevIndex) => 
-      prevIndex === imageRefs.length - 1 ? 0 : prevIndex + 1
-    );
-  };
+  const nextImage = useCallback(() => {
+    // 갤러리에 표시할 이미지 배열
+    const galleryImages = imageRefs.length > 0 ? imageRefs : 
+      getValidImageRefs(reduxMainImage, reduxSubImages);
+    
+    if (galleryImages.length <= 1) return;
+    
+    const newIndex = currentImageIndex >= galleryImages.length - 1 ? 0 : currentImageIndex + 1;
+    dispatch(setCurrentImageIndex(newIndex));
+  }, [imageRefs, reduxMainImage, reduxSubImages, currentImageIndex, dispatch]);
   
-  const goToImage = (index) => {
-    setCurrentImageIndex(index);
-  };
+  const goToImage = useCallback((index) => {
+    // 갤러리에 표시할 이미지 배열
+    const galleryImages = imageRefs.length > 0 ? imageRefs : 
+      getValidImageRefs(reduxMainImage, reduxSubImages);
+    
+    // 인덱스 범위 확인
+    if (index < 0 || index >= galleryImages.length) return;
+    
+    dispatch(setCurrentImageIndex(index));
+  }, [imageRefs, reduxMainImage, reduxSubImages, dispatch]);
   
-  const handleKeyDown = (e) => {
+  // 키보드 이벤트 처리
+  const handleKeyDown = useCallback((e) => {
     if (!isGalleryOpen) return;
     
     switch (e.key) {
@@ -152,52 +246,58 @@ const ImageSectionManager = ({
       default:
         break;
     }
-  };
+  }, [isGalleryOpen, closeGallery, prevImage, nextImage]);
   
   useEffect(() => {
     if (isGalleryOpen) {
       window.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
     }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isGalleryOpen]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isGalleryOpen, handleKeyDown]);
 
   // 이미지 선택 처리 함수
-  const toggleImageSelection = useCallback((imageRef) => {
-    setSelectedImages(prev => {
-      if (prev.includes(imageRef)) {
-        return prev.filter(ref => ref !== imageRef);
-      } else {
-        return [...prev, imageRef];
-      }
-    });
-  }, []);
+  const handleToggleImageSelection = useCallback((imageRef) => {
+    dispatch(toggleImageSelection(imageRef));
+  }, [dispatch]);
 
   // 이미지 선택 완료 처리
   const completeImageSelection = useCallback(() => {
+    // 선택된 이미지가 없는 경우 선택 취소
+    if (!selectedImages || selectedImages.length === 0) {
+      dispatch(closeImageSelectionMode());
+      return;
+    }
+    
+    // Redux 액션 디스패치
+    dispatch(confirmImageSelection());
+    
+    // 콜백 호출
     if (onImagesSelected && typeof onImagesSelected === 'function') {
       onImagesSelected(selectedImages);
     }
-    setIsModalOpen(false);
-  }, [selectedImages, onImagesSelected]);
+  }, [dispatch, onImagesSelected, selectedImages]);
 
   // 이미지 선택 취소
   const cancelImageSelection = useCallback(() => {
-    setSelectedImages([]);
-    setIsModalOpen(false);
+    dispatch(closeImageSelectionMode());
     
     // 선택 취소 콜백 호출
     if (onCancelSelection && typeof onCancelSelection === 'function') {
       onCancelSelection();
     }
-  }, [onCancelSelection]);
+  }, [dispatch, onCancelSelection]);
 
   // 이미지 드래그 시작
-  const handleDragStart = (e, index) => {
+  const handleDragStart = useCallback((e, index) => {
     // 이미 드래그 중인 경우 무시
     if (draggedItem !== null) return;
     
     // 드래그할 아이템 인덱스 설정
-    setDraggedItem(index);
+    dispatch(setDraggedItem(index));
     
     // 드래그 효과 및 데이터 설정
     e.dataTransfer.effectAllowed = 'move';
@@ -219,408 +319,366 @@ const ImageSectionManager = ({
         }
       }
     } catch (err) {
-      console.log('setDragImage 미지원 브라우저:', err);
+      // console.log('setDragImage 미지원 브라우저:', err);
     }
     
-    // 드래그 중임을 시각적으로 표시 (setTimeout으로 실행 순서 문제 방지)
+    // 드래그 중임을 시각적으로 표시
     setTimeout(() => {
       const draggableElement = document.querySelector(`[data-index="${index}"]`);
       if (draggableElement) {
-        draggableElement.classList.add('dragging');
+        draggableElement.classList.add(styles.isImageDragging);
       }
     }, 0);
-    
-    console.log('Drag started:', index);
-  };
+  }, [draggedItem, dispatch, imageErrors]);
 
   // 드래그 오버 이벤트 처리
-  const handleDragOver = (e, index) => {
+  const handleDragOver = useCallback((e, index) => {
     // 기본 동작 방지 (필수)
     e.preventDefault();
-    e.stopPropagation();
     
-    // 드래그한 아이템이 없거나 현재 위치와 동일하면 처리하지 않음
-    if (draggedItem === null || draggedItem === index) {
-      return;
-    }
-    
-    try {
-      // 새로운 순서로 이미지 배열 업데이트
-      const newImageOrder = [...editedImages];
-      const draggedImage = newImageOrder[draggedItem];
-      
-      // 원래 위치에서 제거하고 새 위치에 삽입
-      newImageOrder.splice(draggedItem, 1);
-      newImageOrder.splice(index, 0, draggedImage);
-      
-      // 현재 드래그 중인 아이템 인덱스 업데이트
-      setDraggedItem(index);
-      // 이미지 순서 업데이트
-      setEditedImages(newImageOrder);
-    } catch (error) {
-      console.error('드래그 순서 변경 중 오류 발생:', error);
-    }
-  };
-
-  // 드래그 엔터 이벤트 처리 (시각적 피드백 제공)
-  const handleDragEnter = (e) => {
-    e.preventDefault();
-    
-    // 시각적 피드백을 위해 drag-over 클래스 추가
-    const target = e.currentTarget || e.target;
-    if (target && target.classList) {
-      target.classList.add('drag-over');
-    }
-  };
-
-  // 드래그 리브 이벤트 처리 (시각적 피드백 제거)
-  const handleDragLeave = (e) => {
-    // 자식 요소로 이동할 때는 drag-over 유지
-    if (e.currentTarget.contains(e.relatedTarget)) {
-      return;
-    }
-    
-    // 시각적 피드백 제거
-    const target = e.currentTarget || e.target;
-    if (target && target.classList) {
-      target.classList.remove('drag-over');
-    }
-  };
-
-  // 드래그 엔드 이벤트 처리
-  const handleDragEnd = (e) => {
-    // 모든 드래깅 관련 클래스 제거
-    document.querySelectorAll('.dragging').forEach(item => {
-      item.classList.remove('dragging');
-    });
-    
-    document.querySelectorAll('.drag-over').forEach(item => {
-      item.classList.remove('drag-over');
-    });
-    
-    // 드래그 상태 초기화
-    setDraggedItem(null);
-    
-    console.log('Drag ended');
-  };
-
-  // 드롭 이벤트 처리
-  const handleDrop = (e, index) => {
-    // 기본 동작 방지
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // 드래그 오버 스타일 제거
-    const target = e.currentTarget || e.target;
-    if (target && target.classList) {
-      target.classList.remove('drag-over');
-    }
-    
-    // 드래그 아이템이 없는 경우 처리하지 않음
+    // 드래그 중인 아이템이 없는 경우 무시
     if (draggedItem === null) return;
     
-    try {
-      // 드롭 위치와 드래그 위치가 같으면 처리하지 않음
-      if (draggedItem === index) return;
-      
-      // 현재 이미지 순서 확인
-      console.log('최종 이미지 순서:', editedImages);
-      
-      // 순서 확인 및 필요시 마지막으로 순서 조정
-      if (draggedItem !== index) {
-        const finalOrder = [...editedImages];
-        const movedImage = finalOrder[draggedItem];
-        
-        // 드래그한 아이템 제거 후 새 위치에 삽입
-        finalOrder.splice(draggedItem, 1);
-        finalOrder.splice(index, 0, movedImage);
-        
-        // 최종 순서 업데이트
-        setEditedImages(finalOrder);
-      }
-    } catch (error) {
-      console.error('드롭 처리 중 오류 발생:', error);
+    // 동일한 위치로 드래그하는 경우 무시
+    if (draggedItem === index) return;
+    
+    // 드롭 효과 설정
+    e.dataTransfer.dropEffect = 'move';
+  }, [draggedItem]);
+
+  // 드롭 이벤트 처리
+  const handleDrop = useCallback((e, toIndex) => {
+    // 기본 동작 방지
+    e.preventDefault();
+    
+    // 드래그 중인 아이템이 없는 경우 무시
+    if (draggedItem === null) return;
+    
+    // 동일한 위치로 드래그하는 경우 무시
+    if (draggedItem === toIndex) {
+      // 드래그 상태 초기화
+      dispatch(clearDraggedItem());
+      return;
     }
+    
+    // 이미지 순서 변경
+    dispatch(moveImage({
+      fromIndex: draggedItem,
+      toIndex
+    }));
     
     // 드래그 상태 초기화
-    setDraggedItem(null);
+    dispatch(clearDraggedItem());
+  }, [draggedItem, dispatch]);
+
+  // 드래그 종료 처리
+  const handleDragEnd = useCallback(() => {
+    // 모든 드래그 관련 상태 초기화
+    dispatch(clearDraggedItem());
     
-    console.log('Drop 완료:', index);
-  };
+    // 드래그 중 CSS 클래스 제거
+    document.querySelectorAll(`.${styles.isImageDragging}`).forEach(el => {
+      el.classList.remove(styles.isImageDragging);
+    });
+  }, [dispatch]);
 
-  // 이미지 제거
-  const removeImage = (index) => {
-    try {
-      if (index < 0 || index >= editedImages.length) {
-        console.warn('유효하지 않은 이미지 인덱스:', index);
-        return;
-      }
-      
-      // 이미지 배열에서 해당 인덱스 제거
-      setEditedImages(prev => prev.filter((_, idx) => idx !== index));
-      
-      // 드래그 중인 아이템 인덱스 업데이트
-      if (draggedItem !== null) {
-        if (draggedItem === index) {
-          // 드래그 중인 아이템이 제거되면 draggedItem 초기화
-          setDraggedItem(null);
-        } else if (draggedItem > index) {
-          // 제거된 아이템보다 인덱스가 크면 조정
-          setDraggedItem(draggedItem - 1);
-        }
-      }
-    } catch (error) {
-      console.error('이미지 제거 중 오류 발생:', error);
-    }
-  };
-
-  // 편집 완료 처리
-  const completeImageOrdering = () => {
+  // 이미지 순서 편집 확인
+  const confirmImageOrderEdit = useCallback(() => {
+    // Redux 상태 업데이트
+    dispatch(confirmImageOrder());
+    
+    // 콜백 호출 (편집된 이미지 리스트 전달)
     if (onImagesSelected && typeof onImagesSelected === 'function') {
-      // 첫 번째 이미지는 메인 이미지, 나머지는 서브 이미지로 설정하여 콜백 호출
       onImagesSelected(editedImages);
     }
-    setIsEditModalOpen(false);
-  };
+  }, [dispatch, onImagesSelected, editedImages]);
 
-  // 편집 취소
-  const cancelImageOrdering = () => {
-    setEditedImages([]);
-    setIsEditModalOpen(false);
+  // 이미지 순서 편집 취소
+  const cancelImageOrderEdit = useCallback(() => {
+    dispatch(closeImageOrderEditor());
     
-    // 취소 콜백 호출
+    // 편집 취소 콜백 호출
     if (onCancelSelection && typeof onCancelSelection === 'function') {
       onCancelSelection();
     }
+  }, [dispatch, onCancelSelection]);
+
+  // 이미지 선택 모달 렌더링
+  const renderImageSelectionModal = () => {
+    // console.log('이미지 선택 모달 렌더링 함수 호출됨', { 
+    //   isModalOpen, 
+    //   isBrowserReady,
+    //   source,
+    //   reduxSource,
+    //   hasSelectedImages: selectedImages?.length > 0
+    // });
+    
+    if (!isModalOpen || !isBrowserReady) {
+      // console.log('모달 조건 불충족: 렌더링 취소', {isModalOpen, isBrowserReady});
+      return null;
+    }
+
+    // 모달에서 사용할 이미지 목록 가져오기
+    let imageRefsToShow = [];
+    
+    // 1. availableImages가 있으면 우선적으로 사용
+    if (availableImages && availableImages.length > 0) {
+      imageRefsToShow = availableImages;
+    } 
+    // 2. 아니면 로컬 상태의 imageRefs 사용 
+    else if (imageRefs.length > 0) {
+      imageRefsToShow = imageRefs;
+    }
+    // 3. 마지막으로 Redux 상태에서 가져오기
+    else {
+      imageRefsToShow = getValidImageRefs(reduxMainImage, reduxSubImages);
+    }
+    
+    // console.log('이미지 선택 모달 렌더링 시작', {
+    //   imageRefsCount: imageRefsToShow.length
+    // });
+
+    // 모달 렌더링
+    return (
+      <div className={styles.modalOverlay}>
+        <div className={styles.modalContentContainer}>
+          <div className={styles.modalHeaderContainer}>
+            <h3>이미지 선택</h3>
+            <button 
+              className={styles.modalCloseButton} 
+              onClick={cancelImageSelection}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className={styles.modalBodyContainer}>
+            <div className={styles.imageSelectionGridContainer}>
+              {imageRefsToShow.length > 0 ? (
+                imageRefsToShow.map((imageRef, index) => {
+                  const isSelected = selectedImages.includes(imageRef);
+                  const hasError = imageErrors[`selection-${index}`];
+                  
+                  return (
+                    <div 
+                      key={`select-${index}-${imageRef}`} 
+                      className={`${styles.imageSelectionItem} ${isSelected ? styles.isSelectedImage : ''}`}
+                      onClick={() => handleToggleImageSelection(imageRef)}
+                    >
+                      <div className={styles.imageContainerItem}>
+                        {!hasError ? (
+                          <img 
+                            src={getProxiedPhotoUrl(imageRef, 200)} 
+                            alt={`이미지 ${index + 1}`}
+                            onError={() => handleImageLoadError(`selection-${index}`)}
+                          />
+                        ) : (
+                          <div className={styles.imageErrorPlaceholderContainer}>
+                            <span>로드 실패</span>
+                          </div>
+                        )}
+                        {isSelected && (
+                          <div className={styles.selectedOverlayContainer}>
+                            <span className={styles.checkmarkIcon}>✓</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className={styles.noImagesMessage}>
+                  <p>선택 가능한 이미지가 없습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className={styles.modalFooterContainer}>
+            <span className={styles.selectionCountText}>
+              {selectedImages.length}개 선택됨
+            </span>
+            <div className={styles.buttonGroup}>
+              <button 
+                className={styles.cancelButton} 
+                onClick={cancelImageSelection}
+              >
+                취소
+              </button>
+              <button 
+                className={styles.confirmButton} 
+                onClick={completeImageSelection}
+                disabled={selectedImages.length === 0}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
-  
-  // 갤러리 모달 컴포넌트
-  const GalleryModal = () => (
-      <div className={styles.galleryOverlay} onClick={closeGallery}>
-        <div className={styles.galleryContent} onClick={(e) => e.stopPropagation()}>
-          <button className={styles.galleryCloseBtn} onClick={closeGallery}>
+
+  // 이미지 갤러리 모달 렌더링
+  const renderGallery = () => {
+    if (!isGalleryOpen || !isBrowserReady) {
+      return null;
+    }
+
+    // 갤러리에 표시할 이미지 목록 가져오기
+    let galleryImages = imageRefs;
+    
+    // 이미지 목록이 없으면 Redux 상태에서 가져오기
+    if (galleryImages.length === 0) {
+      galleryImages = getValidImageRefs(reduxMainImage, reduxSubImages);
+    }
+    
+    // 현재 선택된 이미지
+    const currentImageRef = galleryImages[currentImageIndex];
+    const hasGalleryError = imageErrors[`gallery-current`];
+
+    // 갤러리 모달 렌더링
+    return (
+      <div className={styles.galleryOverlay}>
+        <div className={styles.galleryContentContainer}>
+          <button 
+            className={styles.galleryCloseButton} 
+            onClick={closeGallery}
+            aria-label="닫기"
+          >
             &times;
           </button>
           
-          <div className={styles.galleryMainImage}>
-            <button className={styles.galleryNavBtn} onClick={prevImage}>
+          <div className={styles.galleryMainImageContainer}>
+            <button className={styles.galleryNavButton} onClick={prevImage}>
               &lt;
             </button>
             
             <div className={styles.galleryImageContainer}>
-            {imageErrors[currentImageIndex] ? (
-              <div className={styles.imageErrorPlaceholder}>
-                이미지를 불러올 수 없습니다.
-              </div>
-            ) : (
-              <img 
-                src={getProxiedPhotoUrl(imageRefs[currentImageIndex])} 
+              {!hasGalleryError ? (
+                <img 
+                  src={getProxiedPhotoUrl(currentImageRef, 800)} 
                 alt={`이미지 ${currentImageIndex + 1}`}
-                className={styles.galleryImage}
-                onError={() => handleImageError(currentImageIndex)}
+                  className={styles.galleryImagePreview}
+                  onError={() => handleImageLoadError('gallery-current')}
               />
+              ) : (
+                <div className={styles.imageErrorPlaceholderContainer}>
+                  <span>이미지를 불러올 수 없습니다.</span>
+                </div>
             )}
             </div>
             
-            <button className={styles.galleryNavBtn} onClick={nextImage}>
+            <button className={styles.galleryNavButton} onClick={nextImage}>
               &gt;
             </button>
           </div>
           
-          <div className={styles.galleryThumbnails}>
-          {imageRefs.map((ref, index) => (
+          <div className={styles.galleryThumbnailsContainer}>
+            {galleryImages.map((ref, index) => (
               <div 
-                key={index}
-              className={`${styles.galleryThumbnail} ${index === currentImageIndex ? styles.activeThumbnail : ''} ${imageErrors[index] ? styles.errorThumbnail : ''}`}
+                key={`gallery-thumb-${index}`}
+                className={`${styles.galleryThumbnailItem} ${index === currentImageIndex ? styles.isActiveThumbnail : ''} ${imageErrors[`gallery-thumb-${index}`] ? styles.isErrorThumbnail : ''}`}
                 onClick={() => goToImage(index)}
               >
-              {imageErrors[index] ? (
-                <div className={styles.thumbnailErrorPlaceholder}></div>
+                {imageErrors[`gallery-thumb-${index}`] ? (
+                  <div className={styles.thumbnailErrorPlaceholderContainer}></div>
               ) : (
                 <img 
                   src={getProxiedPhotoUrl(ref, 100)} 
                   alt={`썸네일 ${index + 1}`}
-                  onError={() => handleImageError(index)}
+                    onError={() => handleImageLoadError(`gallery-thumb-${index}`)}
                 />
               )}
               </div>
             ))}
           </div>
           
-          <div className={styles.galleryCounter}>
-          {currentImageIndex + 1} / {imageRefs.length}
+          <div className={styles.galleryCounterContainer}>
+            {galleryImages.length > 0 ? `${currentImageIndex + 1} / ${galleryImages.length}` : '0 / 0'}
         </div>
       </div>
     </div>
   );
+  };
 
-  // 이미지 선택 모달 컴포넌트
-  const ImageSelectionModal = () => (
-    <div className={styles.galleryOverlay} onClick={cancelImageSelection}>
-      <div className={styles.galleryContent} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.galleryCloseBtn} onClick={cancelImageSelection}>
-          &times;
-        </button>
-        
-        <h3 className={styles.imageSelectionTitle}>이미지 선택</h3>
-        <p className={styles.imageSelectionSubtitle}>사용할 이미지를 선택하세요</p>
-        
-        <div className={styles.imageSelectionGrid}>
-          {imageRefs.length > 0 ? (
-            imageRefs.map((ref, index) => (
-              <div 
-                key={index}
-                className={`${styles.imageSelectionItem} ${selectedImages.includes(ref) ? styles.selectedImage : ''} ${imageErrors[index] ? styles.errorItem : ''}`}
-                onClick={() => !imageErrors[index] && toggleImageSelection(ref)}
-              >
-                <div className={styles.imageSelectionOverlay}>
-                  {imageErrors[index] ? (
-                    <div className={styles.imageErrorPlaceholder}>로드 실패</div>
-                  ) : (
-                    <img 
-                      src={getProxiedPhotoUrl(ref)} 
-                      alt={`이미지 ${index + 1}`}
-                      onError={() => handleImageError(index)}
-                    />
-                  )}
-                  {selectedImages.includes(ref) && !imageErrors[index] && (
-                    <div className={styles.imageSelectedIcon}>✓</div>
-                  )}
-                </div>
-                <div className={styles.imageSelectionMeta}>
-                  {index === 0 ? '메인 이미지' : `서브 이미지 ${index}`}
-                  {imageErrors[index] && ' (로드 실패)'}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className={styles.emptyImageMessage}>선택할 이미지가 없습니다</div>
-          )}
-        </div>
-        
-        <div className={styles.imageSelectionActions}>
-          <div className={styles.selectedCount}>
-            {selectedImages.length}개 선택됨
-          </div>
-          <div className={styles.imageSelectionButtons}>
+  // 이미지 순서 편집 모달 렌더링
+  const renderOrderEditor = () => {
+    if (!isOrderEditorOpen || !isBrowserReady) {
+      return null;
+    }
+
+    // 순서 편집 모달 렌더링
+    return (
+      <div className={styles.modalOverlay}>
+        <div className={styles.modalContentContainer}>
+          <div className={styles.modalHeaderContainer}>
+            <h3>이미지 순서 편집</h3>
             <button 
-              className={styles.cancelSelectionButton}
-              onClick={cancelImageSelection}
+              className={styles.modalCloseButton} 
+              onClick={cancelImageOrderEdit}
+              aria-label="닫기"
+            >
+              ×
+        </button>
+          </div>
+          
+          <div className={styles.modalBodyContainer}>
+            <p className={styles.orderInstructions}>
+              이미지를 드래그하여 순서를 변경하세요. 첫 번째 이미지가 메인 이미지로 사용됩니다.
+            </p>
+            
+            <div className={styles.imageOrderEditorListContainer}>
+              {editedImages.map((imageRef, index) => (
+                <div
+                  key={`order-${index}-${imageRef}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={handleDragEnd}
+                  data-index={index}
+                  className={`${styles.imageOrderEditorItem} ${draggedItem === index ? styles.isImageDragging : ''}`}
+                >
+                  <div className={styles.imageOrderNumberContainer}>{index + 1}</div>
+                  <div className={styles.imageOrderThumbnailContainer}>
+                    <img 
+                      src={getProxiedPhotoUrl(imageRef, 100)} 
+                      alt={`이미지 ${index + 1}`}
+                      onError={() => handleImageLoadError(`edit-${index}`)}
+                    />
+                  </div>
+                  <div className={styles.imageOrderDragHandleButton}>
+                    <span>≡</span>
+                </div>
+                </div>
+              ))}
+        </div>
+          </div>
+          
+          <div className={styles.modalFooterContainer}>
+            <div className={styles.buttonGroup}>
+            <button 
+                className={styles.cancelButton} 
+                onClick={cancelImageOrderEdit}
             >
               취소
             </button>
             <button 
-              className={styles.completeSelectionButton}
-              onClick={completeImageSelection}
-              disabled={selectedImages.length === 0}
+                className={styles.confirmButton} 
+                onClick={confirmImageOrderEdit}
             >
-              최종 결정
+                확인
             </button>
           </div>
           </div>
         </div>
       </div>
     );
+  };
 
-  // 이미지 순서 편집 모달 컴포넌트 (신규)
-  const ImageOrderingModal = () => (
-    <div className={styles.galleryOverlay} onClick={cancelImageOrdering}>
-      <div className={styles.galleryContent} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.galleryCloseBtn} onClick={cancelImageOrdering}>
-          &times;
-        </button>
-        
-        <h3 className={styles.imageSelectionTitle}>이미지 순서 편집</h3>
-        <p className={styles.imageSelectionSubtitle}>
-          이미지를 드래그하여 순서를 변경하세요. 첫 번째 이미지가 메인 이미지가 됩니다.
-        </p>
-        
-        <div className={styles.dragInstructions}>
-          ↔️ 이미지를 원하는 위치로 드래그해서 순서를 변경하세요
-        </div>
-        
-        <div className={styles.imageOrderingContainer}>
-          {editedImages.length > 0 ? (
-            <div className={styles.imageOrderingGrid}>
-              {editedImages.map((imageRef, index) => {
-                const hasError = imageErrors[`edit-${index}`];
-                
-                return (
-                  <div 
-                    key={index}
-                    className={`${styles.imageOrderingGridItem} ${index === 0 ? styles.mainImageItem : ''} ${hasError ? styles.errorItem : ''}`}
-                    draggable={true}
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                    onDragEnd={handleDragEnd}
-                    onDrop={(e) => handleDrop(e, index)}
-                    data-index={index}
-                    data-error={hasError ? "true" : "false"}
-                  >
-                    <div className={styles.dragHandle} title="드래그하여 순서 변경">
-                      ≡
-                    </div>
-                    
-                    {index === 0 ? (
-                      <div className={styles.imageOrderLabel}>메인 이미지</div>
-                    ) : (
-                      <div className={styles.imageOrderNumber}>{index + 1}</div>
-                    )}
-                    {hasError ? (
-                      <div className={styles.imageErrorPlaceholder}>
-                        <span>로드 실패</span>
-                      </div>
-                    ) : (
-                      <img 
-                        src={getProxiedPhotoUrl(imageRef)} 
-                        alt={`이미지 ${index + 1}`}
-                        onError={() => setImageErrors(prev => ({ ...prev, [`edit-${index}`]: true }))}
-                      />
-                    )}
-                    <div className={styles.imageOrderingControls}>
-                      <button 
-                        className={styles.removeImageButton}
-                        onClick={() => removeImage(index)}
-                        title="이미지 제거"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className={styles.emptyImageMessage}>편집할 이미지가 없습니다</div>
-          )}
-        </div>
-        
-        <div className={styles.imageSelectionActions}>
-          <div className={styles.selectedCount}>
-            {editedImages.length}개 이미지
-          </div>
-          <div className={styles.imageSelectionButtons}>
-            <button 
-              className={styles.cancelSelectionButton}
-              onClick={cancelImageOrdering}
-            >
-              취소
-            </button>
-            <button 
-              className={styles.completeSelectionButton}
-              onClick={completeImageOrdering}
-              disabled={editedImages.length === 0}
-            >
-              순서 저장
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
+  // 이미지 섹션 렌더링 - 기존 디자인 복원
   return (
     <>
       <div className={styles.imagesPreviewContainer}>
@@ -628,12 +686,16 @@ const ImageSectionManager = ({
         <div className={styles.imageSection}>
           <div 
             className={styles.mainImageContainer}
-            onClick={() => imageRefs[0] && !imageErrors[0] && openGallery(0)}
-            style={{ cursor: imageRefs[0] && !imageErrors[0] ? 'pointer' : 'default' }}
+            onClick={() => {
+              if (imageRefs.length > 0 && imageRefs[0] && !imageErrors[0]) {
+                openGallery(0);
+              }
+            }}
+            style={{ cursor: imageRefs.length > 0 && imageRefs[0] && !imageErrors[0] ? 'pointer' : 'default' }}
           >
-            {imageRefs[0] ? (
+            {imageRefs.length > 0 && imageRefs[0] ? (
               imageErrors[0] ? (
-                <div className={styles.imageErrorPlaceholder}>
+                <div className={styles.imageErrorPlaceholderContainer}>
                   <span>이미지를 불러올 수 없습니다.</span>
                 </div>
               ) : (
@@ -641,12 +703,12 @@ const ImageSectionManager = ({
                   src={getProxiedPhotoUrl(imageRefs[0])} 
                 alt="메인 이미지" 
                 className={styles.mainImagePreview}
-                  onError={() => handleImageError(0)}
+                  onError={() => handleImageLoadError(0)}
                 />
               )
             ) : (
               <div className={styles.emptyImagePlaceholder}>
-                <span>메인 이미지</span>
+                <span>이미지 없음</span>
               </div>
             )}
           </div>
@@ -660,16 +722,26 @@ const ImageSectionManager = ({
           >
             {hasValidSubImages ? (
               <>
-                {[1, 2, 3, 4].map((index) => (
+                {[1, 2, 3, 4].map((index) => {
+                  // 배열 범위를 벗어나는지 확인
+                  const isInRange = index < imageRefs.length;
+                  const hasImage = isInRange && imageRefs[index];
+                  const hasError = isInRange && imageErrors[index];
+                  
+                  return (
                 <div 
                     key={index}
                   className={styles.subImageItem}
-                    onClick={() => imageRefs[index] && !imageErrors[index] && openGallery(index)}
-                    style={{ cursor: imageRefs[index] && !imageErrors[index] ? 'pointer' : 'default' }}
-                  >
-                    {imageRefs[index] ? (
-                      imageErrors[index] ? (
-                        <div className={styles.imageErrorPlaceholder}>
+                      onClick={() => {
+                        if (hasImage && !hasError) {
+                          openGallery(index);
+                        }
+                      }}
+                      style={{ cursor: hasImage && !hasError ? 'pointer' : 'default' }}
+                    >
+                      {hasImage ? (
+                        hasError ? (
+                          <div className={styles.imageErrorPlaceholderContainer}>
                           <span>로드 실패</span>
                 </div>
                       ) : (
@@ -678,7 +750,7 @@ const ImageSectionManager = ({
                             src={getProxiedPhotoUrl(imageRefs[index])} 
                             alt={`서브 이미지 ${index}`} 
                       className={styles.subImagePreview}
-                            onError={() => handleImageError(index)}
+                              onError={() => handleImageLoadError(index)}
                           />
                           {index === 4 && additionalImages > 0 && (
                         <div className={styles.imageCountOverlay}>
@@ -691,7 +763,8 @@ const ImageSectionManager = ({
                     <div className={styles.emptyImagePlaceholder}></div>
                   )}
                 </div>
-                ))}
+                  );
+                })}
               </>
             ) : (
               Array(4).fill(null).map((_, index) => (
@@ -704,19 +777,12 @@ const ImageSectionManager = ({
         </div>
       </div>
       
-      {/* 갤러리 모달 포털 */}
-      {isBrowserReady && isGalleryOpen && imageRefs.length > 0 && 
-        createPortal(<GalleryModal />, document.body)}
-        
-      {/* 이미지 선택 모달 포털 */}
-      {isBrowserReady && isModalOpen && 
-        createPortal(<ImageSelectionModal />, document.body)}
-        
-      {/* 이미지 순서 편집 모달 포털 (신규) */}
-      {isBrowserReady && isEditModalOpen && 
-        createPortal(<ImageOrderingModal />, document.body)}
+      {/* 모달 렌더링 */}
+      {renderGallery()}
+      {renderImageSelectionModal()}
+      {renderOrderEditor()}
     </>
   );
-};
+});
 
 export default ImageSectionManager; 

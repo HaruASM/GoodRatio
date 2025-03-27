@@ -10,7 +10,8 @@ import {
   setCompareBarActive,
   beginInserting,
   endInserting,
-  endCompareBar 
+  endCompareBar,
+  selectisSyncGoogleSearchCompareBar
 } from '../store/slices/compareBarSlice';
 import { 
   updateField,
@@ -22,6 +23,11 @@ import {
   selectIsIdle,
 } from '../store/slices/rightSidebarSlice';
 import ImageSectionManager from './ImageSectionManager';
+import { 
+  openImageSelectionMode,
+  selectIsImageSelectionMode
+} from '../store/slices/imageManagerSlice';
+import { getValidImageRefs } from '../utils/imageHelpers';
 
 // 상점 데이터 인풋창 타이틀 배열
 const titlesofDataFoam = [
@@ -97,55 +103,75 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     if (!isValueEmpty(value, field)) {
       dispatch(updateField({ field, value }));
       dispatch(trackField({ field }));
-      console.log(`필드 '${field}' 삽입: ${value}`);
     }
   };
 
   // 데이터에 유효한 필드가 있는지 확인
   const hasValidData = hasAnyValidField(compareData);
 
-  // 이미지 선택 모드 상태
-  const [isImageSelectionMode, setIsImageSelectionMode] = useState(false);
-
-  // 이미지 미리보기 섹션에서 선택 모드 활성화
-  const handleInsertImagesToRightsidebar = () => {
-    setIsImageSelectionMode(true);
-    // 순서 편집 모드 비활성화 - 명시적으로 선택 모드만 사용
-    console.log('이미지 선택 모드 활성화');
-  };
+  // 리덕스 상태 사용
+  const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
   
-  // 이미지 선택 완료 처리
-  const handleImagesSelected = (selectedImages) => {
-    if (selectedImages && selectedImages.length > 0) {
-      // 선택된 이미지 배열을 콘솔에 출력
-      console.log('선택된 이미지:', selectedImages);
-      
-      // 1. 현재 rightSidebar의 subImages 배열을 가져옴
-      const currentFormData = store.getState().rightSidebar.formData;
-      const currentSubImages = currentFormData.subImages || [];
-      
-      // 2. 새 이미지들을 기존 배열에 추가
-      const updatedSubImages = [...currentSubImages, ...selectedImages];
-      
-      // 3. 업데이트된 배열을 rightSidebar에 전달
-      dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
-      
-      // 4. 변경 필드 추적
-      dispatch(trackField({ field: 'subImages' }));
-      
-      console.log('이미지가 subImages 배열에 추가되었습니다.');
-    } else {
-      console.log('선택된 이미지 없음');
+  // 이미지 갤러리에 이미지 삽입 핸들러
+  const handleInsertImagesToRightsidebar = () => {
+    // 이미지 데이터 유효성 검사
+    const validImages = getValidImageRefs(compareData?.mainImage, compareData?.subImages);
+    
+    // 유효한 이미지가 없으면 종료
+    if (validImages.length === 0) {
+      return;
     }
     
-    // 선택 모드 종료
-    setIsImageSelectionMode(false);
+    // 이미지 매니저 상태 완전 초기화
+    dispatch({ type: 'imageManager/resetImageData' });
+    
+    // 이미지 선택 모드 활성화 - compareData의 원본 이미지를 직접 전달
+    dispatch(openImageSelectionMode({
+      source: 'compareBar',
+      mainImage: compareData?.mainImage,
+      subImages: compareData?.subImages,
+      availableImages: validImages // 모든 유효한 이미지를 별도 필드로 전달
+    }));
   };
-  
-  // 이미지 선택 취소 처리
+
+  // 이미지 선택 완료 핸들러
+  const handleImagesSelected = (selectedImages) => {
+    // 선택된 이미지 배열 깊은 복사 (문자열 배열이므로 JSON 방식 사용)
+    const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImages || []));
+    
+    // 이미지 매니저 상태 즉시 초기화
+    dispatch({ type: 'imageManager/resetImageData' });
+    
+    // 복사된 이미지 유효성 검사
+    const validImages = selectedImagesCopy.filter(img => 
+      img && typeof img === 'string' && img.trim() !== ''
+    );
+    
+    if (!validImages?.length) return;
+    
+    // Redux 스토어에서 현재 RightSidebar의 subImages 배열 가져오기
+    const currentFormData = store.getState().rightSidebar.formData;
+    const currentSubImages = Array.isArray(currentFormData.subImages) ? 
+      [...currentFormData.subImages] : [];
+    
+    // 이미 존재하는 이미지는 추가하지 않도록 필터링
+    const newImages = validImages.filter(img => !currentSubImages.includes(img));
+    
+    // 추가할 새 이미지가 없으면 함수 종료
+    if (newImages.length === 0) return;
+    
+    // 새로 선택된 이미지를 기존 배열에 추가
+    const updatedSubImages = [...currentSubImages, ...newImages];
+    
+    // Redux 액션 디스패치 - RightSidebar 상태 업데이트
+    dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
+    dispatch(trackField({ field: 'subImages' }));
+  };
+
+  // 이미지 선택 취소 핸들러
   const handleCancelImageSelection = () => {
-    setIsImageSelectionMode(false);
-    console.log('이미지 편집이 취소되었습니다.');
+    // 이미지 매니저 상태 즉시 초기화
+    dispatch({ type: 'imageManager/resetImageData' });
   };
 
   return (
@@ -210,7 +236,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
                     onClick={() => handleInsertField(item.field, value)}
                     title={`${item.title} 필드 삽입`}
                   >
-                    &gt;&gt;
+                    <strong>&gt;&gt;</strong>
                   </button>
                 )}
               </div>
@@ -219,19 +245,19 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
         })}
         
         {/* 이미지 미리보기 섹션 */}
-        <div className={styles.compareBarSection}>
+        <div className={styles.imageSectionPreviewContainer}>
           <ImageSectionManager 
             mainImage={compareData?.mainImage}
             subImages={compareData?.subImages}
             onImagesSelected={handleImagesSelected}
             onCancelSelection={handleCancelImageSelection}
             isSelectionMode={isImageSelectionMode}
-            isEditMode={false}
+            source="compareBar"
           />
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}
           {isInserting && (
             <div 
-              className={styles.imageSectionOverlay}
+              className={styles.imageSectionOverlayContainer}
               onClick={handleInsertImagesToRightsidebar}
             >
               <span className={styles.imageSectionOverlayText}>&gt;&gt; 이미지 삽입</span>

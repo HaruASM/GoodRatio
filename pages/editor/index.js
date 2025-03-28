@@ -14,8 +14,6 @@ import { parseGooglePlaceData } from './utils/googlePlaceUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
 import RightSidebar from './components/RightSidebar';
 import CompareBar from './components/CompareBar';
-// ExplorerSideBar 컴포넌트 import 추가
-import ExplorerSideBar from '../../components/ExplorerSideBar/ExplorerSideBar';
 // Redux 선택자 가져오기
 import {
   togglePanel,
@@ -875,18 +873,15 @@ export default function Editor() { // 메인 페이지
 
     if (!curItemListInCurSection.length) {
       // console.error('아이템 리스트가 비어 있습니다.');
-      // 이전 오버레이 제거 로직만 남김
-      if (prevItemListforRelieveOverlays.current && prevItemListforRelieveOverlays.current.length > 0) {
-        prevItemListforRelieveOverlays.current.forEach(item => {
-          if (item.itemMarker) item.itemMarker.setMap(null);
-          if (item.itemPolygon) item.itemPolygon.setMap(null);
-        });
-      }
       return; 
     }
     
+    
+    
     // 이전 오버레이 제거 (useRef.current 사용)
     if (prevItemListforRelieveOverlays.current && prevItemListforRelieveOverlays.current.length > 0) {
+      
+      
       prevItemListforRelieveOverlays.current.forEach(item => {
         if (item.itemMarker) {
           item.itemMarker.setMap(null);
@@ -934,6 +929,8 @@ export default function Editor() { // 메인 페이지
       }
     );
     
+    
+    
     // 폴리곤 가시성 업데이트 (폴리곤이 있는 경우에만)
     if (polygonCount > 0) {
       const currentZoom = instMap.current.getZoom();
@@ -941,9 +938,93 @@ export default function Editor() { // 메인 페이지
       curItemListInCurSection.forEach(item => {
         if (item.itemPolygon) item.itemPolygon.setVisible(shouldShowPolygons);
       });
+      
+      
     }
     
-  }, [curItemListInCurSection]); // 종속성에 instMap.current 제거 (지도 로딩 전에 실행될 수 있음)
+    // 좌측 사이드바 아이템 리스트 업데이트
+    const itemListContainer = document.querySelector(`.${styles.itemList}`);
+    if (!itemListContainer) {
+      // console.error('Item list container not found');
+      return;
+    }
+
+    // 기존 아이템 제거
+    itemListContainer.innerHTML = '';
+
+    // curItemListInCurSectionName의 아이템을 순회하여 사이드바에 추가
+    //TODO 사이드바 모듈 추가 
+    curItemListInCurSection.forEach((item) => {
+      const listItem = document.createElement('li');
+      listItem.className = styles.item;
+
+      const link = document.createElement('a');
+      link.href = '#';
+
+      const itemDetails = document.createElement('div');
+      itemDetails.className = styles.itemDetails;
+
+      const itemTitle = document.createElement('span');
+      itemTitle.className = styles.itemTitle;
+      
+      // 모든 아이템은 serverDataset을 가지고 있음
+      itemTitle.innerHTML = `${item.serverDataset.storeName || '이름 없음'} <small>${item.serverDataset.storeStyle || ''}</small>`;
+
+      const businessHours = document.createElement('p');
+      if (item.serverDataset.businessHours && item.serverDataset.businessHours.length > 0) {
+        businessHours.textContent = `영업 중 · ${item.serverDataset.businessHours[0]}`;
+      } else {
+        businessHours.textContent = '영업 중 · 정보 없음';
+      }
+
+      const address = document.createElement('p');
+      address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.serverDataset.address || '주소 없음'}`;
+
+      const itemImage = document.createElement('img');
+      itemImage.src = "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
+      
+      itemImage.alt = `${item.serverDataset.storeName || ''} ${item.serverDataset.storeStyle || ''}`;
+      
+      itemImage.className = styles.itemImage;
+      itemImage.width = 100;
+      itemImage.height = 100;
+
+      // 클릭 이벤트 추가
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        // 모든 아이템은 항상 serverDataset 구조를 가짐
+        setCurSelectedShop(item);
+        
+        if (instMap.current) {
+          try {
+            let position = null;
+            if (item.serverDataset.pinCoordinates) {
+              position = parseCoordinates(item.serverDataset.pinCoordinates);
+            }
+
+            if (position) {
+              instMap.current.setCenter(position);
+              instMap.current.setZoom(18);
+            }
+          } catch (error) {
+            // console.error('지도 이동 중 오류 발생:', error);
+          }
+        }
+      });
+
+      // 요소 조립
+      itemDetails.appendChild(itemTitle);
+      itemDetails.appendChild(businessHours);
+      itemDetails.appendChild(address);
+      
+      link.appendChild(itemDetails);
+      link.appendChild(itemImage);
+      
+      listItem.appendChild(link);
+      itemListContainer.appendChild(listItem);
+    });
+  }, [curItemListInCurSection]); // 중요: 종속성은curItemListInCurSection만유일, 추가 하지 말것
 
   const toggleSidebar = () => {
     setIsSidebarVisible(!isSidebarVisible); // 사이드바 가시성 토글
@@ -974,55 +1055,91 @@ export default function Editor() { // 메인 페이지
   return (
     <div className={styles.editorContainer}>
       <Head>
-        <title>편집기</title>
+        <title>Editor</title>
       </Head>
       
-      {/* Google Maps 스크립트 로드 */}
-      <Script 
-        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing&callback=initGoogleMapPage`}
-        strategy="afterInteractive"
-      />
-      
-      {/* 좌측 사이드바: ExplorerSideBar 컴포넌트 사용 */}
-      <ExplorerSideBar 
-        items={curItemListInCurSection} 
-        selectedItemId={curSelectedShop?.serverDataset?.place_id || null} // 선택된 아이템 ID 전달
-        onItemSelect={setCurSelectedShop} // 아이템 선택 핸들러 전달
-        onToggleSidebar={toggleSidebar} // 사이드바 토글 함수 전달
-      />
-      
-      {/* 지도 컨테이너 */}
-      <div className={styles.mapContainer}>
-        {/* 검색 폼 */}
-        <form ref={searchformRef} className={styles.searchForm} onSubmit={(e) => e.preventDefault()}>
-          <div className={styles.searchButtonsContainer}>
-            {/* 검색 옵션 버튼들 (기존 코드 유지) */}
-          </div>
-          <div className={styles.searchInputContainer}>
-            <input 
-              ref={searchInputDomRef} 
-              type="text" 
-              placeholder="지도에서 장소 검색..."
-              className={styles.searchInput}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-            />
-            <button type="submit" className={styles.searchButton}>
-              <span className={`${styles.searchIcon} material-icons`}>search</span>
-            </button>
-          </div>
-        </form>
-        
-        {/* 지도 div */}
-        <div id="map" className={styles.map} />
-        
-        {/* CompareBar 렌더링 (활성화 상태에 따라) */}
-        {isActiveCompareBar && <CompareBar />}
+      {/* 기존 좌측 사이드바 */}
+      <div className={`${styles.sidebar} ${isSidebarVisible ? '' : styles.hidden}`}>
+        <div className={styles.header}>
+          <button className={styles.backButton} onClick={toggleSidebar}>←</button>
+          <h1>반월당역</h1>
+          <button className={styles.iconButton}>⚙️</button>
+        </div>
+        <div className={styles.menu}>
+          <button className={styles.menuButton}>숙소</button>
+          <button className={styles.menuButton}>맛집</button>
+          <button className={styles.menuButton}>관광</button>
+          <button className={styles.menuButton}>환전</button>
+        </div>
+        <ul className={styles.itemList}>
+          <li className={styles.item}>
+            <a href="#">
+              <div className={styles.itemDetails}>
+                <span className={styles.itemTitle}>남산에 <small>일식당</small></span>
+                <p>영업 중 · 20:30에 라스트오더</p>
+                <p><strong>380m</strong> · 대구 중구 남산동</p>
+              </div>
+              <Image
+                src="https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400"
+                alt="남산에 일식당"
+                className={styles.itemImage}
+                width={100}
+                height={100}
+                priority
+              />
+            </a>
+          </li>
+        </ul>
       </div>
       
-      {/* 우측 사이드바 */}
-      <RightSidebar />
-
+      {/* 지도 영역 */}
+      <div className={styles.mapContainer}>
+        <div id="map" className={styles.map}></div>
+        <div ref={searchformRef} className={styles.searchForm}>
+          <div className={styles.searchInputContainer}>
+              <input 
+              ref={searchInputDomRef}
+                type="text" 
+              className={styles.searchInput}
+              placeholder="장소 검색..."
+              onFocus={handleSearchFocus}
+              onBlur={handleSearchBlur}
+              data-testid="place-search-input"
+            />
+            <button className={styles.searchButton}>
+              <span className={styles.searchIcon}>🔍</span>
+                </button>
+            </div>
+            </div>
+              </div>
+              
+      {/* CompareBar - 조건부 렌더링 적용 */}
+      {isActiveCompareBar && <CompareBar />}
+      
+      {/* 오른쪽 사이드바 */}
+      <RightSidebar
+        moveToCurrentLocation={moveToCurrentLocation}
+        mapOverlayHandlers={mapOverlayHandlers}
+        curSelectedShop={curSelectedShop}
+        onShopUpdate={(updatedShop) => {
+          if (updatedShop === null) {
+            // 상점 선택 초기화
+            setCurSelectedShop(null);
+          } else if (curSelectedShop) {
+            // 원래 객체 구조 유지하면서 serverDataset만 업데이트
+            setCurSelectedShop({
+              ...curSelectedShop,
+              serverDataset: updatedShop
+            });
+          }
+        }}
+      />
+      
+      {/* 구글 맵 스크립트 */}
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing`}
+        strategy="afterInteractive"
+      />
     </div>
   );
 } 

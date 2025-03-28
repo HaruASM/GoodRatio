@@ -42,7 +42,8 @@ import ImageSectionManager from './ImageSectionManager';
 import { 
   openImageOrderEditor,
   selectIsImageSelectionMode,
-  selectIsImageOrderEditorOpen  
+  selectIsImageOrderEditorOpen,
+  resetImageData
 } from '../store/slices/imageManagerSlice';
 
 // 값이 비어있는지 확인하는 공통 함수
@@ -105,6 +106,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const drawingType = useSelector(selectDrawingType);
   const isIdle = useSelector(selectIsIdle);
   const isInsertingMode = useSelector(selectIsInserting);
+  const isImageOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
   
   
   // 입력 필드 참조 객체
@@ -165,8 +167,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       e.preventDefault();
     }
     
-    console.log(`[EditButtonClick] 필드: ${fieldName}`);
-    
+   
     // 이미 다른 활성 필드가 있다면 저장
     if (activeField && activeField !== fieldName) {
       saveActiveFieldValue();
@@ -178,8 +179,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
 
   // 필드 활성화 함수 (여러 곳에서 재사용)
   const activateField = (fieldName) => {
-    console.log(`[ActivateField] 필드: ${fieldName}`);
-    
+        
     // 현재 formData 값으로 로컬 상태 초기화
     setLocalInputState(prev => ({
       ...prev,
@@ -204,9 +204,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     
     const currentValue = localInputState[activeField];
     const originalValue = formData[activeField];
-    
-    console.log(`[SaveActiveField] 필드: ${activeField}, 값: "${currentValue}", 원래값: "${originalValue}"`);
-    
+           
     if (currentValue !== undefined) {
       // 값 변경 여부 확인
       const hasChanged = currentValue !== originalValue;
@@ -268,7 +266,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   // 포커스 핸들러 - 간소화
   const handleInputFocus = (e, fieldName) => {
     const { name } = e.target;
-    console.log(`[InputFocus] 필드: ${name}`);
     
     // 이미 활성화된 필드라면 아무것도 하지 않음
     if (activeField === fieldName) {
@@ -295,11 +292,9 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   // 블러 핸들러 - 단순화
   const handleInputBlur = (e) => {
     const { name } = e.target;
-    console.log(`[InputBlur] 필드: ${name}, 활성 필드: ${activeField}, 입력 중: ${isComposing}`);
     
     // IME 입력 중에는 blur 무시
     if (isComposing) {
-      console.log(`[InputBlur] IME 입력 중이므로 blur 무시`);
       
       // 다음 프레임에서 다시 포커스
       requestAnimationFrame(() => {
@@ -341,6 +336,20 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     const isActive = fieldName === activeField;
     const value = isActive ? (localInputState[fieldName] ?? "") : (formData[fieldName] ?? "");
     
+    // 키 다운 이벤트 핸들러 추가
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault(); // 기본 제출 동작 방지
+        
+        // 현재 필드의 값 저장
+        if (activeField) {
+          saveActiveFieldValue();
+          setActiveField(null);
+          e.target.blur(); // 포커스 해제
+        }
+      }
+    };
+    
     return (
       <>
         <input
@@ -348,10 +357,11 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           name={fieldName}
           value={value}
           onChange={isActive ? handleLocalInputChange : () => {}}
-          onBlur={handleInputBlur}
+          onKeyDown={handleKeyDown} // 키 다운 이벤트 핸들러 추가
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
           onFocus={(e) => handleInputFocus(e, fieldName)}
+          onBlur={handleInputBlur}
           readOnly={readOnly}
           className={getInputClassName(fieldName)}
           ref={el => inputRefs.current[fieldName] = el}
@@ -359,7 +369,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           onClick={() => {
             // 읽기 전용이 아닌 필드를 클릭했을 때만 활성화
             if (!isFieldReadOnly(fieldName) && !isActive) {
-              console.log(`[Click] 필드 클릭: ${fieldName}`);
               activateField(fieldName);
             }
           }}
@@ -367,6 +376,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
         {/* 필드 편집 버튼 - 편집 모드일 때 값이 있는 필드에만 표시 */}
         {isEditorOn && formData[fieldName] && formData[fieldName] !== '' && !isActive && (
           <button
+            type="button"
             className={styles.inputOverlayButton}
             onClick={(e) => handleFieldEditButtonClick(e, fieldName)}
             style={{ display: 'block' }}
@@ -385,6 +395,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     const isIdle = useSelector(selectIsIdle);
     const isEditing = useSelector(selectIsEditing);
     const isEditorOn = useSelector(selectIsEditorOn);
+    const isConfirming = useSelector(selectIsConfirming);
     
     // Command 패턴: 상태에 따른 명령 객체 정의
     const buttonCommands = {
@@ -394,7 +405,16 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       },
       EDITOR_ON: {
         text: '수정완료',
-        action: () => dispatch(completeEditor())
+        action: () => {
+          // 1. 활성 필드가 있으면 값 저장
+          if (activeField) {
+            saveActiveFieldValue();
+            setActiveField(null);
+          }
+          
+          // 2. completeEditor 액션 디스패치
+          dispatch(completeEditor());
+        }
       },
       RE_EDIT: {
         text: '재수정',
@@ -402,23 +422,32 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       }
     };
     
-    // 현재 상태에 따라 적절한 명령 선택
+    // 현재 상태에 따른 명확한 버튼 선택 로직
     let currentCommand;
+    
     if (isIdle) {
+      // IDLE 상태 - 수정 버튼
       currentCommand = buttonCommands.IDLE;
     } else if (isEditorOn) {
+      // 에디터 활성 상태 - 수정완료 버튼
       currentCommand = buttonCommands.EDITOR_ON;
-    } else if (isEditing && !isEditorOn) {
+    } else if (isEditing && !isEditorOn && isConfirming) {
+      // 확인 상태 - 재수정 버튼
       currentCommand = buttonCommands.RE_EDIT;
     } else {
-      // 기본값
+      // 초기화 이전 상태임. 
+      // 기타 상태 - 안전하게 수정 버튼으로 대체
       currentCommand = buttonCommands.IDLE;
     }
     
     return (
       <button 
+        type="button"
         className={styles.editButton}
-        onClick={currentCommand.action}
+        onClick={(e) => {
+          e.preventDefault();
+          currentCommand.action();
+        }}
       >
         {currentCommand.text}
       </button>
@@ -431,12 +460,14 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     dispatch(endEdit());
     // 오버레이 정리를 컴포넌트에서 직접 처리
     mapOverlayHandlers.cleanupTempOverlays();
-    // console.log('수정 내용 확인 처리됨');
   };
   
   const handleCancelEdit = () => {
     // 기존 액션 디스패치
     dispatch(cancelEdit());
+    
+    // 이미지 매니저 상태 초기화 액션 추가
+    dispatch(resetImageData());
     
     // 편집 상태 종료 (isEditing = false)
     dispatch(endEdit());
@@ -448,7 +479,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     
     // 오버레이 정리를 컴포넌트에서 직접 처리
     mapOverlayHandlers.cleanupTempOverlays();
-    // console.log('편집 취소 처리됨');
   };
   
   const handleInputChange = (e) => {
@@ -480,7 +510,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     const googlePlaceId = formData.googleDataId;
     
     if (!googlePlaceId) {
-      console.log('구글 Place ID가 입력되지 않았습니다.');
+      console.error('구글 Place ID가 입력되지 않았습니다.');
       return;
     }
     
@@ -496,7 +526,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       if (placeDetail) {
         dispatch(setCompareBarActive(placeDetail));
       } else {
-        console.log('구글 Place 상세 정보를 가져오지 못했습니다.');
+        console.error('구글 Place 상세 정보를 가져오지 못했습니다.');
       }
     } catch (error) {
       console.error('구글 Place 상세 정보 요청 중 오류 발생:', error);
@@ -505,7 +535,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
 
   // 이미지 관리 관련 상태 및 Redux 상태
   const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
-  const isImageOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
   const imageSectionManagerRef = useRef(null);
   
   // 이미지 편집 핸들러
@@ -531,6 +560,23 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       
       if (!validImages.length) return;
       
+      // 순서 편집 모달에서 호출된 경우 (이미지 순서 변경)
+      if (isImageOrderEditorOpen) {
+        // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
+        if (validImages.length > 0) {
+          // 메인 이미지 설정
+          dispatch(updateField({ field: 'mainImage', value: validImages[0] }));
+          dispatch(trackField({ field: 'mainImage' }));
+          
+          // 서브 이미지 설정 (첫 번째 이미지 제외)
+          const subImagesArray = validImages.slice(1);
+          dispatch(updateField({ field: 'subImages', value: subImagesArray }));
+          dispatch(trackField({ field: 'subImages' }));
+        }
+        return;
+      }
+      
+      // 이미지 선택 모달에서 호출된 경우 (이미지 추가)
       // 현재 폼 데이터의 이미지 상태 가져오기
       const currentMainImage = formData.mainImage;
       const currentSubImages = Array.isArray(formData.subImages) ? 
@@ -563,19 +609,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     // 모달은 자동으로 닫힘
   };
 
-  // 기존 handleEditFoamCardButton 함수를 Command 패턴에 맞게 수정
-  const handleEditFoamCardButton = (e) => {
-    e.preventDefault();
-    
-    // Command 패턴: 상태에 따른 액션 분기
-    if (isIdle) {
-      dispatch(startEdit({ shopData: currentShopServerDataSet }));
-    } else if (isEditorOn) {
-      dispatch(completeEditor());
-    } else if (isEditing && !isEditorOn) {
-      dispatch(beginEditor());
-    }
-  };
+  
 
   return (
     <div className={styles.rightSidebar}>
@@ -628,10 +662,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           </h3>
           
           {/* 수정/완료 버튼 - 상태에 따라 다르게 표시 */}
-          {!isIdle && !isConfirming && !isEditorOn && currentShopServerDataSet && (
-            <EditButton />
-          )}
-          
           {isConfirming ? (
             <div className={styles.buttonGroup}>
               <button 
@@ -652,20 +682,20 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               )}
               <EditButton />
             </div>
-          ) : (
-            isEditorOn && (
-              <div className={styles.buttonGroup}>
-                <button 
-                  className={styles.cancelButton} 
-                  onClick={handleCancelEdit}
-                  disabled={status === 'loading'}
-                >
-                  취소
-                </button>
+          ) : isEditorOn ? (
+            <div className={styles.buttonGroup}>
+              <button 
+                className={styles.cancelButton} 
+                onClick={handleCancelEdit}
+                disabled={status === 'loading'}
+              >
+                취소
+              </button>
+              <EditButton />
+            </div>
+          ) : (!isIdle && !isEditorOn && !isConfirming && currentShopServerDataSet) ? (
             <EditButton />
-              </div>
-            )
-          )}
+          ) : null}
         </div>
 
         {/* 상점 정보 폼 */}
@@ -674,7 +704,10 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
             <p>상점에디터터</p>
             </div>
         ) : (
-          <form className={styles.rightSidebarForm}>
+          <form 
+            className={styles.rightSidebarForm}
+            onSubmit={(e) => e.preventDefault()} // 폼 제출 방지
+          >
             {/* 상점 정보 필드들을 배열로부터 렌더링 */}
             {titlesofDataFoam.map(item => {
               // 특별한 필드 처리 (핀 좌표, 다각형 경로, 구글 데이터 ID)
@@ -695,6 +728,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               />
               {isEditorOn && (
                 <button
+                  type="button"
                   className={styles.inputOverlayButton}
                   onClick={handlePinCoordinatesButtonClick}
                   style={{ display: 'block' }}
@@ -723,6 +757,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               />
               {isEditorOn && (
                 <button
+                  type="button"
                   className={styles.inputOverlayButton}
                   onClick={handlePathButtonClick}
                   style={{ display: 'block' }}
@@ -755,6 +790,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               />
                       {isEditorOn && (
                 <button
+                  type="button"
                   className={styles.inputOverlayButton}
                           onClick={googlePlaceDetailLoadingHandler}
                   style={{ display: 'block' }}
@@ -795,12 +831,13 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               (Array.isArray(formData.subImages) && formData.subImages.length > 0 && 
                 formData.subImages.some(img => img && typeof img === 'string' && img.trim() !== ''))
             ) && (
-              <div 
+              <button 
+                type="button"
                 className={styles.imageSectionOverlayContainer}
                 onClick={handleEditImagesOfGallery}
               >
                 <span className={styles.imageSectionOverlayText}>이미지 편집</span>
-              </div>
+              </button>
             )}
           </div>
         </form>

@@ -2,6 +2,11 @@ import { createSlice, createAsyncThunk, createAction } from '@reduxjs/toolkit';
 import { protoServerDataset } from '../../dataModels';
 import { compareShopData, updateFormDataFromShop, checkDataIsChanged } from '../utils/rightSidebarUtils';
 
+// isFieldModified 유틸리티 함수 추가
+const isFieldModified = (modifiedFields, fieldName) => {
+  return modifiedFields && modifiedFields[fieldName] === true;
+};
+
 // 초기 상태
 const initialState = {
   isPanelVisible: true,
@@ -98,6 +103,8 @@ const rightSidebarSlice = createSlice({
     // 에디터 시작 (isEditorOn만 변경하는 새로운 액션)
     beginEditor: (state) => {
       state.isEditorOn = true;
+      // 모순 상태 방지
+      state.isConfirming = false;
     },
     
     // 편집 시작 (수정: 상태 초기화 후 beginEditor 호출)
@@ -106,10 +113,11 @@ const rightSidebarSlice = createSlice({
       state.hasChanges = false;
       state.modifiedFields = {};
       
-      // 기존 로직 유지
+      // 모든 상태 명확히 설정
       state.isEditing = true;
-      state.isEditorOn = true;  // beginEditor 효과 포함
+      state.isEditorOn = true;
       state.isConfirming = false;
+      state.isIdle = false;
       
       // 항상 serverDataset 형식의 데이터로 가정
       state.originalShopData = JSON.parse(JSON.stringify(action.payload.shopData));
@@ -122,10 +130,11 @@ const rightSidebarSlice = createSlice({
       state.hasChanges = false;
       state.modifiedFields = {};
       
-      // 기존 로직 유지
+      // 모든 상태 명확히 설정
       state.isEditing = true;
-      state.isEditorOn = true;  // beginEditor 효과 포함
+      state.isEditorOn = true;
       state.isConfirming = false;
+      state.isIdle = false;
       
       // 현재 formData를 원본 및 편집 데이터로 사용
       state.originalShopData = JSON.parse(JSON.stringify(state.formData));
@@ -133,17 +142,23 @@ const rightSidebarSlice = createSlice({
     },
     
     // 편집 완료 (이름 변경: completeEdit -> completeEditor)
-    completeEditor: (state, action) => {
-      // null 체크 강화
+    completeEditor: (state) => {
+      
+      // null 체크
       if (!state.originalShopData || !state.editNewShopDataSet) {
         state.isEditorOn = false;  // 에디터 비활성화
-        state.isConfirming = false;
+        state.isConfirming = true; // 확인 상태로 변경
         state.hasChanges = false;
         return;
       }
       
-      // 원본과 현재 값을 다시 한번 비교하여 변경사항 필터링
-      state.modifiedFields = {}; 
+      // 에디터 비활성화
+      state.isEditorOn = false;
+      
+      // 확인 상태로 변경
+      state.isConfirming = true;
+      
+      // 원본과 현재 값을 비교하여 변경사항 필터링
       const filteredModifiedFields = {};
       
       // originalShopData의 모든 필드에 대해 비교
@@ -174,38 +189,44 @@ const rightSidebarSlice = createSlice({
       // 변경된 필드가 있는지 확인
       const hasChanges = Object.keys(filteredModifiedFields).length > 0;
       
-      // 모든 필드 상태 초기화 - 편집 불가능하게 설정
-      state.isEditorOn = false;  // 에디터 비활성화 (isEditing은 유지)
-      state.isConfirming = true; // 항상 확인 상태로 전환
+      // formData를 editNewShopDataSet으로 업데이트
+      state.formData = JSON.parse(JSON.stringify(state.editNewShopDataSet));
+      
+      // 변경 상태 설정
       state.hasChanges = hasChanges;
     },
     
     // 편집 취소
-    cancelEdit: (state, action) => {
-      state.isEditorOn = false;  // 에디터 비활성화
-      state.isConfirming = false;
-      state.hasChanges = false;
-      state.editNewShopDataSet = null;
-      state.originalShopData = null;
-      state.formData = updateFormDataFromShop(null, {});
-      state.modifiedFields = {};
-      // 취소 시 IDLE 상태로 복귀
-      state.isIdle = true;
+    cancelEdit: (state) => {
+      // 편집 취소 - 저장된 원본 데이터로 복원
+      state.formData = state.originalShopData ? JSON.parse(JSON.stringify(state.originalShopData)) : { ...protoServerDataset };
       
-      // endEdit 액션을 불러 isEditing 상태를 변경
-      // 이 부분은 endEdit 액션이 cancelEdit 이후에 호출되도록 외부에서 처리해야 함
+      // 수정 필드 목록 초기화
+      state.modifiedFields = {};
+      
+      // 모든 편집 관련 상태 명확히 리셋
+      state.isEditorOn = false;
+      state.isConfirming = false;
+      state.editNewShopDataSet = null;
+      
+      // 드로잉 모드 종료
+      state.isDrawing = false;
+      state.drawingType = null;
     },
     
     // 편집 종료 (공통 액션)
     endEdit: (state) => {
       state.isEditing = false;
+      // isEditorOn 상태와 모순 방지
+      state.isEditorOn = false;
     },
     
     // 확인 액션 추가 (최종 확인 단계로 진행)
     startConfirm: (state, action) => {
-      // null 체크 강화
+      // null 체크
       if (!state.originalShopData || !state.editNewShopDataSet) {
         state.isConfirming = false;
+        state.isEditorOn = false;
         state.hasChanges = false;
         return;
       }
@@ -213,12 +234,10 @@ const rightSidebarSlice = createSlice({
       // modifiedFields에 기록된 필드가 있는지 먼저 확인
       const hasChanges = Object.keys(state.modifiedFields).length > 0;
       
-      // 상태 업데이트
+      // 상태 명확히 업데이트
       state.isEditorOn = false;  // 에디터 비활성화
       state.isConfirming = true; // 확인 상태로 전환
       state.hasChanges = hasChanges;
-      
-      // modifiedFields는 유지 (재수정 시 수정된 필드 표시를 위해)
     },
     
     // 비교 모달 관련 액션 제거
@@ -526,7 +545,7 @@ export const {
   toggleCompareBar,
   confirmAndSubmit,
   startConfirm,
-  completeConfirm
+  completeConfirm,
 } = rightSidebarSlice.actions;
 
 export default rightSidebarSlice.reducer; 

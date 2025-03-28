@@ -412,11 +412,11 @@ const ImageSectionManager = forwardRef(({
 
   // 이미지 순서 편집 확인
   const confirmImageOrderEdit = useCallback(() => {
-    // Redux 상태 업데이트
+    // 이미지 순서 확정 처리
     dispatch(confirmImageOrder());
     
-    // 콜백 호출 (편집된 이미지 리스트 전달)
-    if (onImagesSelected && typeof onImagesSelected === 'function') {
+    // 편집된 이미지 배열 확인
+    if (onImagesSelected && editedImages && editedImages.length > 0) {
       onImagesSelected(editedImages);
     }
   }, [dispatch, onImagesSelected, editedImages]);

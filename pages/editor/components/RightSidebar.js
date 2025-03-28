@@ -128,7 +128,258 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     ? `${styles.rightSidebarCard} ${styles.rightSidebarCardEditing}` 
     : styles.rightSidebarCard;
 
-  // 수정 버튼 렌더링 부분 (기존 코드를 이 코드로 대체)
+  // 상태 추가
+  const [localInputState, setLocalInputState] = useState({});
+  const [activeField, setActiveField] = useState(null);
+  const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
+
+  // 입력 필드가 읽기 전용인지 확인하는 함수
+  const isFieldReadOnly = (fieldName) => {
+    // 현재 활성화된 필드는 편집 가능
+    if (fieldName === activeField) {
+      return false;
+    }
+
+    // 편집 모드가 아니면 모든 필드가 읽기 전용
+    if (!isEditorOn) {
+      return true;
+    }
+    
+    // 핀 좌표와 경로는 항상 읽기 전용 (버튼으로만 수정 가능)
+    if (fieldName === 'pinCoordinates' || fieldName === 'path') {
+      return true;
+    }
+    
+    // 편집 모드에서 빈 필드는 직접 편집 가능
+    if (!formData[fieldName] || formData[fieldName] === '') {
+      return false;
+    }
+    
+    // 그 외 값이 있는 필드는 편집 버튼 사용 (읽기 전용)
+    return true;
+  };
+
+  // 필드 편집 버튼 클릭 핸들러 - 완전히 새로 작성
+  const handleFieldEditButtonClick = (e, fieldName) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    
+    console.log(`[EditButtonClick] 필드: ${fieldName}`);
+    
+    // 이미 다른 활성 필드가 있다면 저장
+    if (activeField && activeField !== fieldName) {
+      saveActiveFieldValue();
+    }
+    
+    // 로컬 상태 업데이트 및 필드 활성화
+    activateField(fieldName);
+  };
+
+  // 필드 활성화 함수 (여러 곳에서 재사용)
+  const activateField = (fieldName) => {
+    console.log(`[ActivateField] 필드: ${fieldName}`);
+    
+    // 현재 formData 값으로 로컬 상태 초기화
+    setLocalInputState(prev => ({
+      ...prev,
+      [fieldName]: formData[fieldName] || ""
+    }));
+    
+    // 필드 활성화
+    setActiveField(fieldName);
+    
+    // 포커스 및 필드 내용 선택
+    requestAnimationFrame(() => {
+      if (inputRefs.current[fieldName]) {
+        inputRefs.current[fieldName].focus();
+        inputRefs.current[fieldName].select();
+      }
+    });
+  };
+
+  // 현재 활성 필드 값 저장
+  const saveActiveFieldValue = () => {
+    if (!activeField) return;
+    
+    const currentValue = localInputState[activeField];
+    const originalValue = formData[activeField];
+    
+    console.log(`[SaveActiveField] 필드: ${activeField}, 값: "${currentValue}", 원래값: "${originalValue}"`);
+    
+    if (currentValue !== undefined) {
+      // 값 변경 여부 확인
+      const hasChanged = currentValue !== originalValue;
+      
+      // Redux 상태 업데이트
+      dispatch(updateField({ field: activeField, value: currentValue }));
+      
+      // 값이 변경된 경우에만 추적 필드 추가
+      if (hasChanged) {
+        dispatch(trackField({ field: activeField }));
+      }
+      
+      // 배열형 필드 특수 처리
+      if (activeField === 'businessHours' && currentValue !== undefined) {
+        let processedValue = currentValue;
+        if (currentValue === '' || (typeof currentValue === 'string' && currentValue.trim() === '')) {
+          processedValue = [""];
+        } else if (typeof currentValue === 'string') {
+          processedValue = currentValue.split(',').map(item => item.trim()).filter(item => item !== '');
+          if (processedValue.length === 0) {
+            processedValue = [""];
+          }
+        }
+        
+        if (JSON.stringify(processedValue) !== JSON.stringify(currentValue)) {
+          dispatch(updateField({ field: activeField, value: processedValue }));
+        }
+      }
+    }
+  };
+
+  // 로컬 입력 변경 핸들러 - 단순화
+  const handleLocalInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    // 로컬 상태만 업데이트 (항상 업데이트 - IME 상태와 무관하게)
+    setLocalInputState(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // IME 이벤트 핸들러
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e) => {
+    const { name, value } = e.target;
+    setIsComposing(false);
+    
+    // 입력 완료 시 로컬 상태 최종 업데이트
+    setLocalInputState(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // 포커스 핸들러 - 간소화
+  const handleInputFocus = (e, fieldName) => {
+    const { name } = e.target;
+    console.log(`[InputFocus] 필드: ${name}`);
+    
+    // 이미 활성화된 필드라면 아무것도 하지 않음
+    if (activeField === fieldName) {
+      return;
+    }
+    
+    // 해당 필드를 activeField로 설정했을 때만 활성화 처리
+    if (
+      // 빈 필드는 직접 활성화 가능
+      (isEditorOn && (!formData[fieldName] || formData[fieldName] === '')) ||
+      // 또는 편집 버튼으로 이미 활성화된 경우
+      fieldName === activeField
+    ) {
+      // 이전 활성 필드가 있다면 저장
+      if (activeField && activeField !== fieldName) {
+        saveActiveFieldValue();
+      }
+      
+      // 새 필드 활성화
+      activateField(fieldName);
+    }
+  };
+
+  // 블러 핸들러 - 단순화
+  const handleInputBlur = (e) => {
+    const { name } = e.target;
+    console.log(`[InputBlur] 필드: ${name}, 활성 필드: ${activeField}, 입력 중: ${isComposing}`);
+    
+    // IME 입력 중에는 blur 무시
+    if (isComposing) {
+      console.log(`[InputBlur] IME 입력 중이므로 blur 무시`);
+      
+      // 다음 프레임에서 다시 포커스
+      requestAnimationFrame(() => {
+        if (inputRefs.current[name]) {
+          inputRefs.current[name].focus();
+        }
+      });
+      return;
+    }
+    
+    // 활성 필드와 blur된 필드가 같을 때만 처리
+    if (activeField === name) {
+      // 값 저장
+      saveActiveFieldValue();
+      
+      // 활성 필드 초기화
+      setActiveField(null);
+    }
+  };
+
+  // 입력 필드 스타일 결정 함수
+  const getInputClassName = (fieldName) => {
+    // 값이 비어있는지 확인
+    const isEmpty = isValueEmpty(formData[fieldName], fieldName);
+    
+    // 기본 스타일 (비어있거나 채워져 있는지)
+    const baseClassName = !isEmpty ? styles.filledInput : styles.emptyInput;
+    
+    // 수정된 필드인 경우 추가 스타일
+    if (modifiedFields && modifiedFields[fieldName]) {
+      return `${baseClassName} ${styles.modifiedInput}`;
+    }
+    
+    return baseClassName;
+  };
+
+  // 일반 필드용 입력 컴포넌트 - 단순화
+  const renderInput = (fieldName, readOnly) => {
+    const isActive = fieldName === activeField;
+    const value = isActive ? (localInputState[fieldName] ?? "") : (formData[fieldName] ?? "");
+    
+    return (
+      <>
+        <input
+          type="text"
+          name={fieldName}
+          value={value}
+          onChange={isActive ? handleLocalInputChange : () => {}}
+          onBlur={handleInputBlur}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onFocus={(e) => handleInputFocus(e, fieldName)}
+          readOnly={readOnly}
+          className={getInputClassName(fieldName)}
+          ref={el => inputRefs.current[fieldName] = el}
+          autoComplete="off"
+          onClick={() => {
+            // 읽기 전용이 아닌 필드를 클릭했을 때만 활성화
+            if (!isFieldReadOnly(fieldName) && !isActive) {
+              console.log(`[Click] 필드 클릭: ${fieldName}`);
+              activateField(fieldName);
+            }
+          }}
+        />
+        {/* 필드 편집 버튼 - 편집 모드일 때 값이 있는 필드에만 표시 */}
+        {isEditorOn && formData[fieldName] && formData[fieldName] !== '' && !isActive && (
+          <button
+            className={styles.inputOverlayButton}
+            onClick={(e) => handleFieldEditButtonClick(e, fieldName)}
+            style={{ display: 'block' }}
+            title="편집"
+          >
+            ✏️
+          </button>
+        )}
+      </>
+    );
+  };
+
+  // 수정 버튼 렌더링 부분 
   const EditButton = () => {
     const dispatch = useDispatch();
     const isIdle = useSelector(selectIsIdle);
@@ -174,272 +425,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     );
   };
 
-  // 입력 필드 스타일 결정 함수
-  const getInputClassName = (fieldName) => {
-    // 값이 비어있는지 확인
-    const isEmpty = isValueEmpty(formData[fieldName], fieldName);
-    
-    // 기본 스타일 (비어있거나 채워져 있는지)
-    const baseClassName = !isEmpty ? styles.filledInput : styles.emptyInput;
-    
-    // 수정된 필드인 경우 추가 스타일
-    if (modifiedFields && modifiedFields[fieldName]) {
-      return `${baseClassName} ${styles.modifiedInput}`;
-    }
-    
-    return baseClassName;
-  };
-
-  // 상태 추가
-  const [localInputState, setLocalInputState] = useState({});
-  const [activeField, setActiveField] = useState(null);
-  const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
-
-  // 입력 필드가 읽기 전용인지 확인하는 함수
-  const isFieldReadOnly = (fieldName) => {
-    // 현재 활성화된 필드는 편집 가능
-    if (fieldName === activeField) {
-      return false;
-    }
-
-    // 편집 모드가 아니면 모든 필드가 읽기 전용
-    if (!isEditorOn) {
-      return true;
-    }
-    
-    // 핀 좌표와 경로는 항상 읽기 전용 (버튼으로만 수정 가능)
-    if (fieldName === 'pinCoordinates' || fieldName === 'path') {
-      return true;
-    }
-    
-    // 편집 모드에서 빈 필드는 항상 편집 가능
-    if (isEditorOn && (!formData[fieldName] || formData[fieldName] === "")) {
-      return false;
-    }
-    
-    // 편집 모드에서 값이 있는 필드는 읽기 전용으로 설정
-    if (formData && formData[fieldName]) {
-      return true; // 값이 있으면 읽기 전용
-    }
-    
-    // 그 외에는 편집 가능
-    return false;
-  };
-
-  // 필드 편집 버튼 클릭 핸들러
-  const handleFieldEditButtonClick = (e, fieldName) => {
-    e.preventDefault();
-    
-    // 이미 활성화된 필드가 있다면 먼저 저장
-    if (activeField && activeField !== fieldName) {
-      const currentValue = localInputState[activeField];
-      if (currentValue !== undefined) {
-        dispatch(updateField({ field: activeField, value: currentValue }));
-      }
-    }
-    
-    // 현재 formData의 값을 로컬 상태에 복사
-    setLocalInputState(prev => ({
-      ...prev,
-      [fieldName]: formData[fieldName] || ""
-    }));
-    
-    // 필드 활성화
-    setActiveField(fieldName);
-    
-    // readonly 해제 및 포커스
-    setTimeout(() => {
-      if (inputRefs.current[fieldName]) {
-        inputRefs.current[fieldName].readOnly = false;
-        inputRefs.current[fieldName].focus();
-      }
-    }, 50);
-  };
-
-  // 로컬 입력 변경 핸들러에 디버깅 로그 추가
-  const handleLocalInputChange = (e) => {
-    const { name, value } = e.target;
-    
-    console.log(`[LocalInputChange] field: ${name}, value: "${value}", isComposing: ${isComposing}`);
-    
-    // IME 입력 중이 아닐 때만 상태 업데이트
-    if (!isComposing) {
-      // 로컬 상태만 업데이트
-      setLocalInputState(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
-
-  // IME 이벤트 핸들러에 디버깅 로그 추가
-  const handleCompositionStart = (e) => {
-    const { name } = e.target;
-    console.log(`[CompositionStart] field: ${name}`);
-    setIsComposing(true);
-  };
-
-  // IME 입력 종료 이벤트 핸들러
-  const handleCompositionEnd = (e) => {
-    const { name, value } = e.target;
-    console.log(`[CompositionEnd] field: ${name}, value: "${value}"`);
-    
-    setIsComposing(false);
-    // 입력 종료 시 값 업데이트
-    setLocalInputState(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  // 입력 완료 시 Redux 상태 업데이트 - 지연 처리로 개선
-  const handleInputBlur = (e) => {
-    const { name } = e.target;
-    const value = localInputState[name];
-    const originalValue = formData[name];
-    
-    console.log(`[InputBlur] field: ${name}, value: "${value}", original: "${originalValue}", isComposing: ${isComposing}`);
-    
-    // IME 입력 중이면 무시
-    if (isComposing) {
-      console.log('[InputBlur] Ignoring blur during composition');
-      return;
-    }
-    
-    // 300ms 지연 후 처리 - 포커스 문제 방지
-    setTimeout(() => {
-      console.log(`[InputBlur-Delayed] field: ${name}, value: "${value}", original: "${originalValue}"`);
-      
-      // 활성 필드 초기화
-      setActiveField(null);
-      
-      // Redux 상태 업데이트
-      if (value !== undefined) {
-        // 값이 실제로 변경되었는지 확인
-        const hasChanged = value !== originalValue;
-        console.log(`[InputBlur-Delayed] 값 변경 여부: ${hasChanged}`);
-        
-        // 항상 업데이트하여 일관된 상태 유지
-        dispatch(updateField({ field: name, value }));
-        
-        // 값이 변경된 경우에만 추적 필드에 추가
-        if (hasChanged) {
-          console.log(`[InputBlur-Delayed] 추적 필드 추가: ${name}`);
-          dispatch(trackField({ field: name }));
-        }
-        
-        // 배열형 필드 특수 처리
-        if (name === 'businessHours') {
-          // 기존 로직 유지
-          let processedValue = value;
-          if (value === '' || value.trim() === '') {
-            processedValue = [""];
-          } else {
-            processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
-            if (processedValue.length === 0) {
-              processedValue = [""];
-            }
-          }
-          
-          if (processedValue !== value) {
-            dispatch(updateField({ field: name, value: processedValue }));
-          }
-        }
-      }
-    }, 300);
-  };
-
-  // 필드 포커스 이벤트 핸들러 수정 - 빈 필드 문제 해결
-  const handleInputFocus = (e, fieldName) => {
-    const { name } = e.target;
-    console.log(`[InputFocus] field: ${name}, activeField: ${activeField}, isReadOnly: ${isFieldReadOnly(fieldName)}`);
-    
-    // 중요: 빈 필드이거나 편집 모드에서 필드에 포커스할 때 활성화
-    if (isEditorOn && (!formData[fieldName] || activeField === fieldName)) {
-      console.log(`[InputFocus] 빈 필드 활성화: ${fieldName}`);
-      
-      // 활성 필드 설정
-      setActiveField(fieldName);
-      
-      // 로컬 상태 초기화 (현재 값으로)
-      setLocalInputState(prev => ({
-        ...prev,
-        [fieldName]: formData[fieldName] || ""
-      }));
-      
-      // readOnly 해제
-      if (inputRefs.current[fieldName]) {
-        inputRefs.current[fieldName].readOnly = false;
-      }
-    }
-    
-    // 이미 활성화된 경우 전체 선택
-    if (activeField === fieldName && inputRefs.current[fieldName]) {
-      inputRefs.current[fieldName].select();
-    }
-  };
-
-  // 일반 필드용 입력 컴포넌트 - 로컬 상태 사용 및 디버깅 로그 추가
-  const renderInput = (fieldName, readOnly) => {
-    const isActive = fieldName === activeField;
-    const value = isActive ? localInputState[fieldName] || "" : formData[fieldName] || "";
-    
-    return (
-      <>
-        <input
-          type="text"
-          name={fieldName}
-          value={value}
-          onChange={isActive ? handleLocalInputChange : handleInputChange}
-          onBlur={isActive ? handleInputBlur : undefined}
-          onCompositionStart={handleCompositionStart}
-          onCompositionEnd={handleCompositionEnd}
-          onFocus={(e) => handleInputFocus(e, fieldName)}
-          readOnly={readOnly}
-          className={getInputClassName(fieldName)}
-          ref={el => inputRefs.current[fieldName] = el}
-          autoComplete="off"
-          onClick={() => {
-            // 빈 필드 클릭 시 활성화 (중요 수정)
-            if (isEditorOn && (!formData[fieldName] || formData[fieldName] === "")) {
-              console.log(`[Click] 빈 필드 클릭: ${fieldName}`);
-              handleInputFocus({target: {name: fieldName}}, fieldName);
-            }
-            // 기존 값 있는 필드 클릭 처리
-            else if (isEditorOn && formData[fieldName] && !isFieldReadOnly(fieldName)) {
-              handleFieldEditButtonClick(new Event('click'), fieldName);
-            }
-          }}
-        />
-        {/* 필드 편집 버튼 - 편집 모드일 때만 표시 */}
-        {isEditorOn && formData[fieldName] && !isActive && (
-          <button
-            className={styles.inputOverlayButton}
-            onClick={(e) => handleFieldEditButtonClick(e, fieldName)}
-            style={{ display: 'block' }}
-            title="편집"
-          >
-            ✏️
-          </button>
-        )}
-      </>
-    );
-  };
-
-  // 기존 handleEditFoamCardButton 함수를 Command 패턴에 맞게 수정
-  const handleEditFoamCardButton = (e) => {
-    e.preventDefault();
-    
-    // Command 패턴: 상태에 따른 액션 분기
-    if (isIdle) {
-      dispatch(startEdit({ shopData: currentShopServerDataSet }));
-    } else if (isEditorOn) {
-      dispatch(completeEditor());
-    } else if (isEditing && !isEditorOn) {
-      dispatch(beginEditor());
-    }
-  };
-  
   const handleConfirmEdit = () => {
     dispatch(startConfirm());
     // 편집 상태 종료 (isEditing = false)
@@ -471,25 +456,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     
     // 단일 업데이트 경로 사용
     dispatch(updateField({ field: name, value }));
-    
-    // 배열형 필드 처리 (특수 처리 필요한 경우)
-    // 배열형 필드 처리
-    if (name === 'businessHours') {
-      let processedValue = value;
-      if (value === '' || value.trim() === '') {
-        processedValue = [""];  // 빈 값은 [""] 형태로 저장
-      } else {
-        processedValue = value.split(',').map(item => item.trim()).filter(item => item !== '');
-        if (processedValue.length === 0) {
-          processedValue = [""];  // 결과가 빈 배열이면 [""] 형태로 저장
-        }
-      }
-      
-      // 배열 형태로 다시 업데이트
-      if (processedValue !== value) {
-    dispatch(updateField({ field: name, value: processedValue }));
-      }
-    }
   };
   
   const handlePinCoordinatesButtonClick = (e) => {
@@ -595,6 +561,20 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   // 이미지 선택 취소 처리
   const handleCancelImageSelection = () => {
     // 모달은 자동으로 닫힘
+  };
+
+  // 기존 handleEditFoamCardButton 함수를 Command 패턴에 맞게 수정
+  const handleEditFoamCardButton = (e) => {
+    e.preventDefault();
+    
+    // Command 패턴: 상태에 따른 액션 분기
+    if (isIdle) {
+      dispatch(startEdit({ shopData: currentShopServerDataSet }));
+    } else if (isEditorOn) {
+      dispatch(completeEditor());
+    } else if (isEditing && !isEditorOn) {
+      dispatch(beginEditor());
+    }
   };
 
   return (

@@ -769,7 +769,7 @@
 .buttonGroup .headerButton {
   margin: 0;
   font-size: 13px;
-  padding: 6px 5px;
+  padding: 2px 3px;
   height: auto;
 }
 
@@ -1413,7 +1413,7 @@
 
 .imageOrderEditorListContainer {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
   width: 100%;
   max-height: 550px;
@@ -1669,6 +1669,30 @@
 .imageOrderDragHandleButton:hover {
   opacity: 1;
   background-color: rgba(0, 0, 0, 0.7);
+}
+
+.imageRemoveButton {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 0, 0, 0.7);
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+
+.imageRemoveButton:hover {
+  opacity: 1;
+  background-color: rgba(255, 0, 0, 0.9);
+  transform: scale(1.1);
 }
 
 .imageOrderEditorItem:hover {

@@ -14,6 +14,7 @@ import { parseGooglePlaceData } from './utils/googlePlaceUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
 import RightSidebar from './components/RightSidebar';
 import CompareBar from './components/CompareBar';
+import ExploringSidebar from './components/ExploringSidebar';
 // Redux 선택자 가져오기
 import {
   togglePanel,
@@ -208,8 +209,6 @@ export default function Editor() { // 메인 페이지
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
 
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [mapInstance, setMapInstance] = useState(null);
 
   // 드로잉 매니저 상태 감시 및 제어를 위한 useEffect
   useEffect(() => {
@@ -678,8 +677,6 @@ export default function Editor() { // 메인 페이지
       initShopList();
     });
     instMap.current = _mapInstance;
-    setMapLoaded(true);
-    setMapInstance(_mapInstance);
   } // initializeGoogleMapPage 마침
 
   // 모듈로딩을 순차적으로 진행하기위해필수. 구글모듈-맵모듈-맵로딩idle이벤트-mapinst로 애드온모듈 초기화화
@@ -1058,39 +1055,16 @@ export default function Editor() { // 메인 페이지
         <title>Editor</title>
       </Head>
       
-      {/* 기존 좌측 사이드바 */}
-      <div className={`${styles.sidebar} ${isSidebarVisible ? '' : styles.hidden}`}>
-        <div className={styles.header}>
-          <button className={styles.backButton} onClick={toggleSidebar}>←</button>
-          <h1>반월당역</h1>
-          <button className={styles.iconButton}>⚙️</button>
-        </div>
-        <div className={styles.menu}>
-          <button className={styles.menuButton}>숙소</button>
-          <button className={styles.menuButton}>맛집</button>
-          <button className={styles.menuButton}>관광</button>
-          <button className={styles.menuButton}>환전</button>
-        </div>
-        <ul className={styles.itemList}>
-          <li className={styles.item}>
-            <a href="#">
-              <div className={styles.itemDetails}>
-                <span className={styles.itemTitle}>남산에 <small>일식당</small></span>
-                <p>영업 중 · 20:30에 라스트오더</p>
-                <p><strong>380m</strong> · 대구 중구 남산동</p>
-              </div>
-              <Image
-                src="https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400"
-                alt="남산에 일식당"
-                className={styles.itemImage}
-                width={100}
-                height={100}
-                priority
-              />
-            </a>
-          </li>
-        </ul>
-      </div>
+      {/* ExploringSidebar 컴포넌트 사용 */}
+      <ExploringSidebar 
+        isSidebarVisible={isSidebarVisible}
+        toggleSidebar={toggleSidebar}
+        curSectionName={curSectionName}
+        curItemListInCurSection={curItemListInCurSection}
+        setCurSelectedShop={setCurSelectedShop}
+        instMap={instMap.current}
+        curSelectedShop={curSelectedShop}
+      />
       
       {/* 지도 영역 */}
       <div className={styles.mapContainer}>

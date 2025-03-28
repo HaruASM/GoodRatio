@@ -153,8 +153,10 @@ const imageManagerSlice = createSlice({
     
     // 이미지 순서 편집 확인
     confirmImageOrder: (state) => {
-      // 편집된 이미지가 없는 경우 작업 취소
+      // 편집된 이미지가 없는 경우 메인 이미지와 서브 이미지 모두 초기화
       if (state.editedImages.length === 0) {
+        state.mainImage = "";
+        state.subImages = [];
         state.isImageOrderEditorOpen = false;
         return;
       }
@@ -203,6 +205,24 @@ const imageManagerSlice = createSlice({
       state.editedImages.splice(toIndex, 0, movedItem);
     },
     
+    // 이미지 삭제
+    removeImage: (state, action) => {
+      const index = action.payload;
+      
+      // 편집 모드에서만 작동
+      if (!state.isImageOrderEditorOpen) {
+        return;
+      }
+      
+      // 범위 체크
+      if (index < 0 || index >= state.editedImages.length) {
+        return;
+      }
+      
+      // 이미지 삭제
+      state.editedImages.splice(index, 1);
+    },
+    
     // 이미지 데이터 초기화
     resetImageData: (state) => {
       state.mainImage = null;
@@ -235,6 +255,7 @@ export const {
   setDraggedItem,
   clearDraggedItem,
   moveImage,
+  removeImage,
   resetImageData
 } = imageManagerSlice.actions;
 

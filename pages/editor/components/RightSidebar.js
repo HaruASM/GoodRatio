@@ -549,57 +549,65 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   
   // 이미지 선택 완료 처리
   const handleImagesSelected = (selectedImages) => {
-    if (selectedImages && selectedImages.length > 0) {
-      // 선택된 이미지 배열 깊은 복사 (문자열 배열이므로 JSON 방식 사용)
-      const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImages || []));
-      
-      // 유효한 이미지만 필터링
-      const validImages = selectedImagesCopy.filter(img => 
-        img && typeof img === 'string' && img.trim() !== ''
-      );
-      
-      if (!validImages.length) return;
-      
-      // 순서 편집 모달에서 호출된 경우 (이미지 순서 변경)
-      if (isImageOrderEditorOpen) {
-        // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
-        if (validImages.length > 0) {
-          // 메인 이미지 설정
-          dispatch(updateField({ field: 'mainImage', value: validImages[0] }));
-          dispatch(trackField({ field: 'mainImage' }));
-          
-          // 서브 이미지 설정 (첫 번째 이미지 제외)
-          const subImagesArray = validImages.slice(1);
-          dispatch(updateField({ field: 'subImages', value: subImagesArray }));
-          dispatch(trackField({ field: 'subImages' }));
-        }
-        return;
-      }
-      
-      // 이미지 선택 모달에서 호출된 경우 (이미지 추가)
-      // 현재 폼 데이터의 이미지 상태 가져오기
-      const currentMainImage = formData.mainImage;
-      const currentSubImages = Array.isArray(formData.subImages) ? 
-        [...formData.subImages] : [];
-      
-      // 선택된 이미지가 1개이고 메인 이미지가 없는 경우: 메인 이미지로 설정
-      if (validImages.length === 1 && !currentMainImage) {
+    // 이미지 배열이 비어있는 경우 메인/서브 이미지 모두 초기화
+    if (!selectedImages || selectedImages.length === 0) {
+      // 모든 이미지 초기화 (protoServerDataset 초기값과 일치)
+      dispatch(updateField({ field: 'mainImage', value: "" }));
+      dispatch(trackField({ field: 'mainImage' }));
+      dispatch(updateField({ field: 'subImages', value: [] }));
+      dispatch(trackField({ field: 'subImages' }));
+      return;
+    }
+    
+    // 선택된 이미지 배열 깊은 복사 (문자열 배열이므로 JSON 방식 사용)
+    const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImages || []));
+    
+    // 유효한 이미지만 필터링
+    const validImages = selectedImagesCopy.filter(img => 
+      img && typeof img === 'string' && img.trim() !== ''
+    );
+    
+    if (!validImages.length) return;
+    
+    // 순서 편집 모달에서 호출된 경우 (이미지 순서 변경)
+    if (isImageOrderEditorOpen) {
+      // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
+      if (validImages.length > 0) {
+        // 메인 이미지 설정
         dispatch(updateField({ field: 'mainImage', value: validImages[0] }));
         dispatch(trackField({ field: 'mainImage' }));
-      } 
-      // 그 외의 경우: 모든 이미지를 서브 이미지에 추가
-      else {
-        // 중복 이미지 필터링
-        const newImages = validImages.filter(img => 
-          img !== currentMainImage && !currentSubImages.includes(img)
-        );
         
-        // 추가할 이미지가 있으면 서브 이미지 배열에 추가
-        if (newImages.length > 0) {
-          const updatedSubImages = [...currentSubImages, ...newImages];
-          dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
-          dispatch(trackField({ field: 'subImages' }));
-        }
+        // 서브 이미지 설정 (첫 번째 이미지 제외)
+        const subImagesArray = validImages.slice(1);
+        dispatch(updateField({ field: 'subImages', value: subImagesArray }));
+        dispatch(trackField({ field: 'subImages' }));
+      }
+      return;
+    }
+    
+    // 이미지 선택 모달에서 호출된 경우 (이미지 추가)
+    // 현재 폼 데이터의 이미지 상태 가져오기
+    const currentMainImage = formData.mainImage;
+    const currentSubImages = Array.isArray(formData.subImages) ? 
+      [...formData.subImages] : [];
+    
+    // 선택된 이미지가 1개이고 메인 이미지가 없는 경우: 메인 이미지로 설정
+    if (validImages.length === 1 && !currentMainImage) {
+      dispatch(updateField({ field: 'mainImage', value: validImages[0] }));
+      dispatch(trackField({ field: 'mainImage' }));
+    } 
+    // 그 외의 경우: 모든 이미지를 서브 이미지에 추가
+    else {
+      // 중복 이미지 필터링
+      const newImages = validImages.filter(img => 
+        img !== currentMainImage && !currentSubImages.includes(img)
+      );
+      
+      // 추가할 이미지가 있으면 서브 이미지 배열에 추가
+      if (newImages.length > 0) {
+        const updatedSubImages = [...currentSubImages, ...newImages];
+        dispatch(updateField({ field: 'subImages', value: updatedSubImages }));
+        dispatch(trackField({ field: 'subImages' }));
       }
     }
   };

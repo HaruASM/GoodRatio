@@ -25,7 +25,8 @@ import {
   confirmImageOrder,
   setDraggedItem,
   clearDraggedItem,
-  moveImage
+  moveImage,
+  removeImage
 } from '../store/slices/imageManagerSlice';
 
 // 유틸리티 함수 가져오기
@@ -415,9 +416,16 @@ const ImageSectionManager = forwardRef(({
     // 이미지 순서 확정 처리
     dispatch(confirmImageOrder());
     
-    // 편집된 이미지 배열 확인
-    if (onImagesSelected && editedImages && editedImages.length > 0) {
-      onImagesSelected(editedImages);
+    // 콜백 함수가 제공된 경우 호출
+    if (onImagesSelected && typeof onImagesSelected === 'function') {
+      if (editedImages && editedImages.length > 0) {
+        // 편집된 이미지가 있으면 그 이미지 배열 전달
+        onImagesSelected(editedImages);
+      } else {
+        // 편집된 이미지가 없으면 빈 문자열과 빈 배열을 전달
+        // 이는 protoServerDataset 초기값과 일치하도록 함
+        onImagesSelected([]);
+      }
     }
   }, [dispatch, onImagesSelected, editedImages]);
 
@@ -435,6 +443,12 @@ const ImageSectionManager = forwardRef(({
         el.style.background = '';
       });
     }, 0);
+  }, [dispatch]);
+
+  // 이미지 삭제 처리
+  const handleRemoveImage = useCallback((imageIndex) => {
+    // 이미지 삭제 액션 디스패치
+    dispatch(removeImage(imageIndex));
   }, [dispatch]);
 
   // 이미지 선택 모달 렌더링
@@ -746,6 +760,13 @@ const ImageSectionManager = forwardRef(({
                   </div>
                   <div className={styles.imageOrderDragHandleButton} title="드래그하여 순서 변경">
                     <span>↕</span>
+                  </div>
+                  <div 
+                    className={styles.imageRemoveButton} 
+                    title="이미지 삭제"
+                    onClick={() => handleRemoveImage(index)}
+                  >
+                    <span>×</span>
                   </div>
                   {/* 툴팁(미리보기) 추가 */}
                   <div className={styles.imageTooltip}>

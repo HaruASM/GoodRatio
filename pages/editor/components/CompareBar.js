@@ -28,23 +28,7 @@ import {
   selectIsImageSelectionMode
 } from '../store/slices/imageManagerSlice';
 import { getValidImageRefs } from '../utils/imageHelpers';
-
-// 상점 데이터 인풋창 타이틀 배열
-const titlesofDataFoam = [
-  { field: 'storeName', title: '상점명' },
-  { field: 'storeStyle', title: '상점 스타일' },
-  { field: 'alias', title: '별칭' },
-  { field: 'comment', title: '코멘트' },
-  { field: 'locationMap', title: '위치지역' },
-  { field: 'businessHours', title: '영업시간' },
-  { field: 'hotHours', title: 'hot시간' },
-  { field: 'discountHours', title: '할인시간' },
-  { field: 'address', title: '주소' },
-  { field: 'pinCoordinates', title: '핀 좌표' },
-  { field: 'path', title: '다각형 경로' },
-  { field: 'categoryIcon', title: '아이콘분류' },
-  { field: 'googleDataId', title: '구글데이터ID' }
-];
+import { titlesofDataFoam } from '../dataModels';
 
 /**
  * 값이 비어있는지 확인하는 공통 함수

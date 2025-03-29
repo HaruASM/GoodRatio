@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk, createAction } from '@reduxjs/toolkit';
 import { protoServerDataset } from '../../dataModels';
 import { compareShopData, updateFormDataFromShop, checkDataIsChanged } from '../utils/rightSidebarUtils';
+import { ShopService } from '../../ServerUtilsforEditor';
 
-// isFieldModified 유틸리티 함수 추가
+// isFieldModified 유틸리티 함수 추가 //FIXME 사용여부확인후후 삭제검토
 const isFieldModified = (modifiedFields, fieldName) => {
   return modifiedFields && modifiedFields[fieldName] === true;
 };
@@ -49,48 +50,49 @@ export const saveShopData = createAsyncThunk( // 액션 생성자자
   }
 );
 
-// 최종 확인 액션 (thunk로 분리)
-export const finalConfirmAndSubmit = createAsyncThunk(
-  'rightSidebar/finalConfirmAndSubmit',
-  async (payload, { dispatch, getState }) => {
-    // 일반 액션 디스패치 (최종 확인)
-    dispatch(confirmAndSubmit());
-    
-    // 편집 상태 종료 (isEditing = false)
-    dispatch(endEdit());
-    
-    // 오버레이 정리는 컴포넌트에서 직접 호출해야 함
-    // payload?.mapOverlayHandlers?.cleanupTempOverlays?.()
-    
-    // 로딩 상태로 변경
-    dispatch(setStatus('loading'));
-    
+// 최종 서버 제출 thunk
+export const finalSubmitToServer = createAsyncThunk(
+  'rightSidebar/finalSubmitToServer',
+  async (_, { getState, dispatch, rejectWithValue }) => {
     try {
-      // 상태에서 폼 데이터 가져오기
       const state = getState();
-      const formData = state.rightSidebar.formData;
+      const { editNewShopDataSet } = state.rightSidebar;
+
+      // 섹션 이름 가져오기
+      const sectionName = state.rightSidebar.formData.locationMap || '반월당';
+      if (!sectionName) {
+        console.error('지정된 sectionName이 없습니다');
+        return rejectWithValue('섹션 이름이 지정되지 않았습니다');
+      }
       
-      // 실제 API 호출 (예: API 호출 관련 코드)
-      // const response = await api.saveShopData(formData);
+      // 편집된 데이터 유효성 검사
+      if (!editNewShopDataSet) {
+        console.error('편집된 데이터가 없습니다');
+        return rejectWithValue('편집된 데이터가 없습니다');
+      }
       
-      // 저장 성공 액션 디스패치
-      dispatch(saveShopData.fulfilled(formData, 'saveShopData', formData));
+      let response;
       
-      // 성공 상태로 변경
-      dispatch(setStatus('succeeded'));
+      // 기존 데이터 유무에 따라 create/update 결정 (originalShopData 대신 editNewShopDataSet.id 사용)
+      if (editNewShopDataSet.id) {
+        // 업데이트: ID가 있으면 기존 데이터 업데이트
+        response = await ShopService.update(editNewShopDataSet, sectionName);
+      } else {
+        // 신규 생성: ID가 없으면 새 데이터 생성
+        response = await ShopService.create(editNewShopDataSet, sectionName);
+      }
       
-      return formData;
+      // 성공 시 completeConfirm 액션 호출
+      dispatch(completeConfirm());
+      return response;
     } catch (error) {
-      // 오류 상태로 변경
-      dispatch(setStatus('failed'));
-      dispatch(setError(error.message));
-      
-      throw error;
+      // 실패 처리
+      return rejectWithValue(error.message || '서버 데이터 전송 실패');
     }
   }
 );
 
-// 사이드바 슬라이스 생성 //AT Slice 리듀서, 액션 선언부 
+// 사이드바 슬라이스 생성 //AT Slice 리듀서, 액션 선언부. 기능 변경시,단계를 더 세분화 필요. editing, editor, confirm, idel, explore 단계 구분  
 const rightSidebarSlice = createSlice({
   name: 'rightSidebar',
   initialState,
@@ -107,8 +109,13 @@ const rightSidebarSlice = createSlice({
       state.isConfirming = false;
     },
     
-    // 편집 시작 (수정: 상태 초기화 후 beginEditor 호출)
+    // 편집 시작 (수정: 상태 초기화 후, beginEditor 호출)
+    //action.payload.shopData 의 값은 protoServerDataset 형식의 데이터로만 유통 
     startEdit: (state, action) => {
+      if( action.payload.shopData === undefined){
+        console.error('에디터실행시 shopData is undefined');
+        return;
+      }
       // 상태 초기화
       state.hasChanges = false;
       state.modifiedFields = {};
@@ -118,10 +125,12 @@ const rightSidebarSlice = createSlice({
       state.isEditorOn = true;
       state.isConfirming = false;
       state.isIdle = false;
-      
-      // 항상 serverDataset 형식의 데이터로 가정
+
+      // 항상 protoServerDataset 형식의 데이터로만 유통 
       state.originalShopData = JSON.parse(JSON.stringify(action.payload.shopData));
       state.editNewShopDataSet = JSON.parse(JSON.stringify(action.payload.shopData));
+
+      console.log( 'originalShopData', state.originalShopData.id);
     },
     
     // 내부적으로 현재 formData를 사용하여 편집 시작하는 액션 추가
@@ -207,7 +216,7 @@ const rightSidebarSlice = createSlice({
       // 모든 편집 관련 상태 명확히 리셋
       state.isEditorOn = false;
       state.isConfirming = false;
-      state.editNewShopDataSet = null;
+      state.editNewShopDataSet = null; //TODO protoServerDataset 으로 빈값을 초기화 해야 하지 않을까?
       
       // 드로잉 모드 종료
       state.isDrawing = false;
@@ -222,7 +231,7 @@ const rightSidebarSlice = createSlice({
     },
     
     // 확인 액션 추가 (최종 확인 단계로 진행)
-    startConfirm: (state, action) => {
+    startConfirm: (state) => {
       // null 체크
       if (!state.originalShopData || !state.editNewShopDataSet) {
         state.isConfirming = false;
@@ -231,7 +240,7 @@ const rightSidebarSlice = createSlice({
         return;
       }
       
-      // modifiedFields에 기록된 필드가 있는지 먼저 확인
+      // modifiedFields에 기록된 필드가 있는지 확인
       const hasChanges = Object.keys(state.modifiedFields).length > 0;
       
       // 상태 명확히 업데이트
@@ -240,25 +249,17 @@ const rightSidebarSlice = createSlice({
       state.hasChanges = hasChanges;
     },
     
-    // 비교 모달 관련 액션 제거
-    
-    // 최종 확인 및 전송 액션 추가 (리듀서 내부에만 있는 버전)
-    confirmAndSubmit: (state, action) => {
-      // 상태 초기화
-      state.isEditorOn = false;  // 에디터 비활성화
-      state.isConfirming = false;
-      state.hasChanges = false;
-      state.originalShopData = null;
-      state.editNewShopDataSet = null;
-      state.modifiedFields = {};
-      // compareModal 관련 상태 제거
+    // 최종 확인 및 전송 준비 액션
+    confirmAndSubmit: (state) => {
+      // 서버 제출 준비 상태로 변경
+      state.status = 'loading';
+      state.error = null;
       
-      // 폼 데이터 초기화
-      state.formData = updateFormDataFromShop(null, {});
+      // 이미 isConfirming=true, isEditorOn=false 상태이므로 중복 설정 불필요
     },
 
-    // 최종 확인 완료 액션 추가
-    completeConfirm: (state, action) => {
+    // 최종 확인 완료 액션
+    completeConfirm: (state) => {
       // 상태 초기화
       state.isEditorOn = false;  // 에디터 비활성화
       state.isConfirming = false;
@@ -272,6 +273,19 @@ const rightSidebarSlice = createSlice({
       
       // IDLE 상태로 되돌림
       state.isIdle = true;
+      
+      // 상태 초기화
+      state.status = 'idle';
+      state.error = null;
+    },
+
+    // status와 error를 직접 설정하는 액션 추가
+    setStatus: (state, action) => {
+      state.status = action.payload;
+    },
+    
+    setError: (state, action) => {
+      state.error = action.payload;
     },
 
     // 필드 업데이트 - 단일 업데이트 경로
@@ -482,6 +496,7 @@ const rightSidebarSlice = createSlice({
   
   extraReducers: (builder) => {
     builder
+      // 기존 saveShopData reducer
       .addCase(saveShopData.pending, (state) => {
         state.status = 'loading';
       })
@@ -498,6 +513,21 @@ const rightSidebarSlice = createSlice({
       .addCase(saveShopData.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload || '저장 중 오류가 발생했습니다.';
+      })
+      
+      // finalSubmitToServer reducer 추가
+      .addCase(finalSubmitToServer.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(finalSubmitToServer.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        // 서버에서 업데이트된 데이터는 사용하지 않음 (요구사항대로)
+        // completeConfirm에서 상태 초기화가 이루어짐
+      })
+      .addCase(finalSubmitToServer.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload || '서버 데이터 전송 실패';
       });
   }
 });
@@ -546,6 +576,8 @@ export const {
   confirmAndSubmit,
   startConfirm,
   completeConfirm,
+  setStatus,
+  setError,
 } = rightSidebarSlice.actions;
 
 export default rightSidebarSlice.reducer; 

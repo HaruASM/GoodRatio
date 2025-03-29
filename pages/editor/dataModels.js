@@ -8,7 +8,6 @@
  * @property {string} alias - 별칭
  * @property {string[]} businessHours - 영업 시간
  * @property {string} hotHours - 성수기 시간
- * @property {string} discountHours - 할인 시간
  * @property {string} address - 주소
  * @property {string} mainImage - 메인 이미지 URL
  * @property {string[]} mainImages - 메인 이미지 URL 목록
@@ -18,6 +17,7 @@
  * @property {string} googleDataId - Google Place API ID
  * @property {Array<{lat: number, lng: number}>} path - 다각형 경로 좌표 배열
  * @property {string} comment - 코멘트
+ * @property {string} id - Firestore 문서 ID (마이그레이션 이후 추가)
  */
 
 /**
@@ -31,7 +31,6 @@ export const protoServerDataset = {
   alias: "",
   businessHours: [""],
   hotHours: "",
-  discountHours: "",
   address: "",
   mainImage: "",
   mainImages: [""], // 개별적으로 업로드할 이미지의 서버 구별값을 저장할 배열(아직 미사용)
@@ -41,7 +40,27 @@ export const protoServerDataset = {
   googleDataId: "",
   path: [""],
   comment: "", // comment 필드 추가
+  id: "", // Firestore 문서 ID 필드 추가
 };
+
+/**
+ * 데이터 필드와 표시 이름 매핑 정보
+ * @type {Array<{field: string, title: string}>}
+ */
+export const titlesofDataFoam = [
+  { field: 'storeName', title: '상점명' },
+  { field: 'storeStyle', title: '상점 스타일' },
+  { field: 'alias', title: '별칭' },
+  { field: 'comment', title: '코멘트' },
+  { field: 'locationMap', title: '위치지역' },
+  { field: 'businessHours', title: '영업시간' },
+  { field: 'hotHours', title: 'hot시간' },
+  { field: 'address', title: '주소' },
+  { field: 'pinCoordinates', title: '핀 좌표' },
+  { field: 'path', title: '다각형 경로' },
+  { field: 'categoryIcon', title: '아이콘분류' },
+  { field: 'googleDataId', title: '구글데이터ID' }
+];
 
 /**
  * @typedef {Object} ShopDataSet

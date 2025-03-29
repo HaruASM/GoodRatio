@@ -34,7 +34,8 @@ import {
   confirmAndSubmit,
   startDrawingMode,
   endEdit,
-  beginEditor
+  beginEditor,
+  finalSubmitToServer
 } from '../store/slices/rightSidebarSlice';
 
 import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../store/slices/compareBarSlice';
@@ -45,6 +46,30 @@ import {
   selectIsImageOrderEditorOpen,
   resetImageData
 } from '../store/slices/imageManagerSlice';
+import { getValidImageRefs } from '../utils/imageHelpers';
+import { titlesofDataFoam } from '../dataModels';
+
+// 확인 모달 컴포넌트
+const ConfirmModal = ({ isOpen, storeName, onConfirm, onCancel }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className={styles.confirmModalOverlay}>
+      <div className={styles.confirmModal}>
+        <h3>업데이트 확인</h3>
+        <p><strong>'{storeName || '신규 상점'}'</strong>에 대한 서버 업데이트를 진행하시겠습니까?</p>
+        <div className={styles.confirmModalButtons}>
+          <button className={styles.cancelButton} onClick={onCancel}>
+            취소
+          </button>
+          <button className={styles.confirmSubmitButton} onClick={onConfirm}>
+            확인 및 송신
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // 값이 비어있는지 확인하는 공통 함수
 const isValueEmpty = (value, fieldName) => {
@@ -64,23 +89,6 @@ const isValueEmpty = (value, fieldName) => {
   
   return false;
 };
-
-// 상점 데이터 인풋창 타이틀 배열
-const titlesofDataFoam = [
-  { field: 'storeName', title: '상점명' },
-  { field: 'storeStyle', title: '상점 스타일' },
-  { field: 'alias', title: '별칭' },
-  { field: 'comment', title: '코멘트' },
-  { field: 'locationMap', title: '위치지역' },
-  { field: 'businessHours', title: '영업시간' },
-  { field: 'hotHours', title: 'hot시간' },
-  { field: 'discountHours', title: '할인시간' },
-  { field: 'address', title: '주소' },
-  { field: 'pinCoordinates', title: '핀 좌표' },
-  { field: 'path', title: '다각형 경로' },
-  { field: 'categoryIcon', title: '아이콘분류' },
-  { field: 'googleDataId', title: '구글데이터ID' }
-];
 
 /**
  * 오른쪽 사이드바 내부 컴포넌트
@@ -108,6 +116,8 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const isInsertingMode = useSelector(selectIsInserting);
   const isImageOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
   
+  // 확인 모달 상태
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
@@ -454,12 +464,44 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     );
   };
 
+  // 확인 버튼 핸들러 수정
   const handleConfirmEdit = () => {
+    // 확인 단계 시작 액션
     dispatch(startConfirm());
-    // 편집 상태 종료 (isEditing = false)
+    
+    // 확인 모달 표시
+    setIsConfirmModalOpen(true);
+    
+    // 오버레이 정리는 endEdit 이후에 수행
+  };
+  
+  // 최종 확인 핸들러 추가
+  const handleFinalConfirm = () => {
+    // 모달 닫기
+    setIsConfirmModalOpen(false);
+    
+    // 확인 및 제출 액션
+    dispatch(confirmAndSubmit());
+    
+    // 편집 종료
     dispatch(endEdit());
-    // 오버레이 정리를 컴포넌트에서 직접 처리
-    mapOverlayHandlers.cleanupTempOverlays();
+    
+    // 서버로 데이터 제출
+    dispatch(finalSubmitToServer())
+      .unwrap()
+      .then(() => {
+        // 성공 시 오버레이 정리
+        mapOverlayHandlers.cleanupTempOverlays();
+      })
+      .catch((error) => {
+        console.error('서버 제출 실패:', error);
+        // 오류 처리는 리듀서에서 상태 변경으로 처리됨
+      });
+  };
+  
+  // 확인 모달 취소 핸들러
+  const handleCancelConfirmModal = () => {
+    setIsConfirmModalOpen(false);
   };
   
   const handleCancelEdit = () => {
@@ -851,6 +893,14 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
         </form>
         )}
       </div>
+      
+      {/* 확인 모달 추가 */}
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        storeName={formData.storeName}
+        onConfirm={handleFinalConfirm}
+        onCancel={handleCancelConfirmModal}
+      />
     </div>
   );
 };

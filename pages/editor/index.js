@@ -8,7 +8,7 @@ import styles from './styles.module.css';
 import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from './dataModels';
 import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
 // 서버 유틸리티 함수 가져오기
-import { getSectionData } from './serverUtils';
+import { getSectionData, setupFirebaseListener } from './serverUtils';
 // Place 유틸리티 함수 가져오기
 import { parseGooglePlaceData } from './utils/googlePlaceUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
@@ -51,19 +51,31 @@ const SectionsDBManager = {
   // 섹션 데이터 캐시 (Map 객체)
   _cache: new Map(),
   
+  // 실시간 리스너 관리용 속성 추가
+  _currentListener: null,
+  _currentSectionName: null,
+  
   /**
    * 섹션 데이터 가져오기 (캐시 -> 로컬 스토리지 -> 서버 순으로 시도)
    * @param {string} sectionName - 가져올 섹션 이름
    * @returns {Promise<Array>} - 변환된 아이템 리스트 (protoShopDataSet 형태)
    */
   getSectionItems: async function(sectionName) {
+    console.log('getSectionItems1', sectionName);
     // 1. 캐시에서 먼저 확인
     if (this._cache.has(sectionName)) {
       // console.log(`SectionsDBManager: 캐시에서 ${sectionName} 데이터 로드 (${this._cache.get(sectionName).length}개 항목)`);
+      console.log('getSectionItems2', sectionName);
+      // 캐시에서 가져온 경우에도 실시간 리스너 확인 및 설정
+      if (this._currentSectionName !== sectionName) {
+        this._setupRealtimeListener(sectionName);
+      }
+      
       return this._cache.get(sectionName);
     }
     
     try {
+      console.log('getSectionItems1', sectionName);
       // 2. 캐시에 없으면 getSectionData 함수 호출 (로컬 스토리지 -> 서버)
       const serverItems = await getSectionData(sectionName);
       
@@ -73,12 +85,56 @@ const SectionsDBManager = {
       // 4. 캐시에 저장
       this._cache.set(sectionName, clientItems);
       
+      // 5. 실시간 리스너 설정
+      this._setupRealtimeListener(sectionName);
+      console.log('getSectionItems4  ', sectionName, clientItems);
       // console.log(`SectionsDBManager: ${sectionName} 데이터 로드 완료 (${clientItems.length}개 항목)`);
       return clientItems;
     } catch (error) {
-      // console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오류`, error);
+       console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오  류`, error);
       return [];
     }
+  },
+  
+  /**
+   * 실시간 리스너 설정 (내부 메서드)
+   * @param {string} sectionName - 실시간 업데이트를 구독할 섹션 이름
+   * @private
+   */
+  _setupRealtimeListener: function(sectionName) {
+    // 이미 같은 섹션에 리스너가 있으면 재사용
+    if (this._currentSectionName === sectionName && this._currentListener) {
+      // console.log(`SectionsDBManager: 이미 ${sectionName}에 대한 실시간 리스너가 활성화됨`);
+      return;
+    }
+    
+    // 다른 섹션의 리스너가 있으면 정리
+    if (this._currentListener) {
+      // console.log(`SectionsDBManager: ${this._currentSectionName}의 이전 리스너 정리`);
+      this._currentListener();
+      this._currentListener = null;
+      this._currentSectionName = null;
+    }
+    
+    // console.log(`SectionsDBManager: ${sectionName}에 대한 실시간 리스너 설정`);
+    
+    // 새 리스너 설정
+    this._currentListener = setupFirebaseListener(sectionName, (updatedItems, changes) => {
+      // 서버 데이터를 클라이언트 형식으로 변환
+      const clientItems = this._transformToClientFormat(updatedItems);
+      
+      // 캐시 업데이트
+      this._cache.set(sectionName, clientItems);
+  
+      document.dispatchEvent(new CustomEvent('section-items-updated', {
+        detail: { sectionName, items: clientItems }
+      }));
+      
+      //AT 여기서 setCurItemListInCurSection(clientItems); 동작이 불가능해서, 이벤트 방식으로 대체
+      console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${clientItems.length}개 항목)`);
+    });
+    
+    this._currentSectionName = sectionName;
   },
   
   /**
@@ -126,7 +182,6 @@ const SectionsDBManager = {
     this._cache.set(sectionName, items);
     
     // console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${items.length}개 항목)`);
-
   },
   
   /**
@@ -846,24 +901,47 @@ export default function Editor() { // 메인 페이지
 
   
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
+    
     if (!curSectionName) return;
 
     SectionsDBManager.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
+      
       if (_sectionItemListfromDB.length > 0) {
         // 현재 아이템 리스트를 이전 값으로 저장 (useRef 사용)
         prevItemListforRelieveOverlays.current = curItemListInCurSection;
         // 새 아이템 리스트로 업데이트
+        
         setCurItemListInCurSection(_sectionItemListfromDB);
-        // 현재 아이템 리스트 참조 업데이트
-        currentItemListRef.current = _sectionItemListfromDB;
       } else {
         // console.error('DB에 데이터가 없음'); // 이 경우는 발생 불가.
       }
     });
+
+
+
+    //TODO 여기서 SectionsDBManager.getSectionItems(curSectionName)을 하는 CB핸들러를 생성하면?
+    // 비직렬화 데이터 포함된 업데이트 이벤트 리스너
+    const handleSectionUpdate = (event) => {
+      const { sectionName, items } = event.detail;
+      if (sectionName === curSectionName) {
+        // UI 업데이트 (마커, 폴리곤 포함된 완전한 객체)
+        setCurItemListInCurSection(items);
+      }
+    };
+    
+    document.addEventListener('section-items-updated', handleSectionUpdate);
+    
+    return () => {
+      document.removeEventListener('section-items-updated', handleSectionUpdate);
+    };
+
   }, [curSectionName]); // 중요: curSectionName만 종속성으로 유지. 추가하지말것것
 
   useEffect(() => { // AT [curItemListInCurSection] 지역변경으로 리스트 변경될 때 UI 업데이트
+    //TODO 실시간 서버로부터 업데이트 받았을시, 변경된 일부의 샵데이터만 업데이트 해야할지 미정이다. 
     // 현재 아이템 리스트 참조 업데이트
+
+    
     currentItemListRef.current = curItemListInCurSection;
     
     if(!instMap.current) return;  // 최초 curItemListInCurSection초기화시 1회 이탈
@@ -1010,7 +1088,7 @@ export default function Editor() { // 메인 페이지
         }
       });
 
-      // 요소 조립
+      // 요소 조립 //TODO 사이드바 컴포넌트가 추가되었을텐데 여기서 사이드바 생성중인 이유?
       itemDetails.appendChild(itemTitle);
       itemDetails.appendChild(businessHours);
       itemDetails.appendChild(address);
@@ -1021,7 +1099,7 @@ export default function Editor() { // 메인 페이지
       listItem.appendChild(link);
       itemListContainer.appendChild(listItem);
     });
-  }, [curItemListInCurSection]); // 중요: 종속성은curItemListInCurSection만유일, 추가 하지 말것
+  }, [curItemListInCurSection]); // 중요: 종속성은curItemListInCurSection만 유일, 추가 하지 말것
 
   const toggleSidebar = () => {
     setIsSidebarVisible(!isSidebarVisible); // 사이드바 가시성 토글

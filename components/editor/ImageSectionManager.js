@@ -100,9 +100,11 @@ const ImageSectionManager = forwardRef(({
     setImageErrors({});
   }, [mainImage, subImages]);
 
-  // 서브 이미지 관련 계산
-  const hasValidSubImages = imageRefs.length > 1;
-  const totalSubImages = hasValidSubImages ? imageRefs.length - 1 : 0;
+  // 서브 이미지 관련 계산 - 로직 개선
+  const hasMainImage = mainImage && typeof mainImage === 'string' && mainImage.trim() !== '';
+  const hasSubImages = subImages && Array.isArray(subImages) && subImages.filter(img => img && img.trim() !== '').length > 0;
+  const hasValidSubImages = hasSubImages || imageRefs.length > 1;
+  const totalSubImages = hasValidSubImages ? (subImages?.filter(img => img && img.trim() !== '').length || imageRefs.length - 1) : 0;
   const additionalImages = totalSubImages > 4 ? totalSubImages - 3 : 0;
 
   // 브라우저 준비 상태 설정
@@ -823,7 +825,7 @@ const ImageSectionManager = forwardRef(({
             }}
             style={{ cursor: imageRefs.length > 0 && imageRefs[0] && !imageErrors[0] ? 'pointer' : 'default' }}
           >
-            {imageRefs.length > 0 && imageRefs[0] ? (
+            {imageRefs.length > 0 && imageRefs[0] !== undefined ? (
               imageErrors[0] ? (
                 <div className={styles.imageErrorPlaceholderContainer}>
                   <span>이미지를 불러올 수 없습니다.</span>
@@ -831,8 +833,8 @@ const ImageSectionManager = forwardRef(({
               ) : (
                 <img 
                   src={getProxiedPhotoUrl(imageRefs[0])} 
-                alt="메인 이미지" 
-                className={styles.mainImagePreview}
+                  alt="메인 이미지" 
+                  className={styles.mainImagePreview}
                   onError={() => handleImageLoadError(0)}
                 />
               )
@@ -852,49 +854,96 @@ const ImageSectionManager = forwardRef(({
           >
             {hasValidSubImages ? (
               <>
-                {[1, 2, 3, 4].map((index) => {
-                  // 배열 범위를 벗어나는지 확인
-                  const isInRange = index < imageRefs.length;
-                  const hasImage = isInRange && imageRefs[index];
-                  const hasError = isInRange && imageErrors[index];
-                  
-                  return (
-                <div 
-                    key={index}
-                  className={styles.subImageItem}
-                      onClick={() => {
-                        if (hasImage && !hasError) {
-                          openGallery(index);
-                        }
-                      }}
-                      style={{ cursor: hasImage && !hasError ? 'pointer' : 'default' }}
-                    >
-                      {hasImage ? (
-                        hasError ? (
-                          <div className={styles.imageErrorPlaceholderContainer}>
-                          <span>로드 실패</span>
-                </div>
-                      ) : (
-                        <div className={index === 4 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
-                          <img 
-                            src={getProxiedPhotoUrl(imageRefs[index])} 
-                            alt={`서브 이미지 ${index}`} 
-                      className={styles.subImagePreview}
-                              onError={() => handleImageLoadError(index)}
-                          />
-                          {index === 4 && additionalImages > 0 && (
-                        <div className={styles.imageCountOverlay}>
-                          +{additionalImages}
+                {/* 서브 이미지 배열에서 최대 4개까지 표시 */}
+                {subImages && Array.isArray(subImages) ? 
+                  subImages.slice(0, 4).map((subImageRef, imgIndex) => {
+                    // 실제 인덱스는 메인 이미지 다음이므로 +1
+                    const actualIndex = imgIndex + 1;
+                    const hasImage = subImageRef && typeof subImageRef === 'string' && subImageRef.trim() !== '';
+                    const hasError = imageErrors[actualIndex];
+                    
+                    return (
+                      <div 
+                        key={`sub-${imgIndex}`}
+                        className={styles.subImageItem}
+                        onClick={() => {
+                          if (hasImage && !hasError) {
+                            openGallery(actualIndex);
+                          }
+                        }}
+                        style={{ cursor: hasImage && !hasError ? 'pointer' : 'default' }}
+                      >
+                        {hasImage ? (
+                          hasError ? (
+                            <div className={styles.imageErrorPlaceholderContainer}>
+                              <span>로드 실패</span>
+                            </div>
+                          ) : (
+                            <div className={imgIndex === 3 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
+                              <img 
+                                src={getProxiedPhotoUrl(subImageRef)} 
+                                alt={`서브 이미지 ${imgIndex + 1}`} 
+                                className={styles.subImagePreview}
+                                onError={() => handleImageLoadError(actualIndex)}
+                              />
+                              {imgIndex === 3 && additionalImages > 0 && (
+                                <div className={styles.imageCountOverlay}>
+                                  +{additionalImages}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        ) : (
+                          <div className={styles.emptyImagePlaceholder}></div>
+                        )}
+                      </div>
+                    );
+                  }) : (
+                    // imageRefs 배열을 사용하는 기존 로직 (폴백)
+                    [1, 2, 3, 4].map((index) => {
+                      const isInRange = index < imageRefs.length;
+                      const hasImage = isInRange && imageRefs[index];
+                      const hasError = isInRange && imageErrors[index];
+                      
+                      return (
+                        <div 
+                          key={index}
+                          className={styles.subImageItem}
+                          onClick={() => {
+                            if (hasImage && !hasError) {
+                              openGallery(index);
+                            }
+                          }}
+                          style={{ cursor: hasImage && !hasError ? 'pointer' : 'default' }}
+                        >
+                          {hasImage ? (
+                            hasError ? (
+                              <div className={styles.imageErrorPlaceholderContainer}>
+                                <span>로드 실패</span>
+                              </div>
+                            ) : (
+                              <div className={index === 4 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
+                                <img 
+                                  src={getProxiedPhotoUrl(imageRefs[index])} 
+                                  alt={`서브 이미지 ${index}`} 
+                                  className={styles.subImagePreview}
+                                  onError={() => handleImageLoadError(index)}
+                                />
+                                {index === 4 && additionalImages > 0 && (
+                                  <div className={styles.imageCountOverlay}>
+                                    +{additionalImages}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          ) : (
+                            <div className={styles.emptyImagePlaceholder}></div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                      )
-                  ) : (
-                    <div className={styles.emptyImagePlaceholder}></div>
-                  )}
-                </div>
-                  );
-                })}
+                      );
+                    })
+                  )
+                }
               </>
             ) : (
               Array(4).fill(null).map((_, index) => (

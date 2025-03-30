@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import Image from 'next/image';
 import styles from './styles.module.css';
 import { parseCoordinates } from '../../lib/models/editorModels';
+import { getProxiedPhotoUrl } from '../../lib/utils/imageHelpers';
 
 /**
  * 좌측 사이드바 컴포넌트
@@ -50,10 +51,10 @@ const ExploringSidebar = ({
   };
 
   // 이미지 클릭 핸들러
-  const handleImageClick = (e, imageUrl, itemName) => {
+  const handleImageClick = (e, photoReference, itemName) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('이미지 클릭:', { imageUrl, itemName });
+    console.log('이미지 클릭:', { photoReference, itemName });
   };
 
   // 아이템이 선택되었는지 확인하는 함수
@@ -103,16 +104,21 @@ const ExploringSidebar = ({
                 </div>
                 <div className={styles.imageContainer}>
                   {/* 메인 이미지 */}
-                  {item.serverDataset.mainImage && (
+                  {item.serverDataset.mainImage && item.serverDataset.mainImage.trim() !== '' ? (
                     <div className={styles.mainImage}>
                       <Image
-                        src={item.serverDataset.mainImage}
+                        src={getProxiedPhotoUrl(item.serverDataset.mainImage, 400)}
                         alt={`${item.serverDataset.storeName || ''} 메인 이미지`}
                         width={120}
                         height={120}
+                        unoptimized={true}
                         priority
                         onClick={(e) => handleImageClick(e, item.serverDataset.mainImage, item.serverDataset.storeName)}
                       />
+                    </div>
+                  ) : (
+                    <div className={styles.mainImage}>
+                      <div className={styles.emptyImagePlaceholder} style={{ width: 120, height: 120 }}></div>
                     </div>
                   )}
                   {/* 서브 이미지 */}
@@ -120,13 +126,18 @@ const ExploringSidebar = ({
                     <div className={styles.subImages}>
                       {item.serverDataset.subImages.slice(0, 3).map((subImage, imgIndex) => (
                         <div key={imgIndex} className={styles.subImage}>
-                          <Image
-                            src={subImage}
-                            alt={`${item.serverDataset.storeName || ''} 서브 이미지 ${imgIndex + 1}`}
-                            width={80}
-                            height={80}
-                            onClick={(e) => handleImageClick(e, subImage, item.serverDataset.storeName)}
-                          />
+                          {subImage && subImage.trim() !== '' ? (
+                            <Image
+                              src={getProxiedPhotoUrl(subImage, 200)}
+                              alt={`${item.serverDataset.storeName || ''} 서브 이미지 ${imgIndex + 1}`}
+                              width={80}
+                              height={80}
+                              unoptimized={true}
+                              onClick={(e) => handleImageClick(e, subImage, item.serverDataset.storeName)}
+                            />
+                          ) : (
+                            <div className={styles.emptyImagePlaceholder} style={{ width: 80, height: 80 }}></div>
+                          )}
                         </div>
                       ))}
                     </div>

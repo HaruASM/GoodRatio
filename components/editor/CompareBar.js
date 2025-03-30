@@ -144,8 +144,8 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     // 추가할 새 이미지가 없으면 함수 종료
     if (newImages.length === 0) return;
     
-    // 새로 선택된 이미지를 기존 배열에 추가
-    const updatedSubImages = [...currentSubImages, ...newImages];
+    // 새로 선택된 이미지를 기존 배열에 추가 (빈 문자열 요소 필터링)
+    const updatedSubImages = [...currentSubImages.filter(img => img && img.trim() !== ''), ...newImages];
     
     // Redux 액션 디스패치 - RightSidebar 상태 업데이트
     dispatch(updateField({ field: 'subImages', value: updatedSubImages }));

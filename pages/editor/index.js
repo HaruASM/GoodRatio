@@ -5,12 +5,12 @@ import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
-import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from './dataModels';
-import mapUtils, { createInfoWindowContent, showInfoWindow } from './mapUtils';
+import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from '../../lib/models/editorModels';
+import mapUtils, { createInfoWindowContent, showInfoWindow } from '../../lib/utils/mapUtils';
 // 서버 유틸리티 함수 가져오기
-import { getSectionData, setupFirebaseListener } from './serverUtils';
+import { getSectionData, setupFirebaseListener } from '../../lib/services/serverUtils';
 // Place 유틸리티 함수 가져오기
-import { parseGooglePlaceData } from './utils/googlePlaceUtils';
+import { parseGooglePlaceData } from '../../lib/utils/googlePlaceUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
 import RightSidebar from './components/RightSidebar';
 import CompareBar from './components/CompareBar';
@@ -29,15 +29,15 @@ import {
   syncExternalShop,
   selectFormData,
   setRightSidebarIdleState
-} from './store/slices/rightSidebarSlice';
+} from '../../lib/store/slices/rightSidebarSlice';
 
-import store from './store';
+import store from '../../lib/store';
 
 // CompareBar 관련 액션 임포트
 import {
   setCompareBarActive,
   selectIsCompareBarActive,
-} from './store/slices/compareBarSlice';
+} from '../../lib/store/slices/compareBarSlice';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 

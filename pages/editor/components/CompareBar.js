@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import store from '../store';
+import store from '../../../lib/store';
 
 import styles from '../styles.module.css';
 import { 
@@ -12,7 +12,7 @@ import {
   endInserting,
   endCompareBar,
   selectisSyncGoogleSearchCompareBar
-} from '../store/slices/compareBarSlice';
+} from '../../../lib/store/slices/compareBarSlice';
 import { 
   updateField,
   trackField,
@@ -21,14 +21,14 @@ import {
   selectIsEditing,
   selectIsEditorOn,
   selectIsIdle,
-} from '../store/slices/rightSidebarSlice';
+} from '../../../lib/store/slices/rightSidebarSlice';
 import ImageSectionManager from './ImageSectionManager';
 import { 
   openImageSelectionMode,
   selectIsImageSelectionMode
-} from '../store/slices/imageManagerSlice';
-import { getValidImageRefs } from '../utils/imageHelpers';
-import { titlesofDataFoam } from '../dataModels';
+} from '../../../lib/store/slices/imageManagerSlice';
+import { getValidImageRefs } from '../../../lib/utils/imageHelpers';
+import { titlesofDataFoam } from '../../../lib/models/editorModels';
 
 /**
  * 값이 비어있는지 확인하는 공통 함수

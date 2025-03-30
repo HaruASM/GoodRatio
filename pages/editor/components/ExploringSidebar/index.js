@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import Image from 'next/image';
 import styles from './styles.module.css';
-import { parseCoordinates } from '../../dataModels';
+import { parseCoordinates } from '../../../../lib/models/editorModels';
 
 /**
  * 좌측 사이드바 컴포넌트
@@ -150,4 +150,4 @@ const ExploringSidebar = ({
   );
 };
 
-export default ExploringSidebar; 
+export default ExploringSidebar;

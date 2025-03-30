@@ -1,5 +1,5 @@
 import { Provider } from 'react-redux';
-import store from '../pages/editor/store';
+import store from '../lib/store';
 import '../styles/globals.css'; // 전역 스타일시트 임포트
 import { useEffect } from 'react';
 import App from 'next/app';

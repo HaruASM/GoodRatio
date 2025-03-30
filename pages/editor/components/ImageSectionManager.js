@@ -27,10 +27,10 @@ import {
   clearDraggedItem,
   moveImage,
   removeImage
-} from '../store/slices/imageManagerSlice';
+} from '../../../lib/store/slices/imageManagerSlice';
 
 // 유틸리티 함수 가져오기
-import { getProxiedPhotoUrl, getValidImageRefs, handleImageError } from '../utils/imageHelpers';
+import { getProxiedPhotoUrl, getValidImageRefs, handleImageError } from '../../../lib/utils/imageHelpers';
 
 /**
  * 이미지 관리 컴포넌트 - 메인 이미지와 서브 이미지를 출력하고 관리

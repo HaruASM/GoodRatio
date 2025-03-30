@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../styles.module.css';
-import { protoServerDataset } from '../dataModels';
-import { parseGooglePlaceData, fetchPlaceDetailById } from '../utils/googlePlaceUtils';
+import { protoServerDataset } from '../../../lib/models/editorModels';
+import { parseGooglePlaceData, fetchPlaceDetailById } from '../../../lib/utils/googlePlaceUtils';
 import {
   togglePanel,
   startEdit,
@@ -36,18 +36,18 @@ import {
   endEdit,
   beginEditor,
   finalSubmitToServer
-} from '../store/slices/rightSidebarSlice';
+} from '../../../lib/store/slices/rightSidebarSlice';
 
-import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../store/slices/compareBarSlice';
+import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../../../lib/store/slices/compareBarSlice';
 import ImageSectionManager from './ImageSectionManager';
 import { 
   openImageOrderEditor,
   selectIsImageSelectionMode,
   selectIsImageOrderEditorOpen,
   resetImageData
-} from '../store/slices/imageManagerSlice';
-import { getValidImageRefs } from '../utils/imageHelpers';
-import { titlesofDataFoam } from '../dataModels';
+} from '../../../lib/store/slices/imageManagerSlice';
+import { getValidImageRefs } from '../../../lib/utils/imageHelpers';
+import { titlesofDataFoam } from '../../../lib/models/editorModels';
 
 // 확인 모달 컴포넌트
 const ConfirmModal = ({ isOpen, storeName, onConfirm, onCancel }) => {

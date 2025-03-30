@@ -52,11 +52,11 @@ const nextConfig = {
     return config;
   },
   
-  // 페이지 구성 관련 설정
-  pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
-  
   // 유틸리티 파일 설정 (페이지가 아닌 파일 무시)
   excludeDefaultMomentLocales: true,
+  
+  // 제외할 디렉토리 경로 설정
+  transpilePackages: [],
   
   // Turbopack 설정 (객체 형태로 설정)
   experimental: {

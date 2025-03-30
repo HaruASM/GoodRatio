@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import store from '../../../lib/store';
+import store from '../../lib/store';
 
-import styles from '../styles.module.css';
+import styles from '../../pages/editor/styles.module.css';
 import { 
   selectIsCompareBarActive, 
   selectCompareBarData,
@@ -12,7 +12,7 @@ import {
   endInserting,
   endCompareBar,
   selectisSyncGoogleSearchCompareBar
-} from '../../../lib/store/slices/compareBarSlice';
+} from '../../lib/store/slices/compareBarSlice';
 import { 
   updateField,
   trackField,
@@ -21,14 +21,14 @@ import {
   selectIsEditing,
   selectIsEditorOn,
   selectIsIdle,
-} from '../../../lib/store/slices/rightSidebarSlice';
+} from '../../lib/store/slices/rightSidebarSlice';
 import ImageSectionManager from './ImageSectionManager';
 import { 
   openImageSelectionMode,
   selectIsImageSelectionMode
-} from '../../../lib/store/slices/imageManagerSlice';
-import { getValidImageRefs } from '../../../lib/utils/imageHelpers';
-import { titlesofDataFoam } from '../../../lib/models/editorModels';
+} from '../../lib/store/slices/imageManagerSlice';
+import { getValidImageRefs } from '../../lib/utils/imageHelpers';
+import { titlesofDataFoam } from '../../lib/models/editorModels';
 
 /**
  * 값이 비어있는지 확인하는 공통 함수

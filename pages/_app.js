@@ -1,5 +1,5 @@
 import { Provider } from 'react-redux';
-import store from '../lib/store';
+import { wrapper } from '../lib/store';
 import '../styles/globals.css'; // 전역 스타일시트 임포트
 import { useEffect } from 'react';
 import App from 'next/app';
@@ -46,9 +46,12 @@ function MyApp({ Component, pageProps }) {
     setupLoggingFilter();
   }, []);
   
+  // next-redux-wrapper의 최신 API 사용
+  const { store, props } = wrapper.useWrappedStore(pageProps);
+  
   return (
     <Provider store={store}>
-      <Component {...pageProps} />
+      <Component {...props.pageProps} />
     </Provider>
   );
 }

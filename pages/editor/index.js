@@ -12,9 +12,9 @@ import { getSectionData, setupFirebaseListener } from '../../lib/services/server
 // Place 유틸리티 함수 가져오기
 import { parseGooglePlaceData } from '../../lib/utils/googlePlaceUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
-import RightSidebar from './components/RightSidebar';
-import CompareBar from './components/CompareBar';
-import ExploringSidebar from './components/ExploringSidebar';
+import RightSidebar from '../../components/editor/RightSidebar';
+import CompareBar from '../../components/editor/CompareBar';
+import ExploringSidebar from '../../components/exploringsidebar';
 // Redux 선택자 가져오기
 import {
   togglePanel,
@@ -38,6 +38,8 @@ import {
   setCompareBarActive,
   selectIsCompareBarActive,
 } from '../../lib/store/slices/compareBarSlice';
+
+import { wrapper } from '../../lib/store';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -1194,4 +1196,16 @@ export default function Editor() { // 메인 페이지
       />
     </div>
   );
-} 
+}
+
+// 서버 사이드 프롭스 추가
+export const getServerSideProps = wrapper.getServerSideProps(
+  (store) => async (context) => {
+    // 서버에서 필요한 초기 데이터를 로드할 수 있음
+    // 예: await store.dispatch(someAsyncAction());
+    
+    return {
+      props: {}
+    };
+  }
+); 

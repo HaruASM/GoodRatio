@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import styles from '../styles.module.css';
+import styles from '../../pages/editor/styles.module.css';
 
 import {
   selectIsImageGalleryOpen,
@@ -27,10 +27,10 @@ import {
   clearDraggedItem,
   moveImage,
   removeImage
-} from '../../../lib/store/slices/imageManagerSlice';
+} from '../../lib/store/slices/imageManagerSlice';
 
 // 유틸리티 함수 가져오기
-import { getProxiedPhotoUrl, getValidImageRefs, handleImageError } from '../../../lib/utils/imageHelpers';
+import { getProxiedPhotoUrl, getValidImageRefs, handleImageError } from '../../lib/utils/imageHelpers';
 
 /**
  * 이미지 관리 컴포넌트 - 메인 이미지와 서브 이미지를 출력하고 관리

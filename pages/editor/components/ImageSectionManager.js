@@ -915,4 +915,7 @@ const ImageSectionManager = forwardRef(({
   );
 });
 
+// display name 추가
+ImageSectionManager.displayName = 'ImageSectionManager';
+
 export default ImageSectionManager; 

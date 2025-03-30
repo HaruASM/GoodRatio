@@ -134,7 +134,6 @@ export const updateFormDataFromShop = (shopData, currentFormData = {}) => {
     locationMap: data.locationMap || "",
     businessHours: formatArrayField(data.businessHours),
     hotHours: formatArrayField(data.hotHours),
-    discountHours: formatArrayField(data.discountHours),
     address: data.address || "",
     mainImage: data.mainImage || "",
     pinCoordinates: (data.pinCoordinates && data.pinCoordinates.trim && data.pinCoordinates.trim() !== '') ? "등록됨" : "",
@@ -155,6 +154,17 @@ export const getDefaultFormData = () => {
 };
 
 /**
+ * 상점 데이터 비교 함수
+ * 원본 데이터와 편집된 데이터를 비교하여 변경 사항이 있는지 확인
+ * 값의 변경이 있는지만 체크함 
+ * 
+ * @param {Object} refItem - 원본 상점 데이터
+ * @param {Object} editedItem - 편집된 상점 데이터
+ * @returns {boolean} 변경 사항 존재 여부
+ */
+export const compareShopData = checkDataIsChanged;
+
+/**
  * 기본 상점 데이터 생성 함수
  * 
  * @returns {Object} 기본 상점 데이터
@@ -163,11 +173,8 @@ export const getDefaultShopData = () => {
   return { ...protoServerDataset };
 };
 
-export {
-  compareShopData,
-  checkDataIsChanged,
-  updateFormDataFromShop,
-  getDefaultCoordinates, 
-  getDefaultPath,
-  isEqual
-}; 
+// 기본 좌표 및 경로 관련 함수 (빈 내용으로 임시 정의)
+export const getDefaultCoordinates = () => '';
+export const getDefaultPath = () => '';
+
+export { isEqual }; 

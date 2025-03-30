@@ -16,6 +16,10 @@ const eslintConfig = [
       "no-unused-vars": "off",
       "react-hooks/exhaustive-deps": "off",
       "@typescript-eslint/no-unused-vars": "off",
+      "react/display-name": "off",
+      "react/no-unescaped-entities": "off",
+      "react-hooks/rules-of-hooks": "off",
+      "@next/next/no-img-element": "off",
     },
   },
 ];

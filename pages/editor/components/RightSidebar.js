@@ -57,7 +57,7 @@ const ConfirmModal = ({ isOpen, storeName, onConfirm, onCancel }) => {
     <div className={styles.confirmModalOverlay}>
       <div className={styles.confirmModal}>
         <h3>업데이트 확인</h3>
-        <p><strong>'{storeName || '신규 상점'}'</strong>에 대한 서버 업데이트를 진행하시겠습니까?</p>
+        <p><strong>&apos;{storeName || '신규 상점'}&apos;</strong>에 대한 서버업데이트를 진행</p>
         <div className={styles.confirmModalButtons}>
           <button className={styles.cancelButton} onClick={onCancel}>
             취소
@@ -115,12 +115,19 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const isIdle = useSelector(selectIsIdle);
   const isInsertingMode = useSelector(selectIsInserting);
   const isImageOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
+  const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
+  const isGalleryOpen = useSelector(state => state.imageManager.isGalleryOpen);
   
-  // 확인 모달 상태
+  // 상태 추가 - 모든 useState 호출을 여기로 이동
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [localInputState, setLocalInputState] = useState({});
+  const [activeField, setActiveField] = useState(null);
+  const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
   
-  // 입력 필드 참조 객체
+  // 참조 객체 - 모든 useRef 호출을 여기로 이동
   const inputRefs = useRef({});
+  const imageSectionManagerRef = useRef(null);
+  const prevModalOpenRef = useRef(false);
   
   // 현재 상점 데이터가 변경될 때 폼 데이터 업데이트
   useEffect(() => {
@@ -139,11 +146,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const cardClassName = isEditing 
     ? `${styles.rightSidebarCard} ${styles.rightSidebarCardEditing}` 
     : styles.rightSidebarCard;
-
-  // 상태 추가
-  const [localInputState, setLocalInputState] = useState({});
-  const [activeField, setActiveField] = useState(null);
-  const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
 
   // 입력 필드가 읽기 전용인지 확인하는 함수
   const isFieldReadOnly = (fieldName) => {
@@ -576,8 +578,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   };
 
   // 이미지 관리 관련 상태 및 Redux 상태
-  const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
-  const imageSectionManagerRef = useRef(null);
   
   // 이미지 편집 핸들러
   const handleEditImagesOfGallery = () => {

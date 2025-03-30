@@ -50,7 +50,7 @@ export const saveShopData = createAsyncThunk( // 액션 생성자자
   }
 );
 
-// 최종 서버 제출 thunk
+// 최종 서버 제출 thunk. // create와 update를 모두 포함하는 상황. 
 export const finalSubmitToServer = createAsyncThunk(
   'rightSidebar/finalSubmitToServer',
   async (_, { getState, dispatch, rejectWithValue }) => {
@@ -78,7 +78,7 @@ export const finalSubmitToServer = createAsyncThunk(
         // 업데이트: ID가 있으면 기존 데이터 업데이트
         response = await ShopService.update(editNewShopDataSet, sectionName);
       } else {
-        // 신규 생성: ID가 없으면 새 데이터 생성
+        // 신규 생성: ID가 없으면 새 데이터 생성 // 재확인인
         response = await ShopService.create(editNewShopDataSet, sectionName);
       }
       

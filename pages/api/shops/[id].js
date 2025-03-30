@@ -100,10 +100,9 @@ export default async function handler(req, res) {
         });
       }
       
-      // 타임스탬프 추가
+      // 타임스탬프 없이 원본 데이터 그대로 사용
       const updatedShopData = {
-        ...shopData,
-        updatedAt: serverTimestamp()
+        ...shopData
       };
       
       // ID가 URL의 ID와 일치하는지 확인
@@ -119,6 +118,12 @@ export default async function handler(req, res) {
       
       // 문서 업데이트
       await updateDoc(shopRef, updatedShopData);
+      
+      // 섹션 문서의 lastUpdated 필드 업데이트
+      const sectionRef = doc(firebasedb, 'sections', sectionName);
+      await updateDoc(sectionRef, {
+        lastUpdated: serverTimestamp()
+      });
       
       return res.status(200).json({ 
         success: true,
@@ -140,6 +145,12 @@ export default async function handler(req, res) {
       
       // 문서 삭제
       await deleteDoc(shopRef);
+      
+      // 섹션 문서의 lastUpdated 필드 업데이트
+      const sectionRef = doc(firebasedb, 'sections', sectionName);
+      await updateDoc(sectionRef, {
+        lastUpdated: serverTimestamp()
+      });
       
       return res.status(200).json({ 
         success: true,

@@ -159,24 +159,28 @@ export default async function handler(req, res) {
       // Firestore 컬렉션 참조
       const shopsCollectionRef = collection(firebasedb, 'sections', sectionName, 'shops');
       
-      // 타임스탬프 추가
-      const shopWithTimestamp = {
-        ...shopData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      // 타임스탬프 제거하고 원본 데이터 사용
+      const shopToSave = {
+        ...shopData
       };
       
       // 문서 추가 (ID 자동 생성)
-      const docRef = await addDoc(shopsCollectionRef, shopWithTimestamp);
+      const docRef = await addDoc(shopsCollectionRef, shopToSave);
       
       // ID를 포함한 데이터 업데이트
       const shopWithId = {
-        ...shopWithTimestamp,
+        ...shopToSave,
         id: docRef.id
       };
       
       // ID 필드 업데이트
       await updateDoc(docRef, { id: docRef.id });
+      
+      // 섹션 문서의 lastUpdated 필드 업데이트
+      const sectionRef = doc(firebasedb, 'sections', sectionName);
+      await updateDoc(sectionRef, {
+        lastUpdated: serverTimestamp()
+      });
       
       return res.status(201).json({ 
         success: true,
@@ -221,14 +225,19 @@ export default async function handler(req, res) {
         });
       }
       
-      // 타임스탬프 추가
+      // 타임스탬프 없이 원본 데이터 그대로 사용
       const updatedShopData = {
-        ...shopData,
-        updatedAt: serverTimestamp()
+        ...shopData
       };
       
       // 문서 업데이트
       await updateDoc(shopRef, updatedShopData);
+      
+      // 섹션 문서의 lastUpdated 필드 업데이트
+      const sectionRef = doc(firebasedb, 'sections', sectionName);
+      await updateDoc(sectionRef, {
+        lastUpdated: serverTimestamp()
+      });
       
       return res.status(200).json({ 
         success: true,
@@ -271,6 +280,12 @@ export default async function handler(req, res) {
       
       // 문서 삭제
       await deleteDoc(shopRef);
+      
+      // 섹션 문서의 lastUpdated 필드 업데이트
+      const sectionRef = doc(firebasedb, 'sections', sectionName);
+      await updateDoc(sectionRef, {
+        lastUpdated: serverTimestamp()
+      });
       
       return res.status(200).json({ 
         success: true,

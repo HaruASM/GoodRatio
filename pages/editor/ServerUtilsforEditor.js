@@ -84,17 +84,9 @@ export const ShopService = {
    * @param {string} sectionName - 섹션 이름 (기본값: '반월당')
    * @returns {Promise<Object>} 생성된 상점 데이터
    */
-  create: async (shopData, sectionName = '반월당') => {
+  create: async (shopData, sectionName = '') => {
     try {
-      if (!shopData) {
-        throw new Error('상점 데이터가 제공되지 않았습니다');
-      }
-      
-      if (!sectionName) {
-        throw new Error('섹션 이름이 제공되지 않았습니다');
-      }
-      
-      console.log('상점 생성 요청:', sectionName, shopData);
+      console.log('상점 생성 요청:', sectionName);
       
       const response = await fetch(`${API_BASE_URL}/shops`, {
         method: 'POST',

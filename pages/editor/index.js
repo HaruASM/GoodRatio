@@ -128,11 +128,12 @@ const SectionsDBManager = {
       // 캐시 업데이트
       this._cache.set(sectionName, clientItems);
   
+      //AT 여기서 setCurItemListInCurSection(clientItems); 동작이 불가능해서, 이벤트 방식으로 대체
       document.dispatchEvent(new CustomEvent('section-items-updated', {
         detail: { sectionName, items: clientItems }
       }));
       
-      //AT 여기서 setCurItemListInCurSection(clientItems); 동작이 불가능해서, 이벤트 방식으로 대체
+      
       console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${clientItems.length}개 항목)`);
     });
     
@@ -903,19 +904,22 @@ export default function Editor() { // 메인 페이지
 
   
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
-    
+    // 1회 읽어오고, 그 뒤 FB서버에 리스닝 구독
+    //TODO 맵의 오버레이관리 + 줌 매니저 필요한듯 
     if (!curSectionName) return;
 
     SectionsDBManager.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
-      
       if (_sectionItemListfromDB.length > 0) {
         // 현재 아이템 리스트를 이전 값으로 저장 (useRef 사용)
-        prevItemListforRelieveOverlays.current = curItemListInCurSection;
-        // 새 아이템 리스트로 업데이트
         
-        setCurItemListInCurSection(_sectionItemListfromDB);
+        // 새 아이템 리스트로 업데이트
+        setCurItemListInCurSection( (prev)=>{
+          prevItemListforRelieveOverlays.current = prev;
+          return _sectionItemListfromDB;
+        });
+        
       } else {
-        // console.error('DB에 데이터가 없음'); // 이 경우는 발생 불가.
+        console.error('서버및로컬DB에 데이터를 가져오지못함'); // 이 경우는 발생 불가.
       }
     });
 
@@ -927,7 +931,10 @@ export default function Editor() { // 메인 페이지
       const { sectionName, items } = event.detail;
       if (sectionName === curSectionName) {
         // UI 업데이트 (마커, 폴리곤 포함된 완전한 객체)
-        setCurItemListInCurSection(items);
+        setCurItemListInCurSection( (prev)=>{
+          prevItemListforRelieveOverlays.current = prev;
+          return items;
+        });
       }
     };
     
@@ -942,7 +949,7 @@ export default function Editor() { // 메인 페이지
   useEffect(() => { // AT [curItemListInCurSection] 지역변경으로 리스트 변경될 때 UI 업데이트
     //TODO 실시간 서버로부터 업데이트 받았을시, 변경된 일부의 샵데이터만 업데이트 해야할지 미정이다. 
     // 현재 아이템 리스트 참조 업데이트
-
+    console.log('curItemListInCurSection 업데이트');  
     
     currentItemListRef.current = curItemListInCurSection;
     
@@ -954,17 +961,24 @@ export default function Editor() { // 메인 페이지
     }
     
     
-    
+    // TODO 오버레이 관리 매니저+ 줌아웃 관리 매니저 필요함. 
     // 이전 오버레이 제거 (useRef.current 사용)
     if (prevItemListforRelieveOverlays.current && prevItemListforRelieveOverlays.current.length > 0) {
-      
-      
       prevItemListforRelieveOverlays.current.forEach(item => {
+        // 마커 제거
         if (item.itemMarker) {
+          // 마커의 모든 이벤트 리스너 제거
+          window.google.maps.event.clearInstanceListeners(item.itemMarker);
           item.itemMarker.setMap(null);
+          item.itemMarker = null;
         }
+        
+        // 폴리곤 제거
         if (item.itemPolygon) {
+          // 폴리곤의 모든 이벤트 리스너 제거
+          window.google.maps.event.clearInstanceListeners(item.itemPolygon);
           item.itemPolygon.setMap(null);
+          item.itemPolygon = null;
         }
       });
     }

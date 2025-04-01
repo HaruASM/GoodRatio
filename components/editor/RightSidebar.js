@@ -878,9 +878,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               onCancelSelection={handleCancelImageSelection}
               isSelectionMode={isImageSelectionMode}
               source="rightSidebar"
-              onOpenGallery={(index, images) => {
-                dispatch(openGallery({ images, index, source: 'rightSidebar' }));
-              }}
             />
             {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
             {isEditorOn && (

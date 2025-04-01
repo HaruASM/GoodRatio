@@ -3,19 +3,23 @@ import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import styles from '../../pages/editor/styles.module.css';
 
+// imageGallerySlice에서 갤러리 관련 액션과 선택자 가져오기
 import {
-  selectIsImageGalleryOpen,
+  openGallery,
+  closeGallery,
+  selectIsGalleryOpen,
+  selectGalleryImages,
+  selectCurrentImageIndex as selectGalleryCurrentIndex,
+} from '../../lib/store/slices/imageGallerySlice';
+
+import {
   selectIsImageSelectionMode,
   selectIsImageOrderEditorOpen,
   selectMainImage,
   selectSubImages,
   selectSelectedImages,
   selectEditedImages,
-  selectCurrentImageIndex,
   selectDraggedItemIndex,
-  openImageGallery,
-  closeImageGallery,
-  setCurrentImageIndex,
   openImageSelectionMode,
   closeImageSelectionMode,
   toggleImageSelection,
@@ -42,7 +46,6 @@ import { getProxiedPhotoUrl, getValidImageRefs, handleImageError } from '../../l
  * @param {Function} props.onCancelSelection - 이미지 선택 취소 시 호출될 콜백 함수
  * @param {boolean} props.isSelectionMode - 이미지 선택 모드 활성화 여부
  * @param {string} props.source - 컴포넌트 소스 식별자 ('rightSidebar' 또는 'compareBar')
- * @param {Function} props.onOpenGallery - 외부에서 갤러리 열기 함수 받기
  * @returns {React.ReactElement} 이미지 관리 UI 컴포넌트
  */
 const ImageSectionManager = forwardRef(({ 
@@ -51,13 +54,12 @@ const ImageSectionManager = forwardRef(({
   onImagesSelected, 
   onCancelSelection, 
   isSelectionMode = false,
-  source = 'rightSidebar',
-  onOpenGallery
+  source = 'rightSidebar'
 }, ref) => {
   const dispatch = useDispatch();
   
   // Redux 상태 가져오기
-  const isGalleryOpen = useSelector(state => state.imageManager.isGalleryOpen);
+  const isGalleryOpen = useSelector(selectIsGalleryOpen);
   const isModalOpen = useSelector(selectIsImageSelectionMode);
   const isOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
   const reduxMainImage = useSelector(selectMainImage);
@@ -65,11 +67,11 @@ const ImageSectionManager = forwardRef(({
   const selectedImages = useSelector(selectSelectedImages);
   const availableImages = useSelector(state => state.imageManager.availableImages);
   const editedImages = useSelector(selectEditedImages);
-  const currentImageIndex = useSelector(selectCurrentImageIndex);
+  const currentGalleryIndex = useSelector(selectGalleryCurrentIndex);
   const draggedItem = useSelector(selectDraggedItemIndex);
   const reduxSource = useSelector(state => state.imageManager.source);
   // 이미지 확인 갤러리를 위한 이미지 배열
-  const galleryImageList = useSelector(state => state.imageManager.viewGalleryImages);
+  const galleryImages = useSelector(selectGalleryImages);
   
   // 이전 모달 상태를 추적하는 ref 추가
   const prevModalOpenRef = useRef(false);
@@ -181,19 +183,17 @@ const ImageSectionManager = forwardRef(({
     }));
   }, [imageRefs]);
 
-  // 갤러리 제어 함수 - 새 Redux 갤러리 액션 사용
-  const openGallery = useCallback((index) => {
+  // 갤러리 제어 함수 - imageGallerySlice 액션 직접 사용
+  const openImageGallery = useCallback((index) => {
     // 현재 표시 중인 이미지 배열 직접 사용
     const galleryImages = imageRefs.length > 0 ? imageRefs : getValidImageRefs(propMainImage, propSubImages);
     
     // 유효한 이미지가 없으면 종료
     if (galleryImages.length === 0) return;
     
-    // 외부에서 제공한 갤러리 열기 함수 호출 (새로운 Redux 액션 사용)
-    if (typeof onOpenGallery === 'function') {
-      onOpenGallery(index, galleryImages);
-    }
-  }, [imageRefs, propMainImage, propSubImages, onOpenGallery]);
+    // 항상 직접 Redux 액션을 디스패치하여 갤러리 열기
+    dispatch(openGallery({ images: galleryImages, index, source }));
+  }, [imageRefs, propMainImage, propSubImages, dispatch, source]);
   
   // 이미지 선택 처리 함수
   const handleToggleImageSelection = useCallback((imageRef) => {
@@ -674,7 +674,7 @@ const ImageSectionManager = forwardRef(({
             className={styles.mainImageContainer}
             onClick={() => {
               if (imageRefs.length > 0 && imageRefs[0] && !imageErrors[0]) {
-                openGallery(0);
+                openImageGallery(0);
               }
             }}
             style={{ cursor: imageRefs.length > 0 && imageRefs[0] && !imageErrors[0] ? 'pointer' : 'default' }}
@@ -723,7 +723,7 @@ const ImageSectionManager = forwardRef(({
                         className={styles.subImageItem}
                         onClick={() => {
                           if (hasImage && !hasError) {
-                            openGallery(actualIndex);
+                            openImageGallery(actualIndex);
                           }
                         }}
                         style={{ cursor: hasImage && !hasError ? 'pointer' : 'default' }}
@@ -767,7 +767,7 @@ const ImageSectionManager = forwardRef(({
                           className={styles.subImageItem}
                           onClick={() => {
                             if (hasImage && !hasError) {
-                              openGallery(index);
+                              openImageGallery(index);
                             }
                           }}
                           style={{ cursor: hasImage && !hasError ? 'pointer' : 'default' }}

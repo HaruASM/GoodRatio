@@ -238,9 +238,6 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
             onCancelSelection={handleCancelImageSelection}
             isSelectionMode={isImageSelectionMode}
             source="compareBar"
-            onOpenGallery={(index, images) => {
-              dispatch(openGallery({ images, index, source: 'compareBar' }));
-            }}
           />
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}
           {isInserting && (

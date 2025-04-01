@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import styles from '../../pages/editor/styles.module.css';
 import { protoServerDataset } from '../../lib/models/editorModels';
 import { parseGooglePlaceData, fetchPlaceDetailById } from '../../lib/utils/googlePlaceUtils';
+import store from '../../lib/store'; // 스토어 가져오기
 import {
   togglePanel,
   startEdit,
@@ -922,10 +923,15 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
   const googlePlaceSearchBarButtonHandler = (e) => {
     if (e) e.preventDefault();
     
-    // CompareBar 활성화
-    dispatch(setSyncGoogleSearch()); // 구글 검색폼의 데이터가 setCompareBarActive를 호출하며 넘어옴옴
-    dispatch(setCompareBarActive(null));
-    
+        // CompareBar 활성화 - 순서 중요함 (먼저 sync 설정, 그 다음 active 설정)
+    dispatch(setSyncGoogleSearch()); // 구글 검색폼의 데이터가 setCompareBarActive를 호출하도록 플래그 설정
+    dispatch(setCompareBarActive(null)); // CompareBar 활성화 및 초기화
+        
+    // 검색창으로 포커스 이동 - 사용자가 바로 장소를 검색할 수 있도록 함
+    const searchInput = document.querySelector('[data-testid="place-search-input"]');
+    if (searchInput) {
+      searchInput.focus();
+    }
   };
   
   // 패널 토글 버튼

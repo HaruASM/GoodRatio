@@ -302,7 +302,7 @@ const CompareBar = () => {
     if (isInserting) {
       // 이미 삽입 모드인 경우 종료
       dispatch(endInserting());
-      console.log('이 케이스 발생시 수정 필요');
+      console.error('이 케이스 발생시 수정 필요');
     } else {
       
     

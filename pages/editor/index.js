@@ -37,6 +37,7 @@ import store from '../../lib/store';
 import {
   setCompareBarActive,
   selectIsCompareBarActive,
+  setSyncGoogleSearch
 } from '../../lib/store/slices/compareBarSlice';
 
 import { wrapper } from '../../lib/store';
@@ -362,9 +363,7 @@ export default function Editor() { // 메인 페이지
   // 마커와 폴리곤 옵션 초기화 함수
   const initMarker = () => { 
      // MapOverlayManager 초기화
-     // TODO MapOverlayManager 초기화로 대체. 
      if (!MapOverlayManager.initialize()) {
-      // console.error('MapOverlayManager 초기화 실패');
       return;
      }
     // 공유 인포윈도우 초기화 (필요한 경우)
@@ -384,7 +383,7 @@ export default function Editor() { // 메인 페이지
     const autocomplete = new window.google.maps.places.Autocomplete(inputDom, {
       fields: [
         'name', 'formatted_address', 'place_id', 'geometry', 'photos', 
-        'formatted_phone_number', 'website', 'rating', 'price_level',
+        //'formatted_phone_number', 'website', 'rating', 'price_level',
         'opening_hours.weekday_text' // utc_offset 대신 weekday_text만 요청
       ]
     });
@@ -393,41 +392,47 @@ export default function Editor() { // 메인 페이지
     autocomplete.addListener('place_changed', () => {
       const detailPlace = autocomplete.getPlace();
       if (!detailPlace.geometry || !detailPlace.geometry.location) {
-        // console.error("구글place 미작동: '" + detailPlace.name + "'");
+        console.error(`구글place 미작동: '${detailPlace.name}'`);
         return;
       }
       
-      // (isSyncGoogleSearchCompareBar&& isCompareBarActive)일 때만 setCompareBarActive 액션 디스패치
-      const _isSyncGoogleSearchCompareBar = store.getState().compareBar.isSyncGoogleSearchCompareBar;
-      const _isActiveCompareBar = store.getState().compareBar.isActiveCompareBar;
-      if (_isSyncGoogleSearchCompareBar && _isActiveCompareBar) {
+      try {
+        // 최신 compareBar 상태 가져오기
+        const reduxState = store.getState();
+        const compareBarState = reduxState.compareBar;
+                  
         // 유틸리티 함수를 사용하여 구글 장소 데이터를 앱 형식으로 변환
         const convertedGoogleData = parseGooglePlaceData(detailPlace, myAPIkeyforMap);
         
-        // 이미지 URL 디버깅
-        // console.log('[구글 이미지 URL 확인]', {
-        //   mainImage: convertedGoogleData?.mainImage,
-        //   hasMainImage: !!convertedGoogleData?.mainImage,
-        //   subImagesCount: convertedGoogleData?.subImages?.length,
-        //   apiKey: !!myAPIkeyforMap
-        // });
+        // isSyncGoogleSearchCompareBar 값이 true일 때 CompareBar 업데이트
+        if (compareBarState.isSyncGoogleSearchCompareBar) {
+          // 변환된 데이터로 CompareBar 활성화
+          console.log('[place_changed] CompareBar 업데이트 중:', {
+            hasData: !!convertedGoogleData,
+            placeName: convertedGoogleData?.storeName || detailPlace.name
+          });
+           // Redux에서 설정한 플래그 초기화 (한 번만 사용)
+          dispatch(setSyncGoogleSearch(false));
+          
+          // 변환된 데이터로 CompareBar 활성화
+          dispatch(setCompareBarActive(convertedGoogleData));
+                   
+        }
         
-        // 파싱된 데이터를 콘솔에 출력
-        // console.log('[구글 장소 검색 결과 - 상세]', convertedGoogleData);
-        dispatch(setCompareBarActive(convertedGoogleData));
-      }
-
-      // 지도 이동 로직은 항상 실행
-      if (detailPlace.geometry.viewport) {
-        _mapInstance.fitBounds(detailPlace.geometry.viewport);
-      } else {
-        _mapInstance.setCenter(detailPlace.geometry.location);
-        _mapInstance.setZoom(15);
-      }
-      
-      // 검색 완료 후 인풋창 비우기
-      if (searchInputDomRef.current) {
-        searchInputDomRef.current.value = '';
+        // 지도 이동 로직은 항상 실행
+        if (detailPlace.geometry.viewport) {
+          _mapInstance.fitBounds(detailPlace.geometry.viewport);
+        } else {
+          _mapInstance.setCenter(detailPlace.geometry.location);
+          _mapInstance.setZoom(15);
+        }
+        
+        // 검색 완료 후 인풋창 비우기
+        if (searchInputDomRef.current) {
+          searchInputDomRef.current.value = '';
+        }
+      } catch (error) {
+        console.error('[place_changed] 오류 발생:', error);
       }
     });
 

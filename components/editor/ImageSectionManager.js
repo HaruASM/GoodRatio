@@ -42,6 +42,7 @@ import { getProxiedPhotoUrl, getValidImageRefs, handleImageError } from '../../l
  * @param {Function} props.onCancelSelection - 이미지 선택 취소 시 호출될 콜백 함수
  * @param {boolean} props.isSelectionMode - 이미지 선택 모드 활성화 여부
  * @param {string} props.source - 컴포넌트 소스 식별자 ('rightSidebar' 또는 'compareBar')
+ * @param {Function} props.onOpenGallery - 외부에서 갤러리 열기 함수 받기
  * @returns {React.ReactElement} 이미지 관리 UI 컴포넌트
  */
 const ImageSectionManager = forwardRef(({ 
@@ -50,12 +51,13 @@ const ImageSectionManager = forwardRef(({
   onImagesSelected, 
   onCancelSelection, 
   isSelectionMode = false,
-  source = 'rightSidebar'
+  source = 'rightSidebar',
+  onOpenGallery
 }, ref) => {
   const dispatch = useDispatch();
   
   // Redux 상태 가져오기
-  const isGalleryOpen = useSelector(selectIsImageGalleryOpen);
+  const isGalleryOpen = useSelector(state => state.imageManager.isGalleryOpen);
   const isModalOpen = useSelector(selectIsImageSelectionMode);
   const isOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
   const reduxMainImage = useSelector(selectMainImage);
@@ -66,6 +68,8 @@ const ImageSectionManager = forwardRef(({
   const currentImageIndex = useSelector(selectCurrentImageIndex);
   const draggedItem = useSelector(selectDraggedItemIndex);
   const reduxSource = useSelector(state => state.imageManager.source);
+  // 이미지 확인 갤러리를 위한 이미지 배열
+  const galleryImageList = useSelector(state => state.imageManager.viewGalleryImages);
   
   // 이전 모달 상태를 추적하는 ref 추가
   const prevModalOpenRef = useRef(false);
@@ -177,91 +181,20 @@ const ImageSectionManager = forwardRef(({
     }));
   }, [imageRefs]);
 
-  // 갤러리 제어 함수들
+  // 갤러리 제어 함수 - 새 Redux 갤러리 액션 사용
   const openGallery = useCallback((index) => {
-    // 선택 모드나 편집 모드에서는 갤러리 열지 않음
-    if (isSelectionMode || isOrderEditorOpen) return;
+    // 현재 표시 중인 이미지 배열 직접 사용
+    const galleryImages = imageRefs.length > 0 ? imageRefs : getValidImageRefs(propMainImage, propSubImages);
     
-    // 유효한 이미지가 있는지 확인
-    const validImageRefs = getValidImageRefs(mainImage, subImages);
-    if (validImageRefs.length === 0) return;
+    // 유효한 이미지가 없으면 종료
+    if (galleryImages.length === 0) return;
     
-    // 갤러리 열기
-    dispatch(openImageGallery({
-      index,
-      source,
-      images: { mainImage, subImages }
-    }));
-  }, [isSelectionMode, isOrderEditorOpen, mainImage, subImages, dispatch, source]);
-  
-  const closeGallery = useCallback(() => {
-    dispatch(closeImageGallery());
-    document.body.style.overflow = '';
-  }, [dispatch]);
-  
-  const prevImage = useCallback(() => {
-    // 갤러리에 표시할 이미지 배열
-    const galleryImages = imageRefs.length > 0 ? imageRefs : 
-      getValidImageRefs(reduxMainImage, reduxSubImages);
-    
-    if (galleryImages.length <= 1) return;
-    
-    const newIndex = currentImageIndex <= 0 ? galleryImages.length - 1 : currentImageIndex - 1;
-    dispatch(setCurrentImageIndex(newIndex));
-  }, [imageRefs, reduxMainImage, reduxSubImages, currentImageIndex, dispatch]);
-  
-  const nextImage = useCallback(() => {
-    // 갤러리에 표시할 이미지 배열
-    const galleryImages = imageRefs.length > 0 ? imageRefs : 
-      getValidImageRefs(reduxMainImage, reduxSubImages);
-    
-    if (galleryImages.length <= 1) return;
-    
-    const newIndex = currentImageIndex >= galleryImages.length - 1 ? 0 : currentImageIndex + 1;
-    dispatch(setCurrentImageIndex(newIndex));
-  }, [imageRefs, reduxMainImage, reduxSubImages, currentImageIndex, dispatch]);
-  
-  const goToImage = useCallback((index) => {
-    // 갤러리에 표시할 이미지 배열
-    const galleryImages = imageRefs.length > 0 ? imageRefs : 
-      getValidImageRefs(reduxMainImage, reduxSubImages);
-    
-    // 인덱스 범위 확인
-    if (index < 0 || index >= galleryImages.length) return;
-    
-    dispatch(setCurrentImageIndex(index));
-  }, [imageRefs, reduxMainImage, reduxSubImages, dispatch]);
-  
-  // 키보드 이벤트 처리
-  const handleKeyDown = useCallback((e) => {
-    if (!isGalleryOpen) return;
-    
-    switch (e.key) {
-      case 'Escape':
-        closeGallery();
-        break;
-      case 'ArrowLeft':
-        prevImage();
-        break;
-      case 'ArrowRight':
-        nextImage();
-        break;
-      default:
-        break;
+    // 외부에서 제공한 갤러리 열기 함수 호출 (새로운 Redux 액션 사용)
+    if (typeof onOpenGallery === 'function') {
+      onOpenGallery(index, galleryImages);
     }
-  }, [isGalleryOpen, closeGallery, prevImage, nextImage]);
+  }, [imageRefs, propMainImage, propSubImages, onOpenGallery]);
   
-  useEffect(() => {
-    if (isGalleryOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [isGalleryOpen, handleKeyDown]);
-
   // 이미지 선택 처리 함수
   const handleToggleImageSelection = useCallback((imageRef) => {
     dispatch(toggleImageSelection(imageRef));
@@ -544,6 +477,7 @@ const ImageSectionManager = forwardRef(({
                             src={getProxiedPhotoUrl(imageRef, 200)} 
                             alt={`이미지 ${index + 1}`}
                             onError={() => handleImageLoadError(`selection-${index}`)}
+                            style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                           />
                         ) : (
                           <div className={styles.imageErrorPlaceholderContainer}>
@@ -563,6 +497,7 @@ const ImageSectionManager = forwardRef(({
                             src={getProxiedPhotoUrl(imageRef, 400)} 
                             alt={`이미지 ${index + 1} 미리보기`}
                             onError={() => handleImageLoadError(`tooltip-${index}`)}
+                            style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                           />
                         ) : (
                           <div className={styles.imageErrorTooltip}>
@@ -604,89 +539,6 @@ const ImageSectionManager = forwardRef(({
         </div>
       </div>
     );
-  };
-
-  // 이미지 갤러리 모달 렌더링
-  const renderGallery = () => {
-    if (!isGalleryOpen || !isBrowserReady) {
-      return null;
-    }
-
-    // 갤러리에 표시할 이미지 목록 가져오기
-    let galleryImages = imageRefs;
-    
-    // 이미지 목록이 없으면 Redux 상태에서 가져오기
-    if (galleryImages.length === 0) {
-      galleryImages = getValidImageRefs(reduxMainImage, reduxSubImages);
-    }
-    
-    // 현재 선택된 이미지
-    const currentImageRef = galleryImages[currentImageIndex];
-    const hasGalleryError = imageErrors[`gallery-current`];
-
-    // 갤러리 모달 렌더링
-    return (
-      <div className={styles.galleryOverlay}>
-        <div className={styles.galleryContentContainer}>
-          <button 
-            className={styles.galleryCloseButton} 
-            onClick={closeGallery}
-            aria-label="닫기"
-          >
-            &times;
-          </button>
-          
-          <div className={styles.galleryMainImageContainer}>
-            <button className={styles.galleryNavButton} onClick={prevImage}>
-              &lt;
-            </button>
-            
-            <div className={styles.galleryImageContainer}>
-              {!hasGalleryError ? (
-                <img 
-                  src={getProxiedPhotoUrl(currentImageRef, 800)} 
-                alt={`이미지 ${currentImageIndex + 1}`}
-                  className={styles.galleryImagePreview}
-                  onError={() => handleImageLoadError('gallery-current')}
-              />
-              ) : (
-                <div className={styles.imageErrorPlaceholderContainer}>
-                  <span>이미지를 불러올 수 없습니다.</span>
-                </div>
-            )}
-            </div>
-            
-            <button className={styles.galleryNavButton} onClick={nextImage}>
-              &gt;
-            </button>
-          </div>
-          
-          <div className={styles.galleryThumbnailsContainer}>
-            {galleryImages.map((ref, index) => (
-              <div 
-                key={`gallery-thumb-${index}`}
-                className={`${styles.galleryThumbnailItem} ${index === currentImageIndex ? styles.isActiveThumbnail : ''} ${imageErrors[`gallery-thumb-${index}`] ? styles.isErrorThumbnail : ''}`}
-                onClick={() => goToImage(index)}
-              >
-                {imageErrors[`gallery-thumb-${index}`] ? (
-                  <div className={styles.thumbnailErrorPlaceholderContainer}></div>
-              ) : (
-                <img 
-                  src={getProxiedPhotoUrl(ref, 100)} 
-                  alt={`썸네일 ${index + 1}`}
-                    onError={() => handleImageLoadError(`gallery-thumb-${index}`)}
-                />
-              )}
-              </div>
-            ))}
-          </div>
-          
-          <div className={styles.galleryCounterContainer}>
-            {galleryImages.length > 0 ? `${currentImageIndex + 1} / ${galleryImages.length}` : '0 / 0'}
-        </div>
-      </div>
-    </div>
-  );
   };
 
   // 이미지 순서 편집 모달 렌더링
@@ -758,6 +610,7 @@ const ImageSectionManager = forwardRef(({
                       src={getProxiedPhotoUrl(imageRef, 180)} 
                       alt={`이미지 ${index + 1}`}
                       onError={() => handleImageLoadError(`edit-${index}`)}
+                      style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                     />
                   </div>
                   <div className={styles.imageOrderDragHandleButton} title="드래그하여 순서 변경">
@@ -777,6 +630,7 @@ const ImageSectionManager = forwardRef(({
                         src={getProxiedPhotoUrl(imageRef, 400)} 
                         alt={`이미지 ${index + 1} 미리보기`}
                         onError={() => handleImageLoadError(`tooltip-edit-${index}`)}
+                        style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                       />
                     ) : (
                       <div className={styles.imageErrorTooltip}>
@@ -836,6 +690,7 @@ const ImageSectionManager = forwardRef(({
                   alt="메인 이미지" 
                   className={styles.mainImagePreview}
                   onError={() => handleImageLoadError(0)}
+                  style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                 />
               )
             ) : (
@@ -885,6 +740,7 @@ const ImageSectionManager = forwardRef(({
                                 alt={`서브 이미지 ${imgIndex + 1}`} 
                                 className={styles.subImagePreview}
                                 onError={() => handleImageLoadError(actualIndex)}
+                                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                               />
                               {imgIndex === 3 && additionalImages > 0 && (
                                 <div className={styles.imageCountOverlay}>
@@ -928,6 +784,7 @@ const ImageSectionManager = forwardRef(({
                                   alt={`서브 이미지 ${index}`} 
                                   className={styles.subImagePreview}
                                   onError={() => handleImageLoadError(index)}
+                                  style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                                 />
                                 {index === 4 && additionalImages > 0 && (
                                   <div className={styles.imageCountOverlay}>
@@ -957,7 +814,6 @@ const ImageSectionManager = forwardRef(({
       </div>
       
       {/* 모달 렌더링 */}
-      {renderGallery()}
       {renderImageSelectionModal()}
       {renderOrderEditor()}
     </>

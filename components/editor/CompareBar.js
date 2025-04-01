@@ -27,6 +27,7 @@ import {
   openImageSelectionMode,
   selectIsImageSelectionMode
 } from '../../lib/store/slices/imageManagerSlice';
+import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { getValidImageRefs } from '../../lib/utils/imageHelpers';
 import { titlesofDataFoam } from '../../lib/models/editorModels';
 
@@ -112,8 +113,8 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     // 이미지 선택 모드 활성화 - compareData의 원본 이미지를 직접 전달
     dispatch(openImageSelectionMode({
       source: 'compareBar',
-      mainImage: compareData?.mainImage,
-      subImages: compareData?.subImages,
+      mainImage: compareData?.mainImage || "",
+      subImages: compareData?.subImages || [],
       availableImages: validImages // 모든 유효한 이미지를 별도 필드로 전달
     }));
   };
@@ -237,6 +238,9 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
             onCancelSelection={handleCancelImageSelection}
             isSelectionMode={isImageSelectionMode}
             source="compareBar"
+            onOpenGallery={(index, images) => {
+              dispatch(openGallery({ images, index, source: 'compareBar' }));
+            }}
           />
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}
           {isInserting && (

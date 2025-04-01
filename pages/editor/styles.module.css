@@ -1305,16 +1305,16 @@
   cursor: pointer;
   opacity: 0.7;
   transition: all 0.3s ease;
-}
-
-.galleryThumbnailItem:hover {
-  opacity: 0.9;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .galleryThumbnailItem img {
-  width: 100%;
+  width: auto;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  max-width: 100%;
 }
 
 .isActiveThumbnail {

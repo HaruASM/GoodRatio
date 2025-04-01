@@ -42,13 +42,15 @@ import {
 import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../../lib/store/slices/compareBarSlice';
 import ImageSectionManager from './ImageSectionManager';
 import { 
-  openImageOrderEditor,
+  openImageSelectionMode,
   selectIsImageSelectionMode,
-  selectIsImageOrderEditorOpen,
-  resetImageData
+  openImageOrderEditor,
+  resetImageData,
+  selectIsImageOrderEditorOpen
 } from '../../lib/store/slices/imageManagerSlice';
 import { getValidImageRefs } from '../../lib/utils/imageHelpers';
 import { titlesofDataFoam } from '../../lib/models/editorModels';
+import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 
 // 확인 모달 컴포넌트
 const ConfirmModal = ({ isOpen, storeName, onConfirm, onCancel }) => {
@@ -873,8 +875,12 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               mainImage={formData.mainImage} 
               subImages={formData.subImages}
               onImagesSelected={handleImagesSelected}
-              onCancelImageSelection={handleCancelImageSelection}
+              onCancelSelection={handleCancelImageSelection}
+              isSelectionMode={isImageSelectionMode}
               source="rightSidebar"
+              onOpenGallery={(index, images) => {
+                dispatch(openGallery({ images, index, source: 'rightSidebar' }));
+              }}
             />
             {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
             {isEditorOn && (

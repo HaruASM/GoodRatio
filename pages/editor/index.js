@@ -64,12 +64,8 @@ const SectionsDBManager = {
    * @returns {Promise<Array>} - 변환된 아이템 리스트 (protoShopDataSet 형태)
    */
   getSectionItems: async function(sectionName) {
-    console.log('getSectionItems1', sectionName);
     // 1. 캐시에서 먼저 확인
     if (this._cache.has(sectionName)) {
-      // console.log(`SectionsDBManager: 캐시에서 ${sectionName} 데이터 로드 (${this._cache.get(sectionName).length}개 항목)`);
-      console.log('getSectionItems2', sectionName);
-      // 캐시에서 가져온 경우에도 실시간 리스너 확인 및 설정
       if (this._currentSectionName !== sectionName) {
         this._setupRealtimeListener(sectionName);
       }
@@ -78,7 +74,6 @@ const SectionsDBManager = {
     }
     
     try {
-      console.log('getSectionItems1', sectionName);
       // 2. 캐시에 없으면 getSectionData 함수 호출 (로컬 스토리지 -> 서버)
       const serverItems = await getSectionData(sectionName);
       
@@ -90,8 +85,6 @@ const SectionsDBManager = {
       
       // 5. 실시간 리스너 설정
       this._setupRealtimeListener(sectionName);
-      console.log('getSectionItems4  ', sectionName, clientItems);
-      // console.log(`SectionsDBManager: ${sectionName} 데이터 로드 완료 (${clientItems.length}개 항목)`);
       return clientItems;
     } catch (error) {
        console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오  류`, error);
@@ -107,19 +100,16 @@ const SectionsDBManager = {
   _setupRealtimeListener: function(sectionName) {
     // 이미 같은 섹션에 리스너가 있으면 재사용
     if (this._currentSectionName === sectionName && this._currentListener) {
-      // console.log(`SectionsDBManager: 이미 ${sectionName}에 대한 실시간 리스너가 활성화됨`);
       return;
     }
     
     // 다른 섹션의 리스너가 있으면 정리
     if (this._currentListener) {
-      // console.log(`SectionsDBManager: ${this._currentSectionName}의 이전 리스너 정리`);
       this._currentListener();
       this._currentListener = null;
       this._currentSectionName = null;
     }
     
-    // console.log(`SectionsDBManager: ${sectionName}에 대한 실시간 리스너 설정`);
     
     // 새 리스너 설정
     this._currentListener = setupFirebaseListener(sectionName, (updatedItems, changes) => {
@@ -133,8 +123,6 @@ const SectionsDBManager = {
       document.dispatchEvent(new CustomEvent('section-items-updated', {
         detail: { sectionName, items: clientItems }
       }));
-      
-      
       console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${clientItems.length}개 항목)`);
     });
     
@@ -185,7 +173,6 @@ const SectionsDBManager = {
     // 캐시만 업데이트 (로컬 스토리지에는 저장하지 않음)
     this._cache.set(sectionName, items);
     
-    // console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${items.length}개 항목)`);
   },
   
   /**
@@ -193,7 +180,6 @@ const SectionsDBManager = {
    */
   clearCache: function() {
     this._cache.clear();
-    // console.log('SectionsDBManager: 캐시 초기화됨');
   }
 };
 
@@ -248,7 +234,6 @@ export default function Editor() { // 메인 페이지
     
   // CompareBar 활성화 상태 가져오기
   const isActiveCompareBar = useSelector(selectIsCompareBarActive);
-  // console.log('CompareBar 활성화 상태:', isActiveCompareBar);
   
 
   // 로컬 저장소에서 sectionsDB 저장 함수는 serverUtils.js로 이동했습니다.
@@ -407,10 +392,7 @@ export default function Editor() { // 메인 페이지
         // isSyncGoogleSearchCompareBar 값이 true일 때 CompareBar 업데이트
         if (compareBarState.isSyncGoogleSearchCompareBar) {
           // 변환된 데이터로 CompareBar 활성화
-          console.log('[place_changed] CompareBar 업데이트 중:', {
-            hasData: !!convertedGoogleData,
-            placeName: convertedGoogleData?.storeName || detailPlace.name
-          });
+
            // Redux에서 설정한 플래그 초기화 (한 번만 사용)
           dispatch(setSyncGoogleSearch(false));
           
@@ -692,7 +674,7 @@ export default function Editor() { // 메인 페이지
         setCurrentPosition({ lat: latitude, lng: longitude });
       },
         (error) => {
-          // console.log('geolocation 에러 : ',error);
+          console.error('geolocation 에러 : ',error);
         });
     } else {
       // console.error('geolocation 지원 안되는 중');
@@ -791,7 +773,6 @@ export default function Editor() { // 메인 페이지
     // 초기에 IDLE 상태로 설정
     dispatch(setRightSidebarIdleState(true));
     
-    // console.log("CompareBar 활성화 상태를 true로 설정");
   }, [dispatch]);
 
   //## selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
@@ -921,9 +902,7 @@ export default function Editor() { // 메인 페이지
       }
     });
 
-
-
-    //TODO 여기서 SectionsDBManager.getSectionItems(curSectionName)을 하는 CB핸들러를 생성하면?
+  
     // 비직렬화 데이터 포함된 업데이트 이벤트 리스너
     const handleSectionUpdate = (event) => {
       const { sectionName, items } = event.detail;
@@ -947,7 +926,6 @@ export default function Editor() { // 메인 페이지
   useEffect(() => { // AT [curItemListInCurSection] 지역변경으로 리스트 변경될 때 UI 업데이트
     //TODO 실시간 서버로부터 업데이트 받았을시, 변경된 일부의 샵데이터만 업데이트 해야할지 미정이다. 
     // 현재 아이템 리스트 참조 업데이트
-    console.log('curItemListInCurSection 업데이트');  
     
     currentItemListRef.current = curItemListInCurSection;
     

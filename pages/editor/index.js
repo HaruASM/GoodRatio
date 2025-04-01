@@ -5,8 +5,8 @@ import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
-import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON, parseCoordinates, stringifyCoordinates } from '../../lib/models/editorModels';
-import mapUtils, { createInfoWindowContent, showInfoWindow } from '../../lib/utils/mapUtils';
+import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON } from '../../lib/models/editorModels';
+import MapOverlayManager from '../../lib/components/map/MapOverlayManager';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData, setupFirebaseListener } from '../../lib/services/serverUtils';
 // Place 유틸리티 함수 가져오기
@@ -161,10 +161,10 @@ const SectionsDBManager = {
         serverDataset: { ...item }
       };
       
-      // 마커와 폴리곤 생성 - 새로운 mapUtils 인터페이스 사용 //AT 오버레이 생성위치
+      // 마커와 폴리곤 생성 - MapOverlayManager 사용 //AT 오버레이 생성위치
       try {
-        // 새로운 mapUtils.createOverlaysFromItem 사용
-        const overlays = mapUtils.createOverlaysFromItem(clientItem);
+        // MapOverlayManager.createOverlaysFromItem 사용
+        const overlays = MapOverlayManager.createOverlaysFromItem(clientItem);
         clientItem.itemMarker = overlays.marker;
         clientItem.itemPolygon = overlays.polygon;
       } catch (error) {
@@ -361,9 +361,10 @@ export default function Editor() { // 메인 페이지
 
   // 마커와 폴리곤 옵션 초기화 함수
   const initMarker = () => { 
-     // MapUtils 초기화 (684라인)
-     if (!mapUtils.initialize()) {
-      // console.error('MapUtils 초기화 실패');
+     // MapOverlayManager 초기화
+     // TODO MapOverlayManager 초기화로 대체. 
+     if (!MapOverlayManager.initialize()) {
+      // console.error('MapOverlayManager 초기화 실패');
       return;
      }
     // 공유 인포윈도우 초기화 (필요한 경우)
@@ -713,16 +714,8 @@ export default function Editor() { // 메인 페이지
       const itemList = currentItemListRef.current;
       if (!itemList || itemList.length === 0) return;
       
-      const hasPolygons = itemList.some(item => item.itemPolygon);
-      if (hasPolygons) {
-        const currentZoom = _mapInstance.getZoom();
-        const shouldShowPolygons = currentZoom >= 17;
-        itemList.forEach(item => {
-          if (item.itemPolygon) {
-            item.itemPolygon.setVisible(shouldShowPolygons);
-          }
-        });
-      }
+      // MapOverlayManager를 사용하여 폴리곤 가시성 업데이트
+      MapOverlayManager.updatePolygonVisibility(_mapInstance, itemList);
     });
 
     // g맵용 로드 완료시 동작 //AT 구글맵Idle바인딩  
@@ -842,9 +835,9 @@ export default function Editor() { // 메인 페이지
         
         // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
         if (curSelectedShop.serverDataset && curSelectedShop.serverDataset.pinCoordinates) {
-          position = parseCoordinates(curSelectedShop.serverDataset.pinCoordinates);
+          position = MapOverlayManager.parseCoordinates(curSelectedShop.serverDataset.pinCoordinates);
         } else if (curSelectedShop.pinCoordinates) {
-          position = parseCoordinates(curSelectedShop.pinCoordinates);
+          position = MapOverlayManager.parseCoordinates(curSelectedShop.pinCoordinates);
         }
 
         if (position) {
@@ -855,7 +848,7 @@ export default function Editor() { // 메인 페이지
           // 3. 인포윈도우 표시 및 애니메이션 적용
           if (sharedInfoWindow.current && curSelectedShop.itemMarker) {
             // 인포윈도우 컨텐츠 생성
-            const content = createInfoWindowContent(curSelectedShop);
+            const content = MapOverlayManager.createInfoWindowContent(curSelectedShop);
             
             // 애니메이션이 적용된 컨테이너로 감싸기
             const animatedContent = `
@@ -1009,7 +1002,7 @@ export default function Editor() { // 메인 페이지
     });
     
     // mapUtils를 사용하여 이벤트 등록
-    mapUtils.registerAllItemsEvents(
+    MapOverlayManager.registerAllItemsEvents(
       curItemListInCurSection,
       instMap.current,
       sharedInfoWindow.current,
@@ -1091,7 +1084,7 @@ export default function Editor() { // 메인 페이지
           try {
             let position = null;
             if (item.serverDataset.pinCoordinates) {
-              position = parseCoordinates(item.serverDataset.pinCoordinates);
+              position = MapOverlayManager.parseCoordinates(item.serverDataset.pinCoordinates);
             }
 
             if (position) {

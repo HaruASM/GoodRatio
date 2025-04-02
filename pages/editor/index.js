@@ -639,10 +639,8 @@ export default function Editor() { // 메인 페이지
     }
   };
 
-  // 폴리곤 가시성 관리 함수는 mapUtils.js로 이동했습니다.
-
   // 지도 초기화 함수 수정
-  const initGoogleMapPage = () => {
+  const initGoogleMapPage = () => { // 이 함수의 초기화 단계를 수정할시 수정을 했다고 표시할것
     // 여기는 window.google과 window.google.maps객체가 로딩 확정된 시점에서 실행되는 지점점
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
@@ -676,28 +674,14 @@ export default function Editor() { // 메인 페이지
     });
     //-- g맵 인스턴스 생성 끝끝
 
-    //TODO: 모듈화/캡슐화하여 별도 Zoom매너지/지도탐색매니저로 관리. 
-    // - 이벤트 핸들러 등록/제거 로직    // - 폴리곤 가시성 제어 로직     // - 기타 줌 레벨에 따른 UI 변경 로직을 캡슐화
-    // 아래 코드는 이제 MapOverlayManager 내부에서 처리됨
-    /*
-    window.google.maps.event.addListener(_mapInstance, 'zoom_changed', () => { //AT 지도줌변경 이벤트 바인딩
-      // 최신 아이템 리스트를 useRef에서 가져옴 (클로저 문제 해결)
-      const itemList = currentItemListRef.current;
-      if (!itemList || itemList.length === 0) return;
-      
-      // MapOverlayManager를 사용하여 폴리곤 가시성 업데이트
-      MapOverlayManager.updatePolygonVisibility(_mapInstance, itemList);
-    });
-    */
-
     // g맵용 로드 완료시 동작 //AT 구글맵Idle바인딩  
     window.google.maps.event.addListenerOnce(_mapInstance, 'idle', () => { 
       // 여기는 구글맵 인스턴스가 확정된 시점
       // ** 아래 순서는 수정 금지
       initDrawingManager(_mapInstance); 
       initSearchInput(_mapInstance);
-      initMarker(_mapInstance); 
-      initShopList();
+      initMarker(_mapInstance);  // MapOverlayManager 세팅
+      initShopList(); // exploringSidebar 세팅, 드로잉 매니저 내부 세팅 (에디터전용)
     });
     instMap.current = _mapInstance;
   
@@ -883,10 +867,9 @@ export default function Editor() { // 메인 페이지
     }
 
     // mapUtils를 사용하여 이벤트 등록
-    MapOverlayManager.registerAllItemsEvents(
+    MapOverlayManager.registerOverlaysByItemlist(
+      curSectionName,
       curItemListInCurSection,
-      instMap.current,
-      null, // 내부 인포윈도우 사용하고 있으므로 null 전달
       {
         onItemSelect: (item) => {
           setCurSelectedShop(item);
@@ -896,8 +879,7 @@ export default function Editor() { // 메인 페이지
             sectionName: item.serverDataset?.sectionName || item.sectionName || curSectionName
           }));
         },
-        isItemSelected: (item) => item === curSelectedShop,
-        keepInfoWindowOpen: true // 선택된 아이템의 InfoWindow를 계속 표시하기 위한 옵션
+        isItemSelected: (item) => item === curSelectedShop
       }
     );
     
@@ -1015,16 +997,7 @@ export default function Editor() { // 메인 페이지
     };
   }, [tempOverlays]);
 
-  // 맵 초기화 부분에 다음 코드 추가
-  useEffect(() => {
-    if (instMap.current) {
-      // 맵 인스턴스를 MapOverlayManager에 설정
-      MapOverlayManager.initialize(instMap.current);
-      
-      // Redux 스토어를 MapOverlayManager에 설정
-      MapOverlayManager.setReduxStore(store);
-    }
-  }, [instMap.current, dispatch]);
+
 
   return (
     <div className={styles.editorContainer}>

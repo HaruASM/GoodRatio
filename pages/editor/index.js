@@ -43,7 +43,7 @@ import {
 import { wrapper } from '../../lib/store';
 
 // Redux 관련 임포트 추가
-import { setMapReady } from '../../lib/store/slices/mapEventSlice';
+import { openSingletonInfoWindow, closeInfoWindow, curSectionChanged } from '../../lib/store/slices/mapEventSlice';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -279,10 +279,9 @@ export default function Editor() { // 메인 페이지
     // 드로잉 모드가 활성화되었을 때
     if (isDrawing && drawingType) {
       // 인포윈도우가 열려있으면 닫기
-      const infoWindow = MapOverlayManager.getInfoWindow();
-      if (infoWindow) {
-        infoWindow.close();
-      }
+
+
+      dispatch(closeInfoWindow());
       
       // 드로잉 모드 타입에 따라 설정
       if (drawingType === 'MARKER') {
@@ -327,17 +326,14 @@ export default function Editor() { // 메인 페이지
   }, [tempOverlays]);
 
   // 마커와 폴리곤 옵션 초기화 함수
-  const initMarker = ( mapInstance  ) => { 
+  const initMarker = ( _mapInstance  ) => { 
      // MapOverlayManager 초기화
-     if (!MapOverlayManager.initialize(mapInstance)) {
+     if (!MapOverlayManager.initialize(_mapInstance)) {
+      console.error('MapOverlayManager 초기화 실패');
       return;
      }
-     
      // Redux 스토어 설정
      MapOverlayManager.setReduxStore(store);
-     
-     // 맵 준비 완료 상태 디스패치
-     dispatch(setMapReady(true));
   }
   
   // 검색창 초기화 함수
@@ -441,11 +437,8 @@ export default function Editor() { // 메인 페이지
       // 지도 빈 영역 클릭 시 클릭된 아이템 초기화
       setClickedItem(null);
       
-      // 인포윈도우 닫기 (MapOverlayManager 사용)
-      const infoWindow = MapOverlayManager.getInfoWindow();
-      if (infoWindow) {
-        infoWindow.close();
-      }
+      // 인포윈도우 닫기 - Redux 액션 사용
+      dispatch(closeInfoWindow());
     });
     
     return () => {
@@ -665,6 +658,12 @@ export default function Editor() { // 메인 페이지
 
     //-- g맵 인스턴스 생성
     let mapDiv = document.getElementById('map');
+    
+    // mapDiv가 null인 경우 초기화를 중단하고 다음에 다시 시도
+    if (!mapDiv) {
+      console.error('맵 DOM 요소를 찾을 수 없습니다. 지도 초기화를 중단합니다.');
+      return;
+    }
 
     const _mapInstance = new window.google.maps.Map(mapDiv, {
       center: currentPosition ? currentPosition : { lat: 35.8714, lng: 128.6014 },
@@ -701,6 +700,7 @@ export default function Editor() { // 메인 페이지
       initShopList();
     });
     instMap.current = _mapInstance;
+  
   } // initializeGoogleMapPage 마침
 
   // 모듈로딩을 순차적으로 진행하기위해필수. 구글모듈-맵모듈-맵로딩idle이벤트-mapinst로 애드온모듈 초기화화
@@ -754,11 +754,8 @@ export default function Editor() { // 메인 페이지
     if (!curSelectedShop) {      // selectedCurShop이 없는 경우 빈 폼 
       dispatch(syncExternalShop({ shopData: null })); // 내부적으로 isIdel일때만 빈폼 초기화 
       
-      // 인포윈도우 닫기 (MapOverlayManager 사용)
-      const infoWindow = MapOverlayManager.getInfoWindow();
-      if (infoWindow) {
-        infoWindow.close();
-      }
+      // 새로운 방식: Redux 액션을 통해 인포윈도우 닫기
+      dispatch(closeInfoWindow());
       
       return; // 선택된 값이 비어있으면 여기서 종료 
     }
@@ -806,52 +803,18 @@ export default function Editor() { // 메인 페이지
           // 지도 중심 이동
           instMap.current.setCenter(position);
           instMap.current.setZoom(18);
+          console.log('[Editor] 지도 중심 이동', position);
 
-          // 3. 인포윈도우 표시 및 애니메이션 적용
-          if (curSelectedShop.itemMarker) {
-            // 애니메이션이 적용된 컨텐츠 생성
-            const content = MapOverlayManager.createInfoWindowContent(curSelectedShop);
-            
-            // 애니메이션이 적용된 컨테이너로 감싸기
-            const animatedContent = `
-              <div class="info-window-content" 
-                   style="animation: fadeInScale 0.3s ease-out; transform-origin: bottom center;">
-                ${content}
-              </div>
-              <style>
-                @keyframes fadeInScale {
-                  from {
-                    opacity: 0;
-                    transform: scale(0.8) translateY(10px);
-                  }
-                  to {
-                    opacity: 1;
-                    transform: scale(1) translateY(0);
-                  }
-                }
-                .info-window-content {
-                  padding: 5px;
-                  border-radius: 8px;
-                  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-                }
-              </style>
-            `;
-            
-            // MapOverlayManager를 통해 인포윈도우 표시
-            // Redux 사용 가능 시 showInfoWindowWithRedux 사용 가능
-            MapOverlayManager.showInfoWindowDirect(
-              { ...curSelectedShop, customContent: animatedContent },
-              curSelectedShop.itemMarker
-            );
-            
-            // 마커 바운스 애니메이션 적용
-            curSelectedShop.itemMarker.setAnimation(window.google.maps.Animation.BOUNCE);
-            setTimeout(() => {
-              if (curSelectedShop.itemMarker) {
-                curSelectedShop.itemMarker.setAnimation(null);
-              }
-            }, 750); // 바운스 1-2회 후 중지
-          }
+          // 3. 인포윈도우 표시 - MapOverlayManager가 모든 것을 처리
+          
+          console.log('[Editor] 인포윈도우 표시 curSelectedShop/openSingletonInfoWindow', );
+          // sectionName과 shopId만으로 인포윈도우 표시
+          dispatch(openSingletonInfoWindow({
+            shopId: curSelectedShop.serverDataset?.id || curSelectedShop.id,
+            sectionName: curSelectedShop.serverDataset?.sectionName || curSelectedShop.sectionName || curSectionName
+          }));
+          
+          // 애니메이션은 MapOverlayManager에서 처리됨
         }
       } catch (error) {
         // console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
@@ -863,7 +826,7 @@ export default function Editor() { // 메인 페이지
   
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
     // 1회 읽어오고, 그 뒤 FB서버에 리스닝 구독
-    //TODO 맵의 오버레이관리 + 줌 매니저 필요한듯 
+    
     if (!curSectionName) return;
 
     SectionsDBManager.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
@@ -875,6 +838,11 @@ export default function Editor() { // 메인 페이지
           prevItemListforRelieveOverlays.current = prev;
           return _sectionItemListfromDB;
         });
+
+
+        // 이시점에 오버레이 교체가 호출되어야 함. 
+        // _sectionItemListfromDB( curItemListInCurSection )이 생성되어야 오버레이도 MapOverlayManager등록되어있음. 
+        dispatch(curSectionChanged({ sectionName: curSectionName }));
         
       } else {
         console.error('서버및로컬DB에 데이터를 가져오지못함'); // 이 경우는 발생 불가.
@@ -905,75 +873,29 @@ export default function Editor() { // 메인 페이지
   useEffect(() => { // AT [curItemListInCurSection] 지역변경으로 리스트 변경될 때 UI 업데이트
     //TODO 실시간 서버로부터 업데이트 받았을시, 변경된 일부의 샵데이터만 업데이트 해야할지 미정이다. 
     // 현재 아이템 리스트 참조 업데이트
-    
     currentItemListRef.current = curItemListInCurSection;
-    
-    // currentItemListRef를 MapOverlayManager에 설정 
-    // TODO 이 부분을 리덕스 이벤트로 해야할지. 
-    MapOverlayManager.setCurrentItemListRef(currentItemListRef);
     
     if(!instMap.current) return;  // 최초 curItemListInCurSection초기화시 1회 이탈
 
     if (!curItemListInCurSection.length) {
-      // console.error('아이템 리스트가 비어 있습니다.');
+      console.error('아이템 리스트가 비어 있습니다.');
       return; 
     }
-    
-    
-    // TODO 오버레이 관리 매니저+ 줌아웃 관리 매니저 필요함. 
-    // 이전 오버레이 제거 (useRef.current 사용)
-    if (prevItemListforRelieveOverlays.current && prevItemListforRelieveOverlays.current.length > 0) {
-      prevItemListforRelieveOverlays.current.forEach(item => {
-        // 마커 제거
-        if (item.itemMarker) {
-          // 마커의 모든 이벤트 리스너 제거
-          window.google.maps.event.clearInstanceListeners(item.itemMarker);
-          item.itemMarker.setMap(null);
-          item.itemMarker = null;
-        }
-        
-        // 폴리곤 제거
-        if (item.itemPolygon) {
-          // 폴리곤의 모든 이벤트 리스너 제거
-          window.google.maps.event.clearInstanceListeners(item.itemPolygon);
-          item.itemPolygon.setMap(null);
-          item.itemPolygon = null;
-        }
-      });
-    }
-    
-    // 마커와 폴리곤이 제대로 생성되었는지 확인
-    let markerCount = 0;
-    let polygonCount = 0;
-    
-    // 새 오버레이 표시
-    curItemListInCurSection.forEach(item => {
-      // 마커 처리
-      if (item.itemMarker) {
-        markerCount++;
-        // 마커가 맵에 표시되었는지 확인
-        if (item.itemMarker.getMap() !== instMap.current) {
-          item.itemMarker.setMap(instMap.current);
-        }
-      }
-      
-      // 폴리곤 처리
-      if (item.itemPolygon) {
-        polygonCount++;
-        // 폴리곤이 맵에 표시되었는지 확인
-        if (item.itemPolygon.getMap() !== instMap.current) {
-          item.itemPolygon.setMap(instMap.current);
-        }
-      }
-    });
-    
+
     // mapUtils를 사용하여 이벤트 등록
     MapOverlayManager.registerAllItemsEvents(
       curItemListInCurSection,
       instMap.current,
-      MapOverlayManager.getInfoWindow(), // 내부 인포윈도우 사용
+      null, // 내부 인포윈도우 사용하고 있으므로 null 전달
       {
-        onItemSelect: setCurSelectedShop,
+        onItemSelect: (item) => {
+          setCurSelectedShop(item);
+          // Redux를 통해 인포윈도우 표시 요청 (필요한 경우)
+          dispatch(openSingletonInfoWindow({
+            shopId: item.serverDataset?.id || item.id,
+            sectionName: item.serverDataset?.sectionName || item.sectionName || curSectionName
+          }));
+        },
         isItemSelected: (item) => item === curSelectedShop,
         keepInfoWindowOpen: true // 선택된 아이템의 InfoWindow를 계속 표시하기 위한 옵션
       }
@@ -981,16 +903,7 @@ export default function Editor() { // 메인 페이지
     
     
     
-    // 폴리곤 가시성 업데이트 (폴리곤이 있는 경우에만)
-    if (polygonCount > 0) {
-      const currentZoom = instMap.current.getZoom();
-      const shouldShowPolygons = currentZoom >= 15;
-      curItemListInCurSection.forEach(item => {
-        if (item.itemPolygon) item.itemPolygon.setVisible(shouldShowPolygons);
-      });
-      
-      
-    }
+    
     
     // 좌측 사이드바 아이템 리스트 업데이트
     const itemListContainer = document.querySelector(`.${styles.itemList}`);
@@ -1110,9 +1023,6 @@ export default function Editor() { // 메인 페이지
       
       // Redux 스토어를 MapOverlayManager에 설정
       MapOverlayManager.setReduxStore(store);
-      
-      // 맵 준비 완료 상태를 Redux에 디스패치
-      dispatch(setMapReady(true));
     }
   }, [instMap.current, dispatch]);
 

@@ -507,7 +507,11 @@ export default function Editor() { // 메인 페이지
     window.google.maps.event.addListener(_drawingManager, 'markercomplete', (marker) => {
       // 마커 위치 가져오기
       const position = marker.getPosition();
-      const pinCoordinates = `${position.lat()},${position.lng()}`;
+      // 객체 형태로 좌표 저장
+      const pinCoordinates = {
+        lat: position.lat(),
+        lng: position.lng()
+      };
       
       // Redux 액션 디스패치 - 좌표 업데이트
       dispatch(updateCoordinates({ 
@@ -529,7 +533,10 @@ export default function Editor() { // 메인 페이지
       // 마커에 drag 이벤트 리스너 추가 - 위치 변경 시 좌표 업데이트
       window.google.maps.event.addListener(marker, 'dragend', () => {
         const newPosition = marker.getPosition();
-        const newCoordinates = `${newPosition.lat()},${newPosition.lng()}`;
+        const newCoordinates = {
+          lat: newPosition.lat(),
+          lng: newPosition.lng()
+        };
         
         // Redux 액션 디스패치 - 좌표 업데이트
         dispatch(updateCoordinates({
@@ -545,19 +552,19 @@ export default function Editor() { // 메인 페이지
       const path = polygon.getPath();
       const pathCoordinates = [];
       
-      // 폴리곤 경로의 모든 좌표 수집
+      // 폴리곤 경로의 모든 좌표를 객체 배열로 수집
       for (let i = 0; i < path.getLength(); i++) {
         const point = path.getAt(i);
-        pathCoordinates.push(`${point.lat()},${point.lng()}`);
+        pathCoordinates.push({
+          lat: point.lat(),
+          lng: point.lng()
+        });
       }
       
-      // 문자열로 변환 (경로 포맷 준수)
-      const pathString = pathCoordinates.join('|');
-      
-      // Redux 액션 디스패치 - 좌표 업데이트
+      // Redux 액션 디스패치 - 좌표 업데이트 (객체 배열 형태로 전달)
       dispatch(updateCoordinates({ 
         type: 'POLYGON', 
-        coordinates: pathString 
+        coordinates: pathCoordinates 
       }));
       
       // 기존 임시 폴리곤이 있으면 제거
@@ -598,18 +605,19 @@ export default function Editor() { // 메인 페이지
     const path = polygon.getPath();
     const pathCoordinates = [];
     
+    // 폴리곤 경로의 모든 좌표를 객체 배열로 수집
     for (let i = 0; i < path.getLength(); i++) {
       const point = path.getAt(i);
-      pathCoordinates.push(`${point.lat()},${point.lng()}`);
+      pathCoordinates.push({
+        lat: point.lat(),
+        lng: point.lng()
+      });
     }
     
-    // 경로를 문자열로 변환
-    const pathString = pathCoordinates.join('|');
-    
-    // Redux 액션 디스패치 - 경로 업데이트
+    // Redux 액션 디스패치 - 경로 업데이트 (객체 배열 형태로 전달)
     dispatch(updateCoordinates({
       type: 'POLYGON',
-      coordinates: pathString
+      coordinates: pathCoordinates
     }));
   };
 

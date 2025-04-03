@@ -126,7 +126,6 @@ const SectionsDBManager = {
       document.dispatchEvent(new CustomEvent('section-items-updated', {
         detail: { sectionName, items: clientItems }
       }));
-      console.log(`SectionsDBManager: ${sectionName} 데이터 업데이트 (${clientItems.length}개 항목)`);
     });
     
     this._currentSectionName = sectionName;
@@ -795,11 +794,9 @@ export default function Editor() { // 메인 페이지
           // 지도 중심 이동
           instMap.current.setCenter(position);
           instMap.current.setZoom(18);
-          console.log('[Editor] 지도 중심 이동', position);
 
           // 3. 인포윈도우 표시 - MapOverlayManager가 모든 것을 처리
           
-          console.log('[Editor] 인포윈도우 표시 curSelectedShop/openSingletonInfoWindow', );
           // sectionName과 shopId만으로 인포윈도우 표시
           dispatch(openSingletonInfoWindow({
             shopId: curSelectedShop.serverDataset?.id || curSelectedShop.id,

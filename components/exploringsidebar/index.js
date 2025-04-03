@@ -54,7 +54,38 @@ const ExploringSidebar = ({
   const handleImageClick = (e, photoReference, itemName) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('이미지 클릭:', { photoReference, itemName });
+    
+    // 이미지가 속한 상점 찾기
+    const shop = curItemListInCurSection.find(item => 
+      (item.serverDataset?.storeName === itemName) ||
+      (item.storeName === itemName)
+    );
+    
+    if (shop) {
+      // 상점 선택 - 기존 handleShopSelect 로직과 동일
+      setCurSelectedShop(shop);
+      
+      // 지도 이동
+      if (instMap) {
+        try {
+          let position = null;
+          if (shop.serverDataset?.pinCoordinates) {
+            position = parseCoordinates(shop.serverDataset.pinCoordinates);
+          } else if (shop.pinCoordinates) {
+            position = parseCoordinates(shop.pinCoordinates);
+          }
+
+          if (position) {
+            instMap.setCenter(position);
+            instMap.setZoom(18);
+          }
+        } catch (error) {
+          console.error('지도 이동 중 오류 발생:', error);
+        }
+      }
+    } else {
+      console.warn(`상점을 찾을 수 없습니다: ${itemName}`);
+    }
   };
 
   // 아이템이 선택되었는지 확인하는 함수
@@ -109,8 +140,9 @@ const ExploringSidebar = ({
                       <Image
                         src={getProxiedPhotoUrl(item.serverDataset.mainImage, 400)}
                         alt={`${item.serverDataset.storeName || ''} 메인 이미지`}
-                        width={120}
-                        height={120}
+                        fill
+                        sizes="120px"
+                        style={{ objectFit: 'cover' }}
                         unoptimized={true}
                         priority
                         onClick={(e) => handleImageClick(e, item.serverDataset.mainImage, item.serverDataset.storeName)}
@@ -130,8 +162,9 @@ const ExploringSidebar = ({
                             <Image
                               src={getProxiedPhotoUrl(subImage, 200)}
                               alt={`${item.serverDataset.storeName || ''} 서브 이미지 ${imgIndex + 1}`}
-                              width={80}
-                              height={80}
+                              fill
+                              sizes="80px"
+                              style={{ objectFit: 'cover' }}
                               unoptimized={true}
                               onClick={(e) => handleImageClick(e, subImage, item.serverDataset.storeName)}
                             />

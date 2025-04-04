@@ -113,8 +113,7 @@ const SectionsDBManager = {
       this._currentSectionName = null;
     }
     
-    
-    // 새 리스너 설정
+        // 새 리스너 설정 //AT index.js에서 
     this._currentListener = setupFirebaseListener(sectionName, (updatedItems, changes) => {
       // 서버 데이터를 클라이언트 형식으로 변환
       const clientItems = this._transformToClientFormat(updatedItems);
@@ -160,21 +159,7 @@ const SectionsDBManager = {
         serverDataset: { ...item }
       };
       
-      
-      try {
-        //AT 오버레이 생성위치. // 마커와 폴리곤 생성 - MapOverlayManager 사용 
-        //갱체에 저장하는 방식과, MapOverlayManager 내부에 저장하는 방식 두 가지를 같이 사용후, 한가지를 제거할 계획. 
-
-        // MapOverlayManager.createOverlaysFromItem 사용
-        const overlays = MapOverlayManager.createOverlaysFromItem(clientItem);
-        //TODO 마커 배정을 삭제 예정. -> OverlayManaer에서 담당
-        clientItem.itemMarker = overlays.marker;
-        clientItem.itemPolygon = overlays.polygon;
-      
-
-      } catch (error) {
-        // console.error('오버레이 생성 중 오류 발생:', error);
-      }
+      //AT 클라이언트에서 사용할 객체 속성의 생성 부분 
       
       return clientItem;
     });
@@ -399,52 +384,7 @@ export default function Editor() { // 메인 페이지
     _mapInstance.controls[window.google.maps.ControlPosition.TOP_LEFT].push(searchformRef.current);
   } // initSearchInput
   
-  //AT 마커와 폴리곤, 공통 이벤트 바인딩 InitMarker 
-  // 공유 인포윈도우 참조 (MapOverlayManager로 대체되어 제거)
   
-  // 클릭된 마커/폴리곤 상태 추가
-  const [clickedItem, setClickedItem] = useState(null);
-
-  // 클릭된 아이템의 마커에 애니메이션 효과 적용
-  useEffect(() => {
-    if (!clickedItem || !clickedItem.itemMarker) return;
-    
-    // 마커에 애니메이션 효과 적용
-    clickedItem.itemMarker.setAnimation(window.google.maps.Animation.BOUNCE);
-      
-    // 2초 후 애니메이션 중지
-    const timer = setTimeout(() => {
-      if (clickedItem.itemMarker) {
-          clickedItem.itemMarker.setAnimation(null);
-      }
-    }, 2000);
-    
-    return () => {
-      // 타이머 정리 및 애니메이션 중지
-      clearTimeout(timer);
-      if (clickedItem.itemMarker) {
-        clickedItem.itemMarker.setAnimation(null);
-      }
-    };
-  }, [clickedItem]);
-
-  // 지도 클릭 이벤트 처리를 위한 useEffect
-  useEffect(() => {
-    if (!instMap.current) return;
-    
-    const mapClickListener = window.google.maps.event.addListener(instMap.current, 'click', () => {
-      // 지도 빈 영역 클릭 시 클릭된 아이템 초기화
-      setClickedItem(null);
-      
-      // 인포윈도우 닫기 - Redux 액션 사용
-      dispatch(closeInfoWindow());
-    });
-    
-    return () => {
-      // 컴포넌트 언마운트 시 이벤트 리스너 제거
-      window.google.maps.event.removeListener(mapClickListener);
-    };
-  }, [instMap.current]);
 
   // FB와 연동 - 초기화 방식으로 수정
   const initShopList = async (_mapInstance) => { //AT initShoplist 
@@ -492,7 +432,7 @@ export default function Editor() { // 메인 페이지
       },
     }); // _drawingManager.setOptions
 
-    // 오버레이 생성시 공통 이벤트 핸들러
+    // DarwingManager 오버레이 생성시 공통 이벤트 핸들러
     window.google.maps.event.addListener(_drawingManager, 'overlaycomplete', (eventObj) => {
       // 1. 그리기 모드 초기화
       _drawingManager.setDrawingMode(null);
@@ -502,7 +442,7 @@ export default function Editor() { // 메인 페이지
       dispatch(endDrawingMode());
     });
 
-    // 마커 완료 이벤트 리스너 추가
+    // DarwingManager 마커 완료 이벤트 리스너 추가
     window.google.maps.event.addListener(_drawingManager, 'markercomplete', (marker) => {
       // 마커 위치 가져오기
       const position = marker.getPosition();
@@ -529,7 +469,7 @@ export default function Editor() { // 메인 페이지
         marker: marker
       }));
       
-      // 마커에 drag 이벤트 리스너 추가 - 위치 변경 시 좌표 업데이트
+      // DarwingManager 마커에 drag 이벤트 리스너 추가 - 위치 변경 시 좌표 업데이트
       window.google.maps.event.addListener(marker, 'dragend', () => {
         const newPosition = marker.getPosition();
         const newCoordinates = {
@@ -545,7 +485,7 @@ export default function Editor() { // 메인 페이지
       });
     });
 
-    // 폴리곤 완료 이벤트 리스너 추가
+    //DarwingManager 폴리곤 완료 이벤트 리스너 추가
     window.google.maps.event.addListener(_drawingManager, 'polygoncomplete', (polygon) => {
       // 폴리곤 경로 가져오기
       const path = polygon.getPath();

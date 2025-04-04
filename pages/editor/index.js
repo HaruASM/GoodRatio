@@ -43,7 +43,13 @@ import {
 import { wrapper } from '../../lib/store';
 
 // Redux 관련 임포트 추가
-import { openSingletonInfoWindow, closeInfoWindow, curSectionChanged } from '../../lib/store/slices/mapEventSlice';
+import { 
+  openSingletonInfoWindow, 
+  closeInfoWindow, 
+  curSectionChanged,
+  selectSelectedItemId,
+  selectSelectedSectionName
+} from '../../lib/store/slices/mapEventSlice';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
 
@@ -140,6 +146,36 @@ const SectionsDBManager = {
   },
   
   /**
+   * ID와 섹션 이름으로 특정 아이템 찾기
+   * @param {string} sectionName - 섹션 이름
+   * @param {string} id - 아이템 ID
+   * @returns {Object|null} - 찾은 아이템 또는 null
+   */
+  getItemByIDandSectionName: function(id, sectionName) {
+    // 캐시에서 해당 섹션의 아이템 목록 가져오기
+    const items = this._cache.get(sectionName);
+    
+    // 아이템 목록이 없으면 null 반환
+    if (!items || items.length === 0) {
+      console.log(`[SectionsDBManager] ${sectionName} 섹션에 아이템이 없습니다`);
+      return null;
+    }
+    
+    // ID로 아이템 찾기
+    const item = items.find(item => {
+      // serverDataset.id 또는 id 속성 확인
+      const itemId = item.serverDataset?.id || item.id;
+      return itemId === id;
+    });
+    
+    if (!item) {
+      console.log(`[SectionsDBManager] ${sectionName} 섹션에서 ID가 ${id}인 아이템을 찾을 수 없습니다`);
+    }
+    
+    return item || null;
+  },
+  
+  /**
    * 서버 형식에서 클라이언트 형식으로 데이터 변환
    * @param {Array} serverItems - 서버 형식 아이템 리스트 (protoServerDataset 형태)
    * @returns {Array} - 변환된 아이템 리스트 (protoShopDataSet 형태)
@@ -217,12 +253,10 @@ export default function Editor() { // 메인 페이지
   const [curItemListInCurSection, setCurItemListInCurSection] = useState([]);
   // 이전 아이템 리스트를 useRef로 변경
   const prevItemListforRelieveOverlays = useRef([]);
-  // 현재 아이템 리스트의 참조를 저장하는 ref - 이벤트 핸들러에서 최신 상태 접근용
+  // 내부 처리용 참조 - MapOverlayManager로 관리권한 이전
   const currentItemListRef = useRef([]);
-  // presentMakers 배열은 사용되지 않으므로 제거
-  // const presentMakers = []; // 20개만 보여줘도 됨 // localItemlist에 대한 마커 객체 저장
-
-
+  // window에 저장하지 않고 내부적으로만 사용
+  
   // curSectionName을 상태로 관리 - 초기값을 null로 설정
   const [curSectionName, setCurSectionName] = useState(null);
   
@@ -254,7 +288,10 @@ export default function Editor() { // 메인 페이지
   // 입력 필드 참조 객체
   const inputRefs = useRef({});
 
-
+  // mapEventSlice 상태 선택자 추가
+  const selectedItemId = useSelector(selectSelectedItemId);
+  const selectedSectionName = useSelector(selectSelectedSectionName);
+  
   // 드로잉 매니저 상태 감시 및 제어를 위한 useEffect
   useEffect(() => {
     // 드로잉 매니저가 초기화되지 않았거나 맵이 없으면 무시
@@ -801,7 +838,7 @@ export default function Editor() { // 메인 페이지
 
   useEffect(() => { // AT [curItemListInCurSection] 지역변경으로 리스트 변경될 때 UI 업데이트
     //TODO 실시간 서버로부터 업데이트 받았을시, 변경된 일부의 샵데이터만 업데이트 해야할지 미정이다. 
-    // 현재 아이템 리스트 참조 업데이트
+    // 현재 아이템 리스트 참조 업데이트 (내부용)
     currentItemListRef.current = curItemListInCurSection;
     
     if(!instMap.current) return;  // 최초 curItemListInCurSection초기화시 1회 이탈
@@ -811,27 +848,6 @@ export default function Editor() { // 메인 페이지
       return; 
     }
 
-    // mapUtils를 사용하여 이벤트 등록
-    MapOverlayManager.registerOverlaysByItemlist(
-      curSectionName,
-      curItemListInCurSection,
-      {
-        onItemSelect: (item) => {
-          setCurSelectedShop(item);
-          // Redux를 통해 인포윈도우 표시 요청 (필요한 경우)
-          dispatch(openSingletonInfoWindow({
-            shopId: item.serverDataset?.id || item.id,
-            sectionName: item.serverDataset?.sectionName || item.sectionName || curSectionName
-          }));
-        },
-        isItemSelected: (item) => item === curSelectedShop
-      }
-    );
-    
-    
-    
-    
-    
     // 좌측 사이드바 아이템 리스트 업데이트
     const itemListContainer = document.querySelector(`.${styles.itemList}`);
     if (!itemListContainer) {
@@ -898,7 +914,7 @@ export default function Editor() { // 메인 페이지
               instMap.current.setZoom(18);
             }
           } catch (error) {
-            // console.error('지도 이동 중 오류 발생:', error);
+            console.error('지도 이동 중 오류 발생:', error);
           }
         }
       });
@@ -942,7 +958,50 @@ export default function Editor() { // 메인 페이지
     };
   }, [tempOverlays]);
 
+  // 컴포넌트 마운트 시 전역 참조 설정
+  useEffect(() => {
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      // 전역 참조 제거 (더 이상 사용하지 않음)
+      if (window.currentItemListRef) {
+        delete window.currentItemListRef;
+      }
+    };
+  }, []);
 
+  // 마커/폴리곤 클릭으로 상점 선택 처리
+  useEffect(() => {
+    // selectedItemId 또는 selectedSectionName이 없으면 처리하지 않음
+    if (!selectedItemId || !selectedSectionName) {
+      return;
+    }
+    
+    console.log(`[Editor] 상점 선택 이벤트: ${selectedSectionName} 섹션의 ID ${selectedItemId}`);
+    
+    // SectionsDBManager에서 아이템 찾기
+    const item = SectionsDBManager.getItemByIDandSectionName(selectedItemId, selectedSectionName);
+    
+    if (item) {
+      // 현재 선택된 상점 업데이트
+      setCurSelectedShop(item);
+      
+      // 선택된 상점이 있는 위치로 지도 이동 (옵션)
+      if (instMap.current && item.serverDataset?.pinCoordinates) {
+        try {
+          const position = MapOverlayManager.parseCoordinates(item.serverDataset.pinCoordinates);
+          if (position) {
+            instMap.current.setCenter(position);
+            // 선택적으로 줌 레벨 조정
+            // instMap.current.setZoom(18);
+          }
+        } catch (error) {
+          console.error('지도 이동 중 오류 발생:', error);
+        }
+      }
+    } else {
+      console.error(`[Editor] ${selectedSectionName} 섹션에서 ID가 ${selectedItemId}인 상점을 찾을 수 없습니다`);
+    }
+  }, [selectedItemId, selectedSectionName]);
 
   return (
     <div className={styles.editorContainer}>

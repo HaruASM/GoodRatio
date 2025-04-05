@@ -654,7 +654,8 @@ export default function Editor() { // 메인 페이지
       fullscreenControl: true, // 전체화면 버튼 활성화
       fullscreenControlOptions: {
         position: window.google.maps.ControlPosition.LEFT_BOTTOM // 전체화면 버튼 위치를 왼쪽 하단으로 설정
-      }
+      },
+      mapId: "2ab3209702dae9cb"//process.env.NEXT_PUBLIC_MAP_ID 
     });
     //-- g맵 인스턴스 생성 끝끝
 
@@ -1065,7 +1066,7 @@ export default function Editor() { // 메인 페이지
       
       {/* 구글 맵 스크립트 */}
       <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing`}
+        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing,marker`}
         strategy="afterInteractive"
       />
     </div>

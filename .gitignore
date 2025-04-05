@@ -48,6 +48,7 @@ next-env.d.ts
 .cursor
 
 # memo
+/memo
 memo.txt
 memo.md
 code_summary.md

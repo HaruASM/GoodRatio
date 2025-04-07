@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../../pages/editor/styles.module.css';
-import { protoServerDataset } from '../../lib/models/editorModels';
+import { protoServerDataset, protoShopDataSet, titlesofDataFoam } from '../../lib/models/editorModels';
 import { parseGooglePlaceData, fetchPlaceDetailById } from '../../lib/utils/googlePlaceUtils';
 import store from '../../lib/store'; // 스토어 가져오기
 import {
@@ -49,7 +49,6 @@ import {
   selectIsImageOrderEditorOpen
 } from '../../lib/store/slices/imageManagerSlice';
 import { getValidImageRefs } from '../../lib/utils/imageHelpers';
-import { titlesofDataFoam } from '../../lib/models/editorModels';
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 
 // 확인 모달 컴포넌트
@@ -725,7 +724,19 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     // 모달은 자동으로 닫힘
   };
 
-  
+  // 신규 아이템 추가 핸들러
+  const handleAddNewItem = (e) => {
+    if (e) e.preventDefault();
+    
+    // 1. 기존 데이터가 없는 빈 상태에서 편집 시작
+    dispatch(startEdit({ shopData: protoServerDataset }));
+    
+    // 2. 편집 시작 후 약간의 시간 간격을 두고 구글탐색 기능도 함께 실행
+    setTimeout(() => {
+      // 구글 탐색 기능 호출
+      googlePlaceSearchBarButtonHandler();
+    }, 300); // 약간의 지연 시간을 둠
+  };
 
   return (
     <div className={styles.rightSidebar}>
@@ -758,14 +769,25 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
             <span className={styles.errorStatusText}>오류: {error}</span>
           )}
         </div>
-        <button 
-          className={styles.addShopButton} 
-          onClick={googlePlaceSearchBarButtonHandler}
-          title="구글 장소 검색"
-          disabled={isEditorOn || isConfirming || status === 'loading'}
-        >
-          &lt;구글탐색
-        </button>
+        <div className={styles.topButtonsContainer}>
+          <button 
+            className={styles.addShopButton} 
+            onClick={googlePlaceSearchBarButtonHandler}
+            title="구글 장소 검색"
+            disabled={isEditorOn || isConfirming || status === 'loading'}
+          >
+            &lt;구글탐색
+          </button>
+          <button 
+            id="addNewItem"
+            className={styles.addShopButton} 
+            onClick={handleAddNewItem}
+            title="신규 아이템 추가"
+            disabled={isEditorOn || isConfirming || status === 'loading'}
+          >
+            + 
+          </button>
+        </div>
       </div>
 
       {/* 상점 정보 카드 */}

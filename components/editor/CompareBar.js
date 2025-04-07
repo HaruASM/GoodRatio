@@ -29,7 +29,7 @@ import {
 } from '../../lib/store/slices/imageManagerSlice';
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { getValidImageRefs } from '../../lib/utils/imageHelpers';
-import { titlesofDataFoam } from '../../lib/models/editorModels';
+import { titlesofDataFoam, protoServerDataset } from '../../lib/models/editorModels';
 
 /**
  * 값이 비어있는지 확인하는 공통 함수
@@ -39,9 +39,34 @@ const isValueEmpty = (value, fieldName) => {
   if (value === null || value === undefined) return true;
   if (value === '') return true;
   if (Array.isArray(value) && (value.length === 0 || (value.length === 1 && value[0] === ''))) return true;
-  if (fieldName === 'path' || fieldName === 'pinCoordinates') {
-    return !value || value === '';
+  
+  // 특정 필드에 대한 추가 로직
+  if (fieldName === 'pinCoordinates') {
+    // 값이 없거나 빈 문자열이면 빈 값으로 간주
+    if (!value || value === '') return true;
+    
+    // 값이 객체이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
+    if (typeof value === 'object' && value !== null) {
+      return (value.lat === 0 && value.lng === 0) || 
+             (value.lat === protoServerDataset.pinCoordinates.lat && 
+              value.lng === protoServerDataset.pinCoordinates.lng);
+    }
   }
+  
+  if (fieldName === 'path') {
+    // 값이 없거나 빈 문자열이면 빈 값으로 간주
+    if (!value || value === '') return true;
+    
+    // 값이 배열이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
+    if (Array.isArray(value)) {
+      if (value.length === 0) return true;
+      if (value.length === 1) {
+        const defaultPath = protoServerDataset.path[0];
+        return value[0].lat === defaultPath.lat && value[0].lng === defaultPath.lng;
+      }
+    }
+  }
+  
   return false;
 };
 
@@ -201,32 +226,67 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
           const value = compareData[item.field];
           const isEmpty = isValueEmpty(value, item.field);
           
-          return (
-            <div key={item.field} className={styles.rightSidebarFormRow}>
-              <span>{item.title}</span>
-              <div className={styles.rightSidebarInputContainer}>
-                <input
-                  type="text"
-                  name={item.field}
-                  value={value || ""}
-                  readOnly={true}
-                  className={getInputClassName(item.field)}
-                />
-                
-                {/* 삽입 모드이고 값이 있는 경우에만 삽입 버튼 표시 */}
-                {isInserting && !isEmpty && (
-                  <button
-                    type="button"
-                    className={styles.insertFieldButton}
-                    onClick={() => handleInsertField(item.field, value)}
-                    title={`${item.title} 필드 삽입`}
-                  >
-                    <strong>&gt;&gt;</strong>
-                  </button>
-                )}
+          // 특별한 필드 처리 (핀 좌표, 다각형 경로)
+          if (item.field === 'pinCoordinates' || item.field === 'path') {
+            // isEmpty가 이미 isValueEmpty 함수에서 판단됨
+            // protoServerDataset의 기본값과 같으면 isEmpty=true
+            const displayValue = isEmpty ? "" : "좌표있음";
+            
+            return (
+              <div key={item.field} className={styles.rightSidebarFormRow}>
+                <span>{item.title}</span>
+                <div className={styles.rightSidebarInputContainer}>
+                  <input
+                    type="text"
+                    name={item.field}
+                    value={displayValue}
+                    readOnly={true}
+                    className={!isEmpty ? styles.filledInput : styles.emptyInput}
+                  />
+                  
+                  {/* 삽입 모드이고 값이 있는 경우에만 삽입 버튼 표시 */}
+                  {isInserting && !isEmpty && (
+                    <button
+                      type="button"
+                      className={styles.insertFieldButton}
+                      onClick={() => handleInsertField(item.field, value)}
+                      title={`${item.title} 필드 삽입`}
+                    >
+                      <strong>&gt;&gt;</strong>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
+            );
+          } else {
+            // 일반 필드 처리 (기존 코드)
+            return (
+              <div key={item.field} className={styles.rightSidebarFormRow}>
+                <span>{item.title}</span>
+                <div className={styles.rightSidebarInputContainer}>
+                  <input
+                    type="text"
+                    name={item.field}
+                    value={value || ""}
+                    readOnly={true}
+                    className={getInputClassName(item.field)}
+                  />
+                  
+                  {/* 삽입 모드이고 값이 있는 경우에만 삽입 버튼 표시 */}
+                  {isInserting && !isEmpty && (
+                    <button
+                      type="button"
+                      className={styles.insertFieldButton}
+                      onClick={() => handleInsertField(item.field, value)}
+                      title={`${item.title} 필드 삽입`}
+                    >
+                      <strong>&gt;&gt;</strong>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          }
         })}
         
         {/* 이미지 미리보기 섹션 */}

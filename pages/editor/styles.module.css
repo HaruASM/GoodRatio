@@ -646,7 +646,7 @@
 .addShopButton {
   font-size: 13px;
   padding: 6px 12px;
-  margin: 5px;
+  margin-left: 3px;
   height: auto;
   min-height: 30px;
   border-radius: 4px;
@@ -741,16 +741,23 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
-  border-bottom: 1px solid #eee;
+  padding: 3px 0;
+  border-bottom: 1px solid #ddd;
+  background-color: #fff;
+  margin-bottom: 3 px;
+}
+
+.topButtonsContainer {
+  display: flex;
+  
 }
 
 .sidebarTitle {
   font-size: 18px;
   font-weight: bold;
-  color: #333;
   margin: 0;
-  padding: 10px 0;
+  padding: 0;
+  color: #333;
 }
 
 /* 기존 hidden 클래스가 없다면 추가 */

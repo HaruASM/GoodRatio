@@ -85,8 +85,30 @@ const isValueEmpty = (value, fieldName) => {
   if (Array.isArray(value) && (value.length === 0 || (value.length === 1 && value[0] === ''))) return true;
   
   // 특정 필드에 대한 추가 로직
-  if (fieldName === 'path' || fieldName === 'pinCoordinates') {
-    return !value || value === '';
+  if (fieldName === 'pinCoordinates') {
+    // 값이 없거나 빈 문자열이면 빈 값으로 간주
+    if (!value || value === '') return true;
+    
+    // 값이 객체이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
+    if (typeof value === 'object' && value !== null) {
+      return (value.lat === 0 && value.lng === 0) || 
+             (value.lat === protoServerDataset.pinCoordinates.lat && 
+              value.lng === protoServerDataset.pinCoordinates.lng);
+    }
+  }
+  
+  if (fieldName === 'path') {
+    // 값이 없거나 빈 문자열이면 빈 값으로 간주
+    if (!value || value === '') return true;
+    
+    // 값이 배열이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
+    if (Array.isArray(value)) {
+      if (value.length === 0) return true;
+      if (value.length === 1) {
+        const defaultPath = protoServerDataset.path[0];
+        return value[0].lat === defaultPath.lat && value[0].lng === defaultPath.lng;
+      }
+    }
   }
   
   return false;
@@ -854,66 +876,66 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
-                name="pinCoordinates"
-                value={formData.pinCoordinates || ""}
-                onChange={handleInputChange}
-                readOnly={true}
-                className={getInputClassName("pinCoordinates")}
-                ref={el => inputRefs.current.pinCoordinates = el}
+                      <input
+                        type="text"
+                        name="pinCoordinates"
+                        value={isValueEmpty(formData.pinCoordinates, "pinCoordinates") ? "" : "등록됨"}
+                        onChange={handleInputChange}
+                        readOnly={true}
+                        className={getInputClassName("pinCoordinates")}
+                        ref={el => inputRefs.current.pinCoordinates = el}
                         autoComplete="off"
-              />
-              {isEditorOn && (
-                <button
-                  type="button"
-                  className={styles.inputOverlayButton}
-                  onClick={handlePinCoordinatesButtonClick}
-                  style={{ display: 'block' }}
-                  title="핀 좌표 수정"
-                >
-                  📍
-                </button>
-              )}
-            </div>
-          </div>
+                      />
+                      {isEditorOn && (
+                        <button
+                          type="button"
+                          className={styles.inputOverlayButton}
+                          onClick={handlePinCoordinatesButtonClick}
+                          style={{ display: 'block' }}
+                          title="핀 좌표 수정"
+                        >
+                          📍
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               } else if (item.field === 'path') {
                 return (
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
-                name="path"
-                value={formData.path || ""}
-                onChange={handleInputChange}
-                readOnly={true}
-                className={getInputClassName("path")}
-                ref={el => inputRefs.current.path = el}
+                      <input
+                        type="text"
+                        name="path"
+                        value={isValueEmpty(formData.path, "path") ? "" : "등록됨"}
+                        onChange={handleInputChange}
+                        readOnly={true}
+                        className={getInputClassName("path")}
+                        ref={el => inputRefs.current.path = el}
                         autoComplete="off"
-              />
-              {isEditorOn && (
-                <button
-                  type="button"
-                  className={styles.inputOverlayButton}
-                  onClick={handlePathButtonClick}
-                  style={{ display: 'block' }}
-                  title="경로 수정"
-                >
-                  🗺️
-                </button>
-              )}
-            </div>
-          </div>
+                      />
+                      {isEditorOn && (
+                        <button
+                          type="button"
+                          className={styles.inputOverlayButton}
+                          onClick={handlePathButtonClick}
+                          style={{ display: 'block' }}
+                          title="경로 수정"
+                        >
+                          🗺️
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               } else if (item.field === 'googleDataId') {
                 return (
                   <div key={item.field} className={styles.rightSidebarFormRow}>
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
-              <input
-                type="text"
+                      <input
+                        type="text"
                         name="googleDataId"
                         value={activeField === 'googleDataId' ? localInputState.googleDataId || "" : formData.googleDataId || ""}
                         onChange={activeField === 'googleDataId' ? handleLocalInputChange : handleInputChange}
@@ -925,20 +947,20 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                         className={getInputClassName('googleDataId')}
                         ref={el => inputRefs.current.googleDataId = el}
                         autoComplete="off"
-              />
+                      />
                       {isEditorOn && (
-                <button
-                  type="button"
-                  className={styles.inputOverlayButton}
+                        <button
+                          type="button"
+                          className={styles.inputOverlayButton}
                           onClick={googlePlaceDetailLoadingHandler}
-                  style={{ display: 'block' }}
+                          style={{ display: 'block' }}
                           title="구글ID디테일 로딩"
-                >
+                        >
                           🔍
-                </button>
-              )}
-            </div>
-          </div>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               } else {
                 // 일반 필드 렌더링
@@ -947,39 +969,39 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
                     <span>{item.title}</span>
                     <div className={styles.rightSidebarInputContainer}>
                       {renderInput(item.field, isFieldReadOnly(item.field))}
-            </div>
-          </div>
+                    </div>
+                  </div>
                 );
               }
             })}
 
-          {/* 이미지 미리보기 영역 */}
-          <div className={styles.imageSectionPreviewContainer}>
-            <ImageSectionManager 
-              ref={imageSectionManagerRef}
-              mainImage={formData.mainImage} 
-              subImages={formData.subImages}
-              onImagesSelected={handleImagesSelected}
-              onCancelSelection={handleCancelImageSelection}
-              isSelectionMode={isImageSelectionMode}
-              source="rightSidebar"
-            />
-            {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
-            {isEditorOn && (
-              (formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '') || 
-              (Array.isArray(formData.subImages) && formData.subImages.length > 0 && 
-                formData.subImages.some(img => img && typeof img === 'string' && img.trim() !== ''))
-            ) && (
-              <button 
-                type="button"
-                className={styles.imageSectionOverlayContainer}
-                onClick={handleEditImagesOfGallery}
-              >
-                <span className={styles.imageSectionOverlayText}>이미지 편집</span>
-              </button>
-            )}
-          </div>
-        </form>
+            {/* 이미지 미리보기 영역 */}
+            <div className={styles.imageSectionPreviewContainer}>
+              <ImageSectionManager 
+                ref={imageSectionManagerRef}
+                mainImage={formData.mainImage} 
+                subImages={formData.subImages}
+                onImagesSelected={handleImagesSelected}
+                onCancelSelection={handleCancelImageSelection}
+                isSelectionMode={isImageSelectionMode}
+                source="rightSidebar"
+              />
+              {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
+              {isEditorOn && (
+                (formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '') || 
+                (Array.isArray(formData.subImages) && formData.subImages.length > 0 && 
+                  formData.subImages.some(img => img && typeof img === 'string' && img.trim() !== ''))
+              ) && (
+                <button 
+                  type="button"
+                  className={styles.imageSectionOverlayContainer}
+                  onClick={handleEditImagesOfGallery}
+                >
+                  <span className={styles.imageSectionOverlayText}>이미지 편집</span>
+                </button>
+              )}
+            </div>
+          </form>
         )}
       </div>
       

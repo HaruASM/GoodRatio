@@ -57,8 +57,8 @@ const ExploringSidebar = ({
     
     // 이미지가 속한 상점 찾기
     const shop = curItemListInCurSection.find(item => 
-      (item.serverDataset?.storeName === itemName) ||
-      (item.storeName === itemName)
+      (item.serverDataset?.itemName === itemName) ||
+      (item.itemName === itemName)
     );
     
     if (shop) {
@@ -93,12 +93,12 @@ const ExploringSidebar = ({
     if (!curSelectedShop) return false;
     
     const selectedName = curSelectedShop.serverDataset ? 
-      curSelectedShop.serverDataset.storeName : 
-      curSelectedShop.storeName;
+      curSelectedShop.serverDataset.itemName : 
+      curSelectedShop.itemName;
       
     const itemName = item.serverDataset ? 
-      item.serverDataset.storeName : 
-      item.storeName;
+      item.serverDataset.itemName : 
+      item.itemName;
       
     return selectedName === itemName;
   };
@@ -120,13 +120,13 @@ const ExploringSidebar = ({
         {curItemListInCurSection.length > 0 ? (
           curItemListInCurSection.map((item, index) => (
             <li 
-              key={`shop-${index}-${item.serverDataset.storeName}`} 
+              key={`shop-${index}-${item.serverDataset.itemName}`} 
               className={isItemSelected(item) ? styles.selectedItem : styles.item}
             >
               <a href="#" onClick={(e) => handleShopSelect(item, e)}>
                 <div className={styles.itemDetails}>
                   <span className={styles.itemTitle}>
-                    {item.serverDataset.storeName || ''} 
+                    {item.serverDataset.itemName || ''} 
                     <small>{item.serverDataset.alias || ''}</small>
                   </span>
                   <p className={styles.itemComment}>
@@ -139,13 +139,13 @@ const ExploringSidebar = ({
                     <div className={styles.mainImage}>
                       <Image
                         src={getProxiedPhotoUrl(item.serverDataset.mainImage, 400)}
-                        alt={`${item.serverDataset.storeName || ''} 메인 이미지`}
+                        alt={`${item.serverDataset.itemName || ''} 메인 이미지`}
                         fill
                         sizes="120px"
                         style={{ objectFit: 'cover' }}
                         unoptimized={true}
                         priority
-                        onClick={(e) => handleImageClick(e, item.serverDataset.mainImage, item.serverDataset.storeName)}
+                        onClick={(e) => handleImageClick(e, item.serverDataset.mainImage, item.serverDataset.itemName)}
                       />
                     </div>
                   ) : (
@@ -161,12 +161,12 @@ const ExploringSidebar = ({
                           {subImage && subImage.trim() !== '' ? (
                             <Image
                               src={getProxiedPhotoUrl(subImage, 200)}
-                              alt={`${item.serverDataset.storeName || ''} 서브 이미지 ${imgIndex + 1}`}
+                              alt={`${item.serverDataset.itemName || ''} 서브 이미지 ${imgIndex + 1}`}
                               fill
                               sizes="80px"
                               style={{ objectFit: 'cover' }}
                               unoptimized={true}
-                              onClick={(e) => handleImageClick(e, subImage, item.serverDataset.storeName)}
+                              onClick={(e) => handleImageClick(e, subImage, item.serverDataset.itemName)}
                             />
                           ) : (
                             <div className={styles.emptyImagePlaceholder} style={{ width: 80, height: 80 }}></div>

@@ -149,7 +149,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       // 데이터 검증
-      if (!shopData.storeName) {
+      if (!shopData.itemName) {
         return res.status(400).json({ 
           success: false, 
           message: '상점 이름은 필수 항목입니다' 

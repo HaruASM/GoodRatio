@@ -739,10 +739,10 @@ export default function Editor() { // 메인 페이지
       item.className = styles.item;
     });
     
-    // 선택된 아이템 찾기 (storeName으로 비교)
+    // 선택된 아이템 찾기 (itemName으로 비교)
     const itemName = curSelectedShop.serverDataset ? 
-      curSelectedShop.serverDataset.storeName : 
-      curSelectedShop.storeName;
+      curSelectedShop.serverDataset.itemName : 
+      curSelectedShop.itemName;
       
     const selectedItemElement = Array.from(itemElements).find(item => {
       const titleElement = item.querySelector(`.${styles.itemTitle}`);
@@ -875,7 +875,7 @@ export default function Editor() { // 메인 페이지
       itemTitle.className = styles.itemTitle;
       
       // 모든 아이템은 serverDataset을 가지고 있음
-      itemTitle.innerHTML = `${item.serverDataset.storeName || '이름 없음'} <small>${item.serverDataset.storeStyle || ''}</small>`;
+      itemTitle.innerHTML = `${item.serverDataset.itemName || '이름 없음'} <small>${item.serverDataset.storeStyle || ''}</small>`;
 
       const businessHours = document.createElement('p');
       if (item.serverDataset.businessHours && item.serverDataset.businessHours.length > 0) {
@@ -890,7 +890,7 @@ export default function Editor() { // 메인 페이지
       const itemImage = document.createElement('img');
       itemImage.src = "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
       
-      itemImage.alt = `${item.serverDataset.storeName || ''} ${item.serverDataset.storeStyle || ''}`;
+      itemImage.alt = `${item.serverDataset.itemName || ''} ${item.serverDataset.storeStyle || ''}`;
       
       itemImage.className = styles.itemImage;
       itemImage.width = 100;

@@ -53,14 +53,14 @@ import { titlesofDataFoam } from '../../lib/models/editorModels';
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 
 // 확인 모달 컴포넌트
-const ConfirmModal = ({ isOpen, storeName, onConfirm, onCancel }) => {
+const ConfirmModal = ({ isOpen, itemName, onConfirm, onCancel }) => {
   if (!isOpen) return null;
   
   return (
     <div className={styles.confirmModalOverlay}>
       <div className={styles.confirmModal}>
         <h3>업데이트 확인</h3>
-        <p><strong>&apos;{storeName || '신규 상점'}&apos;</strong>에 대한 서버업데이트를 진행</p>
+        <p><strong>&apos;{itemName || '신규 상점'}&apos;</strong>에 대한 서버업데이트를 진행</p>
         <div className={styles.confirmModalButtons}>
           <button className={styles.cancelButton} onClick={onCancel}>
             취소
@@ -126,6 +126,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const [localInputState, setLocalInputState] = useState({});
   const [activeField, setActiveField] = useState(null);
   const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
+  const [showCategoryOptions, setShowCategoryOptions] = useState(false); // 카테고리 옵션 표시 상태
   
   // 참조 객체 - 모든 useRef 호출을 여기로 이동
   const inputRefs = useRef({});
@@ -348,6 +349,11 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
 
   // 일반 필드용 입력 컴포넌트 - 단순화
   const renderInput = (fieldName, readOnly) => {
+    // category 필드는 특별 처리
+    if (fieldName === 'category') {
+      return renderCategoryField(readOnly);
+    }
+    
     const isActive = fieldName === activeField;
     const value = isActive ? (localInputState[fieldName] ?? "") : (formData[fieldName] ?? "");
     
@@ -401,6 +407,63 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           </button>
         )}
       </>
+    );
+  };
+
+  // Category 필드 렌더링 함수
+  const renderCategoryField = (readOnly) => {
+    const categoryOptions = ['shops', 'landmarks', 'hotspots'];
+    const value = formData.category || '';
+    
+    // 카테고리 옵션 선택 핸들러
+    const handleSelectCategory = (selectedCategory) => {
+      dispatch(updateField({ field: 'category', value: selectedCategory }));
+      dispatch(trackField({ field: 'category' }));
+      setShowCategoryOptions(false);
+    };
+    
+    // 카테고리 편집 버튼 클릭 핸들러
+    const handleCategoryEditClick = (e) => {
+      e.preventDefault();
+      setShowCategoryOptions(!showCategoryOptions);
+    };
+    
+    return (
+      <div className={styles.categoryFieldContainer}>
+        <input
+          type="text"
+          name="category"
+          value={value}
+          readOnly={true}
+          className={getInputClassName('category')}
+          ref={el => inputRefs.current.category = el}
+          autoComplete="off"
+        />
+        {isEditorOn && (
+          <button
+            type="button"
+            className={styles.inputOverlayButton}
+            onClick={handleCategoryEditClick}
+            style={{ display: 'block' }}
+            title="카테고리 선택"
+          >
+            {value ? '✏️' : '📋'}
+          </button>
+        )}
+        {showCategoryOptions && isEditorOn && (
+          <div className={styles.categoryOptionsContainer}>
+            {categoryOptions.map(option => (
+              <div 
+                key={option} 
+                className={styles.categoryOption}
+                onClick={() => handleSelectCategory(option)}
+              >
+                {option}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -711,7 +774,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
           <h3>
             {isIdle 
               ? "상점 Data" 
-              : (formData.storeName || (!isEditorOn ? "상점 Data" : "신규상점 추가"))}
+              : (formData.itemName || (!isEditorOn ? "상점 Data" : "신규상점 추가"))}
           </h3>
           
           {/* 수정/완료 버튼 - 상태에 따라 다르게 표시 */}
@@ -901,7 +964,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       {/* 확인 모달 추가 */}
       <ConfirmModal
         isOpen={isConfirmModalOpen}
-        storeName={formData.storeName}
+        itemName={formData.itemName}
         onConfirm={handleFinalConfirm}
         onCancel={handleCancelConfirmModal}
       />

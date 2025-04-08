@@ -44,8 +44,6 @@ import { wrapper } from '../../lib/store';
 
 // Redux 관련 임포트 추가
 import { 
-  openSingletonInfoWindow, 
-  closeInfoWindow, 
   curSectionChanged,
   selectSelectedItemId,
   selectSelectedSectionName
@@ -106,7 +104,7 @@ const SectionsDBManager = {
    * @param {string} sectionName - 실시간 업데이트를 구독할 섹션 이름
    * @private
    */
-  _setupRealtimeListener: function(sectionName) {
+  _setupRealtimeListener: function(sectionName) { //파이어베이스 onSnapshot 이벤트 리스닝을요청하는 곳
     // 이미 같은 섹션에 리스너가 있으면 재사용
     if (this._currentSectionName === sectionName && this._currentListener) {
       return;
@@ -119,7 +117,7 @@ const SectionsDBManager = {
       this._currentSectionName = null;
     }
     
-        // 새 리스너 설정 //AT index.js에서 
+        // 새 리스너 설정 
     this._currentListener = setupFirebaseListener(sectionName, (updatedItems, changes) => {
       // 서버 데이터를 클라이언트 형식으로 변환
       const clientItems = this._transformToClientFormat(updatedItems);
@@ -190,14 +188,14 @@ const SectionsDBManager = {
 
 
     return serverItems.map(item => {
-      const clientItem = {
+      const clientItems = {
         ...protoShopDataSet,
         serverDataset: { ...item }
       };
       
       //AT 클라이언트에서 사용할 객체 속성의 생성 부분 
       
-      return clientItem;
+      return clientItems;
     });
   },
   
@@ -300,9 +298,6 @@ export default function Editor() { // 메인 페이지
     // 드로잉 모드가 활성화되었을 때
     if (isDrawing && drawingType) {
       // 인포윈도우가 열려있으면 닫기
-
-
-      dispatch(closeInfoWindow());
       
       // 드로잉 모드 타입에 따라 설정
       if (drawingType === 'MARKER') {
@@ -347,14 +342,10 @@ export default function Editor() { // 메인 페이지
   }, [tempOverlays]);
 
   // 마커와 폴리곤 옵션 초기화 함수
-  const initMarker = ( _mapInstance  ) => { 
+  const initMarker = (_mapInstance) => { 
      // MapOverlayManager 초기화
-     if (!MapOverlayManager.initialize(_mapInstance)) {
-      console.error('MapOverlayManager 초기화 실패');
-      return;
-     }
-     // Redux 스토어 설정
-     MapOverlayManager.setReduxStore(store);
+     MapOverlayManager.initialize(_mapInstance);
+     console.log('[DEBUG] MapOverlayManager 초기화 성공');
   }
   
   // 검색창 초기화 함수
@@ -426,11 +417,20 @@ export default function Editor() { // 메인 페이지
   // FB와 연동 - 초기화 방식으로 수정
   const initShopList = async (_mapInstance) => { //AT initShoplist 
     if (!curSectionName) {
-      setCurSectionName("반월당"); // TODO 앱 초기화면에서  지역명 입력전 처리방법 추가,    
+      // TODO 앱 초기화면에서  지역명 입력전 처리방법 추가. 초기화 지역 근처의 section을 자동으로 찾아서 초기 section으로 배정하는 로직 추가
+      setCurSectionName("반월당"); 
       // curSectionName이 변경되면 useEffect에서 데이터 로드 및 UI 업데이트가 자동으로 처리됨
       return;
     }
   };
+
+  const changeSection = async (newSectionName) => {
+    if (newSectionName !== curSectionName) {
+      setCurSectionName(newSectionName);
+      // curSectionName이 변경되면 useEffect에서 데이터 로드 및 UI 업데이트가 자동으로 처리됨
+      }
+
+  }
 
   // 드로잉 매니저의 생성이유와 용도는 MyshopData의 pin과 다각형 도형 수정과 출력을 그리기용용
   // 드로잉매니저 초기화 단계에서는 마커의 디자인과 기본 동일한 동작만 세팅 
@@ -723,9 +723,6 @@ export default function Editor() { // 메인 페이지
     if (!curSelectedShop) {      // selectedCurShop이 없는 경우 빈 폼 
       dispatch(syncExternalShop({ shopData: null })); // 내부적으로 isIdel일때만 빈폼 초기화 
       
-      // 새로운 방식: Redux 액션을 통해 인포윈도우 닫기
-      dispatch(closeInfoWindow());
-      
       return; // 선택된 값이 비어있으면 여기서 종료 
     }
     
@@ -772,14 +769,6 @@ export default function Editor() { // 메인 페이지
           // 지도 중심 이동
           instMap.current.setCenter(position);
           instMap.current.setZoom(18);
-
-          // 3. 인포윈도우 표시 - MapOverlayManager가 모든 것을 처리
-          
-          // sectionName과 shopId만으로 인포윈도우 표시
-          dispatch(openSingletonInfoWindow({
-            shopId: curSelectedShop.serverDataset?.id || curSelectedShop.id,
-            sectionName: curSelectedShop.serverDataset?.sectionName || curSelectedShop.sectionName || curSectionName
-          }));
           
           // 애니메이션은 MapOverlayManager에서 처리됨
         }
@@ -806,7 +795,7 @@ export default function Editor() { // 메인 페이지
           return _sectionItemListfromDB;
         });
 
-
+        
         // 이시점에 오버레이 교체가 호출되어야 함. 
         // _sectionItemListfromDB( curItemListInCurSection )이 생성되어야 오버레이도 MapOverlayManager등록되어있음. 
         dispatch(curSectionChanged({ sectionName: curSectionName }));
@@ -817,16 +806,25 @@ export default function Editor() { // 메인 페이지
     });
 
   
-    // 비직렬화 데이터 포함된 업데이트 이벤트 리스너
+    // 비직렬화 데이터 포함된 업데이트 이벤트 리스너 
+    // 파이어베이스 서버로부터 onShapShot 업데이트시, curSectionName에 대한 useEffect, setCurSectionName을 대신함.  
     const handleSectionUpdate = (event) => {
       const { sectionName, items } = event.detail;
-      if (sectionName === curSectionName) {
+      if (sectionName === curSectionName) { 
+        //동일한 sectionNAme이면, 이것은 현재 section에 대한 업데이트 이므로, 현재 아이템 리스트 업데이트 필요. 
+        // sectionName이 변경될때만 Itemlist가 교체되므로, 이에대한 처리가 필요함. 
         // UI 업데이트 (마커, 폴리곤 포함된 완전한 객체)
         setCurItemListInCurSection( (prev)=>{
           prevItemListforRelieveOverlays.current = prev;
           return items;
         });
       }
+
+      //TODO 서버로부터 업데이트된 sectionName이 !== curSEction과 다르면? 
+      //FIXME 서버로부터 업데이트된 sectionName이 다를경우가 있나? onSnap부분에서 구별해서 customEvent로 전달해야할지 미정이다. 
+      // 서버에서 sectionName이 다른 snapshot이 업데이트 되었다면, setCurentItemlist는 호출하지 않고, sectionDB만 해당 sectionName으로 업데이트 시키면 됨. 
+      //서버로부터 업데이트된 sectionName이 다를경우는 문제가 있음. 왜냐하면, 필요할때 sectionDB를 통해 서버로 호출을 하는 방식이기 때문
+
     };
     
     document.addEventListener('section-items-updated', handleSectionUpdate);

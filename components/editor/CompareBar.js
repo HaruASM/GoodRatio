@@ -7,16 +7,14 @@ import {
   selectIsCompareBarActive, 
   selectCompareBarData,
   selectIsInserting,
-  setCompareBarActive,
-  beginInserting,
+   beginInserting,
   endInserting,
   endCompareBar,
-  selectisSyncGoogleSearchCompareBar
-} from '../../lib/store/slices/compareBarSlice';
+  } from '../../lib/store/slices/compareBarSlice';
 import { 
   updateField,
   trackField,
-  startEditYourself,
+  startEdit,
   beginEditor,
   selectIsEditing,
   selectIsEditorOn,
@@ -109,6 +107,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   
   // 개별 필드 삽입 핸들러
   const handleInsertField = (field, value) => {
+    console.log('handleInsertField', field, value); 
     // 필드 값이 비어있지 않은 경우에만 삽입
     if (!isValueEmpty(value, field)) {
       dispatch(updateField({ field, value }));
@@ -249,7 +248,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
                     <button
                       type="button"
                       className={styles.insertFieldButton}
-                      onClick={() => handleInsertField(item.field, value)}
+                      onClick={() => handleInsertField(item.field,  compareData[item.field])} //value 대신 compareData[item.field] 사용
                       title={`${item.title} 필드 삽입`}
                     >
                       <strong>&gt;&gt;</strong>
@@ -277,7 +276,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
                     <button
                       type="button"
                       className={styles.insertFieldButton}
-                      onClick={() => handleInsertField(item.field, value)}
+                      onClick={() => handleInsertField(item.field, compareData[item.field])}//value 대신 compareData[item.field] 사용
                       title={`${item.title} 필드 삽입`}
                     >
                       <strong>&gt;&gt;</strong>
@@ -383,9 +382,13 @@ const CompareBar = () => {
       // isEditing이 false일 때만 startEditYourself 호출 
       if (!isEditing  ) {
         // rightSidebar가 자신의 formData를 사용하도록 startEditYourself 호출
-        dispatch(startEditYourself());
+        //dispatch(startEditYourself());  
         // 에디터 상태 활성화
-        dispatch(beginEditor());
+        //dispatch(beginEditor());
+
+        //** RightSidebar를 Edit, Editor 상태로 시작시키는 액션 디스패치를 그대로 이용.  */
+        dispatch(startEdit({ shopData: selectCur.serverDataSet }))
+
       }
       
       // isEditorOn이 false이고 isEditing이 true일 때만 beginEditor 호출

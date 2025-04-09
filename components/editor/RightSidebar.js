@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../../pages/editor/styles.module.css';
-import { protoServerDataset, protoShopDataSet, titlesofDataFoam } from '../../lib/models/editorModels';
-import { parseGooglePlaceData, fetchPlaceDetailById } from '../../lib/utils/googlePlaceUtils';
+import { protoServerDataset, titlesofDataFoam } from '../../lib/models/editorModels';
+import {  fetchPlaceDetailById } from '../../lib/utils/googlePlaceUtils';
 import store from '../../lib/store'; // 스토어 가져오기
 import {
   togglePanel,
@@ -154,13 +154,13 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const imageSectionManagerRef = useRef(null);
   const prevModalOpenRef = useRef(false);
   
-  // 현재 상점 데이터가 변경될 때 폼 데이터 업데이트
-  useEffect(() => {
-    if (currentShopServerDataSet && !isEditing) {
-      // 외부 상점 데이터와 동기화 - 직접 데이터 전달
-      dispatch(syncExternalShop({ shopData: currentShopServerDataSet }));
-    }
-  }, [currentShopServerDataSet, isEditing, dispatch]);
+  // // 현재 상점 데이터가 변경될 때 폼 데이터 업데이트
+  // useEffect(() => {
+  //   if (currentShopServerDataSet && !isEditing) {
+  //     // 외부 상점 데이터와 동기화 - 직접 데이터 전달
+  //     dispatch(syncExternalShop({ shopData: currentShopServerDataSet }));
+  //   }
+  // }, [currentShopServerDataSet, isEditing, dispatch]);
   
   // 패널이 보이지 않으면 null 반환
   if (!isPanelVisible) {

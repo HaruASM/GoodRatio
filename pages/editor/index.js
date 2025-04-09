@@ -46,7 +46,8 @@ import { wrapper } from '../../lib/store';
 import { 
   curSectionChanged,
   selectSelectedItemId,
-  selectSelectedSectionName
+  selectSelectedSectionName,
+  itemSelectedThunk
 } from '../../lib/store/slices/mapEventSlice';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
@@ -721,12 +722,17 @@ export default function Editor() { // 메인 페이지
     // 4. 폼 데이터 업데이트 
     // 우측 사이드바 업데이트 여부와 상태 검증은 Redux 액션 내부에서 처리됨
     if (!curSelectedShop) {      // selectedCurShop이 없는 경우 빈 폼 
-      dispatch(syncExternalShop({ shopData: null })); // 내부적으로 isIdel일때만 빈폼 초기화 
+      // syncExternalShop 대신 itemSelectedThunk 사용
+      dispatch(itemSelectedThunk({ id: null, sectionName: null }));
       
       return; // 선택된 값이 비어있으면 여기서 종료 
     }
     
-    dispatch(syncExternalShop({ shopData: curSelectedShop.serverDataset })); // 우측 사이드바 상태 내부적으로 isIdel일때만 빈폼 초기화 
+    // syncExternalShop 대신 itemSelectedThunk 사용
+    const itemId = curSelectedShop.serverDataset?.id;
+    if (itemId && curSectionName) {
+      dispatch(itemSelectedThunk({ id: itemId, sectionName: curSectionName }));
+    }
     
     // 1. 좌측 사이드바 아이템 하이라이트 효과
     const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
@@ -990,8 +996,7 @@ export default function Editor() { // 메인 페이지
           const position = MapOverlayManager.parseCoordinates(item.serverDataset.pinCoordinates);
           if (position) {
             instMap.current.setCenter(position);
-            // 선택적으로 줌 레벨 조정
-            // instMap.current.setZoom(18);
+           
           }
         } catch (error) {
           console.error('지도 이동 중 오류 발생:', error);
@@ -1001,6 +1006,11 @@ export default function Editor() { // 메인 페이지
       console.error(`[Editor] ${selectedSectionName} 섹션에서 ID가 ${selectedItemId}인 상점을 찾을 수 없습니다`);
     }
   }, [selectedItemId, selectedSectionName]);
+
+  // 마지막에 추가 - SectionsDBManager를 전역 객체로 등록
+  if (typeof window !== 'undefined') {
+    window.SectionsDBManager = SectionsDBManager;
+  }
 
   return (
     <div className={styles.editorContainer}>

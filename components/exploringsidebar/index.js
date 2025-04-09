@@ -104,44 +104,41 @@ const ExploringSidebar = ({
   };
 
   return (
-    <div className={`${styles.sidebar} ${isSidebarVisible ? '' : styles.hidden}`}>
-      <div className={styles.header}>
-        <button className={styles.backButton} onClick={toggleSidebar}>←</button>
+    <div className={`${styles['explSidebar-sidebar']} ${isSidebarVisible ? '' : styles['explSidebar-hidden']}`}>
+      <div className={styles['explSidebar-header']}>
+        <button className={styles['explSidebar-backButton']} onClick={toggleSidebar}>←</button>
         <h1>{curSectionName || '지역 로딩 중'}</h1>
-        <button className={styles.iconButton}>⚙️</button>
+        <button className={styles['explSidebar-iconButton']}>⚙️</button>
       </div>
-      <div className={styles.menu}>
-        <button className={styles.menuButton}>숙소</button>
-        <button className={styles.menuButton}>맛집</button>
-        <button className={styles.menuButton}>관광</button>
-        <button className={styles.menuButton}>환전</button>
+      <div className={styles['explSidebar-menu']}>
+        <button className={styles['explSidebar-menuButton']}>숙소</button>
+        <button className={styles['explSidebar-menuButton']}>맛집</button>
+        <button className={styles['explSidebar-menuButton']}>관광</button>
+        <button className={styles['explSidebar-menuButton']}>환전</button>
       </div>
-      <ul className={styles.itemList}>
+      <ul className={styles['explSidebar-itemList']}>
         {curItemListInCurSection.length > 0 ? (
           curItemListInCurSection.map((item, index) => (
             <li 
               key={`shop-${index}-${item.serverDataset.itemName}`} 
-              className={isItemSelected(item) ? styles.selectedItem : styles.item}
+              className={isItemSelected(item) ? styles['explSidebar-selectedItem'] : styles['explSidebar-item']}
             >
               <a href="#" onClick={(e) => handleShopSelect(item, e)}>
-                <div className={styles.itemDetails}>
-                  <span className={styles.itemTitle}>
+                <div className={styles['explSidebar-itemDetails']}>
+                  <span className={styles['explSidebar-itemTitle']}>
                     {item.serverDataset.itemName || ''} 
-                    <small>{item.serverDataset.alias || ''}</small>
+                    <span className={styles['explSidebar-storeStyle']}>{item.serverDataset.storeStyle || ''}</span>
                   </span>
-                  <p className={styles.itemComment}>
-                    {item.serverDataset.comment || ''}
-                  </p>
                 </div>
-                <div className={styles.imageContainer}>
+                <div className={styles['explSidebar-imageContainer']}>
                   {/* 메인 이미지 */}
                   {item.serverDataset.mainImage && item.serverDataset.mainImage.trim() !== '' ? (
-                    <div className={styles.mainImage}>
+                    <div className={styles['explSidebar-mainImage']}>
                       <Image
                         src={getProxiedPhotoUrl(item.serverDataset.mainImage, 400)}
                         alt={`${item.serverDataset.itemName || ''} 메인 이미지`}
                         fill
-                        sizes="120px"
+                        sizes="280px"
                         style={{ objectFit: 'cover' }}
                         unoptimized={true}
                         priority
@@ -149,41 +146,22 @@ const ExploringSidebar = ({
                       />
                     </div>
                   ) : (
-                    <div className={styles.mainImage}>
-                      <div className={styles.emptyImagePlaceholder} style={{ width: 120, height: 120 }}></div>
-                    </div>
-                  )}
-                  {/* 서브 이미지 */}
-                  {item.serverDataset.subImages && item.serverDataset.subImages.length > 0 && (
-                    <div className={styles.subImages}>
-                      {item.serverDataset.subImages.slice(0, 3).map((subImage, imgIndex) => (
-                        <div key={imgIndex} className={styles.subImage}>
-                          {subImage && subImage.trim() !== '' ? (
-                            <Image
-                              src={getProxiedPhotoUrl(subImage, 200)}
-                              alt={`${item.serverDataset.itemName || ''} 서브 이미지 ${imgIndex + 1}`}
-                              fill
-                              sizes="80px"
-                              style={{ objectFit: 'cover' }}
-                              unoptimized={true}
-                              onClick={(e) => handleImageClick(e, subImage, item.serverDataset.itemName)}
-                            />
-                          ) : (
-                            <div className={styles.emptyImagePlaceholder} style={{ width: 80, height: 80 }}></div>
-                          )}
-                        </div>
-                      ))}
+                    <div className={styles['explSidebar-mainImage']}>
+                      <div className={styles['explSidebar-emptyImagePlaceholder']} style={{ width: '100%', height: 160 }}></div>
                     </div>
                   )}
                 </div>
+                <p className={styles['explSidebar-itemComment']}>
+                  {item.serverDataset.comment || ''}
+                </p>
               </a>
             </li>
           ))
         ) : (
-          <li className={styles.item}>
+          <li className={styles['explSidebar-item']}>
             <a href="#">
-              <div className={styles.itemDetails}>
-                <span className={styles.itemTitle}>데이터 로딩 중...</span>
+              <div className={styles['explSidebar-itemDetails']}>
+                <span className={styles['explSidebar-itemTitle']}>데이터 로딩 중...</span>
                 <p>지역 정보를 불러오는 중입니다.</p>
               </div>
             </a>

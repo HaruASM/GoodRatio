@@ -183,7 +183,7 @@ const SectionsDBManager = {
       // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
       MapOverlayManager.registerOverlaysByItemlist(
         sectionName, 
-        serverItems  // 상점 데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
+        serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
       );
 
 

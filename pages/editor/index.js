@@ -26,7 +26,6 @@ import {
   selectDrawingType,
   endDrawingMode,
   updateCoordinates,
-  syncExternalShop,
   selectFormData,
   setRightSidebarIdleState
 } from '../../lib/store/slices/rightSidebarSlice';

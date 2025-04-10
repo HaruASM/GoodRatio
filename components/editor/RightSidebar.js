@@ -11,7 +11,6 @@ import {
   cancelEdit,
   updateField,
   trackField,
-  syncExternalShop,
   saveShopData,
   selectIsPanelVisible,
   selectIsEditing,
@@ -154,13 +153,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const imageSectionManagerRef = useRef(null);
   const prevModalOpenRef = useRef(false);
   
-  // // 현재 상점 데이터가 변경될 때 폼 데이터 업데이트
-  // useEffect(() => {
-  //   if (currentShopServerDataSet && !isEditing) {
-  //     // 외부 상점 데이터와 동기화 - 직접 데이터 전달
-  //     dispatch(syncExternalShop({ shopData: currentShopServerDataSet }));
-  //   }
-  // }, [currentShopServerDataSet, isEditing, dispatch]);
   
   // 패널이 보이지 않으면 null 반환
   if (!isPanelVisible) {

@@ -20,6 +20,10 @@ import {
   selectIsEditorOn,
   selectIsIdle,
 } from '../../lib/store/slices/rightSidebarSlice';
+import {
+  selectSelectedItemId,
+  selectSelectedSectionName
+} from '../../lib/store/slices/mapEventSlice';
 import ImageSectionManager from './ImageSectionManager';
 import { 
   openImageSelectionMode,
@@ -324,6 +328,8 @@ const CompareBar = () => {
   const isEditorOn = useSelector(selectIsEditorOn);
   const isIdle = useSelector(selectIsIdle);
   const compareData = useSelector(selectCompareBarData);
+  const selectedItemId = useSelector(selectSelectedItemId);
+  const selectedSectionName = useSelector(selectSelectedSectionName);
   const dispatch = useDispatch();
 
   // CompareBar 활성화 상태가 변경될 때 body 클래스 토글
@@ -364,9 +370,6 @@ const CompareBar = () => {
       dispatch(endInserting());
       console.error('이 케이스 발생시 수정 필요');
     } else {
-      
-    
-
       // 모든 필드가 비어있는지 확인
       if (!hasAnyValidField(compareData) || isIdle ) {
         //console.log('삽입 불가: 유효한 데이터가 없습니다.');
@@ -377,18 +380,24 @@ const CompareBar = () => {
       // 삽입 모드 시작
       dispatch(beginInserting());
       
-      
       // rightSidebar의 에디터 상태 활성화
-      // isEditing이 false일 때만 startEditYourself 호출 
-      if (!isEditing  ) {
-        // rightSidebar가 자신의 formData를 사용하도록 startEditYourself 호출
-        //dispatch(startEditYourself());  
-        // 에디터 상태 활성화
-        //dispatch(beginEditor());
-
-        //** RightSidebar를 Edit, Editor 상태로 시작시키는 액션 디스패치를 그대로 이용.  */
-        dispatch(startEdit({ shopData: selectCur.serverDataSet }))
-
+      // isEditing이 false일 때만 startEdit 호출
+      if (!isEditing) {
+        // 현재 선택된 아이템이 있는 경우 해당 아이템의 데이터를 가져와 startEdit 액션 디스패치
+        if (selectedItemId && selectedSectionName && window.SectionsDBManager) {
+          const selectedItem = window.SectionsDBManager.getItemByIDandSectionName(
+            selectedItemId, 
+            selectedSectionName
+          );
+          
+          if (selectedItem && selectedItem.serverDataset) {
+            dispatch(startEdit({ shopData: selectedItem.serverDataset }));
+          }
+        } else {
+          // 선택된 아이템이 없거나 SectionsDBManager가 없는 경우
+          // 빈 protoServerDataset으로 시작
+          dispatch(startEdit({ shopData: protoServerDataset }));
+        }
       }
       
       // isEditorOn이 false이고 isEditing이 true일 때만 beginEditor 호출

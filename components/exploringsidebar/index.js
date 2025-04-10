@@ -1,52 +1,46 @@
 import React, { useEffect } from 'react';
 import Image from 'next/image';
+import { useSelector, useDispatch } from 'react-redux';
 import styles from './styles.module.css';
 import { parseCoordinates } from '../../lib/models/editorModels';
 import { getProxiedPhotoUrl } from '../../lib/utils/imageHelpers';
+import { 
+  itemSelectedThunk, 
+  selectSelectedItemId 
+} from '../../lib/store/slices/mapEventSlice';
+import {
+  selectHighlightedItemId,
+  selectIsSidebarVisible,
+  toggleSidebarVisibility
+} from '../../lib/store/slices/exploringSidebarSlice';
 
 /**
  * 좌측 사이드바 컴포넌트
  * @param {Object} props - 컴포넌트 props
- * @param {boolean} props.isSidebarVisible - 사이드바 가시성 상태
- * @param {Function} props.toggleSidebar - 사이드바 토글 함수
  * @param {string} props.curSectionName - 현재 선택된 섹션명
  * @param {Array} props.curItemListInCurSection - 현재 섹션의 아이템 리스트
- * @param {Function} props.setCurSelectedShop - 선택된 상점 설정 함수
- * @param {Object} props.instMap - 구글 맵 인스턴스
- * @param {Object} props.curSelectedShop - 현재 선택된 상점
  * @returns {React.ReactElement} 좌측 사이드바 컴포넌트
  */
 const ExploringSidebar = ({
-  isSidebarVisible,
-  toggleSidebar,
   curSectionName,
-  curItemListInCurSection,
-  setCurSelectedShop,
-  instMap,
-  curSelectedShop
+  curItemListInCurSection
 }) => {
+  // Redux 상태 및 디스패치 가져오기
+  const dispatch = useDispatch();
+  const highlightedItemId = useSelector(selectHighlightedItemId);
+  const isSidebarVisible = useSelector(selectIsSidebarVisible);
+  
   // 상점 선택 핸들러
   const handleShopSelect = (item, e) => {
     e.preventDefault();
     
-    // 선택된 상점 설정
-    setCurSelectedShop(item);
-    
-    // 지도 이동
-    if (instMap) {
-      try {
-        let position = null;
-        if (item.serverDataset.pinCoordinates) {
-          position = parseCoordinates(item.serverDataset.pinCoordinates);
-        }
-
-        if (position) {
-          instMap.setCenter(position);
-          instMap.setZoom(18);
-        }
-      } catch (error) {
-        console.error('지도 이동 중 오류 발생:', error);
-      }
+    // 선택된 상점 설정 - 리덕스 액션으로 변경
+    const itemId = item.serverDataset?.id;
+    if (itemId) {
+      dispatch(itemSelectedThunk({
+        id: itemId,
+        sectionName: curSectionName
+      }));
     }
   };
 
@@ -61,52 +55,32 @@ const ExploringSidebar = ({
       (item.itemName === itemName)
     );
     
-    if (shop) {
-      // 상점 선택 - 기존 handleShopSelect 로직과 동일
-      setCurSelectedShop(shop);
-      
-      // 지도 이동
-      if (instMap) {
-        try {
-          let position = null;
-          if (shop.serverDataset?.pinCoordinates) {
-            position = parseCoordinates(shop.serverDataset.pinCoordinates);
-          } else if (shop.pinCoordinates) {
-            position = parseCoordinates(shop.pinCoordinates);
-          }
-
-          if (position) {
-            instMap.setCenter(position);
-            instMap.setZoom(18);
-          }
-        } catch (error) {
-          console.error('지도 이동 중 오류 발생:', error);
-        }
-      }
+    if (shop && shop.serverDataset?.id) {
+      // 상점 선택 - 리덕스 액션으로 변경
+      dispatch(itemSelectedThunk({
+        id: shop.serverDataset.id,
+        sectionName: curSectionName
+      }));
     } else {
       console.warn(`상점을 찾을 수 없습니다: ${itemName}`);
     }
   };
 
-  // 아이템이 선택되었는지 확인하는 함수
+  // 사이드바 토글 핸들러
+  const handleToggleSidebar = () => {
+    dispatch(toggleSidebarVisibility());
+  };
+
+  // 아이템이 선택되었는지 확인하는 함수 - 리덕스 상태 사용
   const isItemSelected = (item) => {
-    if (!curSelectedShop) return false;
-    
-    const selectedName = curSelectedShop.serverDataset ? 
-      curSelectedShop.serverDataset.itemName : 
-      curSelectedShop.itemName;
-      
-    const itemName = item.serverDataset ? 
-      item.serverDataset.itemName : 
-      item.itemName;
-      
-    return selectedName === itemName;
+    if (!highlightedItemId || !item.serverDataset) return false;
+    return highlightedItemId === item.serverDataset.id;
   };
 
   return (
     <div className={`${styles['explSidebar-sidebar']} ${isSidebarVisible ? '' : styles['explSidebar-hidden']}`}>
       <div className={styles['explSidebar-header']}>
-        <button className={styles['explSidebar-backButton']} onClick={toggleSidebar}>←</button>
+        <button className={styles['explSidebar-backButton']} onClick={handleToggleSidebar}>←</button>
         <h1>{curSectionName || '지역 로딩 중'}</h1>
         <button className={styles['explSidebar-iconButton']}>⚙️</button>
       </div>
@@ -127,7 +101,7 @@ const ExploringSidebar = ({
                 <div className={styles['explSidebar-itemDetails']}>
                   <span className={styles['explSidebar-itemTitle']}>
                     {item.serverDataset.itemName || ''} 
-                    <span className={styles['explSidebar-storeStyle']}>{item.serverDataset.storeStyle || ''}</span>
+                    <span className={styles['explSidebar-storeStyle']}>{item.serverDataset.alias || ''}</span>
                   </span>
                 </div>
                 <div className={styles['explSidebar-imageContainer']}>
@@ -147,7 +121,7 @@ const ExploringSidebar = ({
                     </div>
                   ) : (
                     <div className={styles['explSidebar-mainImage']}>
-                      <div className={styles['explSidebar-emptyImagePlaceholder']} style={{ width: '100%', height: 160 }}></div>
+                      <div className={styles['explSidebar-emptyImagePlaceholder']} style={{ width: '100%', height: 120 }}></div>
                     </div>
                   )}
                 </div>

@@ -35,7 +35,8 @@ import {
   startDrawingMode,
   endEdit,
   beginEditor,
-  finalSubmitToServer
+  finalSubmitToServer,
+  syncExternalShop
 } from '../../lib/store/slices/rightSidebarSlice';
 
 import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../../lib/store/slices/compareBarSlice';
@@ -49,6 +50,7 @@ import {
 } from '../../lib/store/slices/imageManagerSlice';
 import { getValidImageRefs } from '../../lib/utils/imageHelpers';
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
+import { selectSelectedItemId, selectSelectedSectionName } from '../../lib/store/slices/mapEventSlice';
 
 // 확인 모달 컴포넌트
 const ConfirmModal = ({ isOpen, itemName, onConfirm, onCancel }) => {
@@ -119,7 +121,7 @@ const isValueEmpty = (value, fieldName) => {
  * 
  * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
  */
-const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocation, mapOverlayHandlers, currentShopServerDataSet, onShopUpdate }) => {
+const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers }) => {
   // Redux 상태 및 디스패치 가져오기
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
@@ -153,6 +155,9 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
   const imageSectionManagerRef = useRef(null);
   const prevModalOpenRef = useRef(false);
   
+  // 새로운 상태 추가
+  const selectedItemId = useSelector(selectSelectedItemId);
+  const selectedSectionName = useSelector(selectSelectedSectionName);
   
   // 패널이 보이지 않으면 null 반환
   if (!isPanelVisible) {
@@ -488,11 +493,31 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
     const isEditorOn = useSelector(selectIsEditorOn);
     const isConfirming = useSelector(selectIsConfirming);
     
+    // 새로운 상태 추가
+    const selectedItemId = useSelector(selectSelectedItemId);
+    const selectedSectionName = useSelector(selectSelectedSectionName);
+    
     // Command 패턴: 상태에 따른 명령 객체 정의
     const buttonCommands = {
       IDLE: {
         text: '수정',
-        action: () => dispatch(startEdit({ shopData: currentShopServerDataSet }))
+        action: () => {
+          // CompareBar와 같은 방식으로 구현
+          if (selectedItemId && selectedSectionName && window.SectionsDBManager) {
+            const selectedItem = window.SectionsDBManager.getItemByIDandSectionName(
+              selectedItemId, 
+              selectedSectionName
+            );
+            
+            if (selectedItem && selectedItem.serverDataset) {
+              dispatch(startEdit({ shopData: selectedItem.serverDataset }));
+            } else {
+              dispatch(startEdit({ shopData: protoServerDataset }));
+            }
+          } else {
+            console.error('selectedItemId 또는 selectedSectionName이 없거나 SectionsDBManager가 없습니다.');
+          }
+        }
       },
       EDITOR_ON: {
         text: '수정완료',
@@ -757,10 +782,10 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
       {/* 상단 버튼 영역 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>
-          {isEditorOn && !currentShopServerDataSet && (
+          {isEditorOn && !originalShopData?.id && (
             <span className={styles.editingStatusText}>신규상점 입력 중...</span>
           )}
-          {isEditorOn && currentShopServerDataSet && (
+          {isEditorOn && originalShopData?.id && (
             <span className={styles.editingStatusText}>데이터 수정 중...</span>
           )}
           {isConfirming && !hasChanges && !isEditorOn && (
@@ -845,7 +870,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
               </button>
               <EditButton />
             </div>
-          ) : (!isIdle && !isEditorOn && !isConfirming && currentShopServerDataSet) ? (
+          ) : (!isIdle && !isEditorOn && !isConfirming) ? (
             <EditButton />
           ) : null}
         </div>
@@ -1014,21 +1039,18 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, moveToCurrentLocati
  * @param {Object} props - 컴포넌트 props
  * @returns {React.ReactElement} 오른쪽 사이드바 UI 컴포넌트
  */
-const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedShop, onShopUpdate }) => {
+const RightSidebar = ({ mapOverlayHandlers }) => {
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
   
-  // 상점 데이터에서 serverDataset 추출
-  const currentShopServerDataSet = curSelectedShop?.serverDataset || null;
-
   // 구글탐색 버튼 핸들러
   const googlePlaceSearchBarButtonHandler = (e) => {
     if (e) e.preventDefault();
     
-        // CompareBar 활성화 - 순서 중요함 (먼저 sync 설정, 그 다음 active 설정)
+    // CompareBar 활성화 - 순서 중요함 (먼저 sync 설정, 그 다음 active 설정)
     dispatch(setSyncGoogleSearch()); // 구글 검색폼의 데이터가 setCompareBarActive를 호출하도록 플래그 설정
     dispatch(setCompareBarActive(null)); // CompareBar 활성화 및 초기화
-        
+    
     // 검색창으로 포커스 이동 - 사용자가 바로 장소를 검색할 수 있도록 함
     const searchInput = document.querySelector('[data-testid="place-search-input"]');
     if (searchInput) {
@@ -1051,10 +1073,7 @@ const RightSidebar = ({ moveToCurrentLocation, mapOverlayHandlers, curSelectedSh
     <>
       <SidebarContent 
         googlePlaceSearchBarButtonHandler={googlePlaceSearchBarButtonHandler}
-        moveToCurrentLocation={moveToCurrentLocation}
         mapOverlayHandlers={mapOverlayHandlers}
-        currentShopServerDataSet={currentShopServerDataSet}
-        onShopUpdate={onShopUpdate}
       />
       {togglePanelButton}
     </>

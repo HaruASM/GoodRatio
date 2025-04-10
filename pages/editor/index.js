@@ -46,7 +46,10 @@ import {
   curSectionChanged,
   selectSelectedItemId,
   selectSelectedSectionName,
-  itemSelectedThunk
+  itemSelectedThunk,
+  selectMapCenter,
+  selectMapZoom,
+  setMapView
 } from '../../lib/store/slices/mapEventSlice';
 
 const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
@@ -237,8 +240,8 @@ export default function Editor() { // 메인 페이지
 
   const searchInputDomRef = useRef(null);
   const searchformRef = useRef(null);
-  const mapSearchInputRef = useRef(null);  // 검색 입력 필드 참조 추가
-  const [selectedButton, setSelectedButton] = useState('인근');
+  //const mapSearchInputRef = useRef(null);  // 검색 입력 필드 참조 추가
+  //const [selectedButton, setSelectedButton] = useState('인근');
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(true); // 사이드바 가시성 상태 추가
   const [isSearchFocused, setIsSearchFocused] = useState(false); // 검색창 포커스 상태 추가
@@ -252,17 +255,15 @@ export default function Editor() { // 메인 페이지
   // 이전 아이템 리스트를 useRef로 변경
   const prevItemListforRelieveOverlays = useRef([]);
   // 내부 처리용 참조 - MapOverlayManager로 관리권한 이전
-  const currentItemListRef = useRef([]);
-  // window에 저장하지 않고 내부적으로만 사용
-  
+    
   // curSectionName을 상태로 관리 - 초기값을 null로 설정
   const [curSectionName, setCurSectionName] = useState(null);
   
-  // 선택된 상점 정보를 저장하는 상태 변수 추가 - 코드 순서 변경
-  const [curSelectedShop, setCurSelectedShop] = useState(null);
+  // 선택된 상점 정보를 저장하는 상태 변수 더이상 사용 안함. id와 sectionName만 저장. 
+  //const [curSelectedShop, setCurSelectedShop] = useState(null);
   
   // 폼 데이터는 이제 Redux에서 관리 (로컬 상태 제거)
-  const formData = useSelector(selectFormData);
+  //const formData = useSelector(selectFormData);
   
     
   // CompareBar 활성화 상태 가져오기
@@ -289,6 +290,8 @@ export default function Editor() { // 메인 페이지
   // mapEventSlice 상태 선택자 추가
   const selectedItemId = useSelector(selectSelectedItemId);
   const selectedSectionName = useSelector(selectSelectedSectionName);
+  const mapCenter = useSelector(selectMapCenter);
+  const mapZoom = useSelector(selectMapZoom);
   
   // 드로잉 매니저 상태 감시 및 제어를 위한 useEffect
   useEffect(() => {
@@ -394,10 +397,10 @@ export default function Editor() { // 메인 페이지
         
         // 지도 이동 로직은 항상 실행
         if (detailPlace.geometry.viewport) {
+          dispatch(setMapView({ center: detailPlace.geometry.location, zoom: null }));
           _mapInstance.fitBounds(detailPlace.geometry.viewport);
         } else {
-          _mapInstance.setCenter(detailPlace.geometry.location);
-          _mapInstance.setZoom(15);
+          dispatch(setMapView({ center: detailPlace.geometry.location, zoom: 15 }));
         }
         
         // 검색 완료 후 인풋창 비우기
@@ -597,32 +600,6 @@ export default function Editor() { // 메인 페이지
     }));
   };
 
-  const moveToCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const pos = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          
-          if (instMap.current) {
-            instMap.current.setCenter(pos);
-            instMap.current.setZoom(18);
-          }
-          
-          setCurrentPosition(pos);
-        },
-        (error) => {
-          // console.error('Geolocation error:', error);
-          alert('위치 정보를 가져올 수 없습니다.');
-        }
-      );
-    } else {
-      alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.');
-    }
-  };
-
   // 지도 초기화 함수 수정
   const initGoogleMapPage = () => { // 이 함수의 초기화 단계를 수정할시 수정을 했다고 표시할것
     // 여기는 window.google과 window.google.maps객체가 로딩 확정된 시점에서 실행되는 지점점
@@ -711,78 +688,31 @@ export default function Editor() { // 메인 페이지
   // 컴포넌트 마운트 시 IDLE 상태 설정
   useEffect(() => { // AT 우측 사이드바 초기화 지점 
     // 초기에 IDLE 상태로 설정
+    //FIXME 우측사이드바 idle설정은 자체적으로 초기화하는게 나을듯 함. 
     dispatch(setRightSidebarIdleState(true));
     
   }, [dispatch]);
 
-  //## selectedCurShop 관련 useEffect를 하나로 통합. 다른 종속성이 추가되면 안됨. 
-  //## selectedCurShop 업데이트시, 파생 동작들 일괄적으로 작동되어야 함. 
-  useEffect(() => { // AT [curSelectedShop]  
-    // 4. 폼 데이터 업데이트 
-    // 우측 사이드바 업데이트 여부와 상태 검증은 Redux 액션 내부에서 처리됨
-    if (!curSelectedShop) {      // selectedCurShop이 없는 경우 빈 폼 
-      // syncExternalShop 대신 itemSelectedThunk 사용
-      dispatch(itemSelectedThunk({ id: null, sectionName: null }));
+  
+  // itemSelectedThunk 사용으로 curSelectedShop 사용 중단
+  // useEffect(() => { // AT [curSelectedShop] 
+  //   // 4. 폼 데이터 업데이트 
+  //   // 우측 사이드바 업데이트 여부와 상태 검증은 Redux 액션 내부에서 처리됨
+  //   if (!curSelectedShop) {      // selectedCurShop이 없는 경우 빈 폼 
+  //     // syncExternalShop 대신 itemSelectedThunk 사용
+  //     dispatch(itemSelectedThunk({ id: null, sectionName: null }));
       
-      return; // 선택된 값이 비어있으면 여기서 종료 
-    }
+  //     return; // 선택된 값이 비어있으면 여기서 종료 
+  //   }
     
-    // syncExternalShop 대신 itemSelectedThunk 사용
-    const itemId = curSelectedShop.serverDataset?.id;
-    if (itemId && curSectionName) {
-      dispatch(itemSelectedThunk({ id: itemId, sectionName: curSectionName }));
-    }
+  //   // syncExternalShop 대신 itemSelectedThunk 사용
+  //   const itemId = curSelectedShop.serverDataset?.id;
+  //   if (itemId && curSectionName) {
+  //     dispatch(itemSelectedThunk({ id: itemId, sectionName: curSectionName }));
+  //   }
     
-    // 1. 좌측 사이드바 아이템 하이라이트 효과
-    const itemElements = document.querySelectorAll(`.${styles.item}, .${styles.selectedItem}`);
-    
-    // 모든 아이템을 기본 클래스로 초기화
-    itemElements.forEach(item => {
-      item.className = styles.item;
-    });
-    
-    // 선택된 아이템 찾기 (itemName으로 비교)
-    const itemName = curSelectedShop.serverDataset ? 
-      curSelectedShop.serverDataset.itemName : 
-      curSelectedShop.itemName;
-      
-    const selectedItemElement = Array.from(itemElements).find(item => {
-      const titleElement = item.querySelector(`.${styles.itemTitle}`);
-      return titleElement && titleElement.textContent.includes(itemName);
-    });
-    
-    if (selectedItemElement) {
-      // 클래스 교체 (item -> selectedItem)
-      selectedItemElement.className = styles.selectedItem;
-      // 스크롤 위치 조정
-      selectedItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    
-    // 2. 지도 이동 및 마커 정보창 표시
-    if (instMap.current) {
-      try {
-        let position = null;
-        
-        // 서버 데이터 또는 기존 데이터에서 좌표 가져오기
-        if (curSelectedShop.serverDataset && curSelectedShop.serverDataset.pinCoordinates) {
-          position = MapOverlayManager.parseCoordinates(curSelectedShop.serverDataset.pinCoordinates);
-        } else if (curSelectedShop.pinCoordinates) {
-          position = MapOverlayManager.parseCoordinates(curSelectedShop.pinCoordinates);
-        }
-
-        if (position) {
-          // 지도 중심 이동
-          instMap.current.setCenter(position);
-          instMap.current.setZoom(18);
-          
-          // 애니메이션은 MapOverlayManager에서 처리됨
-        }
-      } catch (error) {
-        // console.error('지도 이동 또는 마커 표시 중 오류 발생:', error);
-      }
-    }
-
-  }, [curSelectedShop]); //## 추가 종속성 절대 추가 금지. curSelectedShop이 변경될때만 연산되는 useEffect. 
+  //   // 지도 이동 코드 제거 - 이제 mapEventSlice에서 처리
+  // }, [curSelectedShop]); //## 추가 종속성 절대 추가 금지. curSelectedShop이 변경될때만 연산되는 useEffect.
 
   
   useEffect(() => { // AT [curSectionName] sectionDB에서 해당 아이템List 가져옴 -> curItemListInCurSection에 할당
@@ -840,101 +770,7 @@ export default function Editor() { // 메인 페이지
 
   }, [curSectionName]); // 중요: curSectionName만 종속성으로 유지. 추가하지말것것
 
-  useEffect(() => { // AT [curItemListInCurSection] 지역변경으로 리스트 변경될 때 UI 업데이트
-    //TODO 실시간 서버로부터 업데이트 받았을시, 변경된 일부의 샵데이터만 업데이트 해야할지 미정이다. 
-    // 현재 아이템 리스트 참조 업데이트 (내부용)
-    currentItemListRef.current = curItemListInCurSection;
-    
-    if(!instMap.current) return;  // 최초 curItemListInCurSection초기화시 1회 이탈
-
-    if (!curItemListInCurSection.length) {
-      console.error('아이템 리스트가 비어 있습니다.');
-      return; 
-    }
-
-    // 좌측 사이드바 아이템 리스트 업데이트
-    const itemListContainer = document.querySelector(`.${styles.itemList}`);
-    if (!itemListContainer) {
-      // console.error('Item list container not found');
-      return;
-    }
-
-    // 기존 아이템 제거
-    itemListContainer.innerHTML = '';
-
-    // curItemListInCurSectionName의 아이템을 순회하여 사이드바에 추가
-    //TODO 사이드바 모듈 추가 
-    curItemListInCurSection.forEach((item) => {
-      const listItem = document.createElement('li');
-      listItem.className = styles.item;
-
-      const link = document.createElement('a');
-      link.href = '#';
-
-      const itemDetails = document.createElement('div');
-      itemDetails.className = styles.itemDetails;
-
-      const itemTitle = document.createElement('span');
-      itemTitle.className = styles.itemTitle;
-      
-      // 모든 아이템은 serverDataset을 가지고 있음
-      itemTitle.innerHTML = `${item.serverDataset.itemName || '이름 없음'} <small>${item.serverDataset.storeStyle || ''}</small>`;
-
-      const businessHours = document.createElement('p');
-      if (item.serverDataset.businessHours && item.serverDataset.businessHours.length > 0) {
-        businessHours.textContent = `영업 중 · ${item.serverDataset.businessHours[0]}`;
-      } else {
-        businessHours.textContent = '영업 중 · 정보 없음';
-      }
-
-      const address = document.createElement('p');
-      address.innerHTML = `<strong>${item.distance || '정보 없음'}</strong> · ${item.serverDataset.address || '주소 없음'}`;
-
-      const itemImage = document.createElement('img');
-      itemImage.src = "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDF8fGZvb2R8ZW58MHx8fHwxNjE5MjY0NzYx&ixlib=rb-1.2.1&q=80&w=400";
-      
-      itemImage.alt = `${item.serverDataset.itemName || ''} ${item.serverDataset.storeStyle || ''}`;
-      
-      itemImage.className = styles.itemImage;
-      itemImage.width = 100;
-      itemImage.height = 100;
-
-      // 클릭 이벤트 추가
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        
-        // 모든 아이템은 항상 serverDataset 구조를 가짐
-        setCurSelectedShop(item);
-        
-        if (instMap.current) {
-          try {
-            let position = null;
-            if (item.serverDataset.pinCoordinates) {
-              position = MapOverlayManager.parseCoordinates(item.serverDataset.pinCoordinates);
-            }
-
-            if (position) {
-              instMap.current.setCenter(position);
-              instMap.current.setZoom(18);
-            }
-          } catch (error) {
-            console.error('지도 이동 중 오류 발생:', error);
-          }
-        }
-      });
-
-      // 요소 조립 //TODO 사이드바 컴포넌트가 추가되었을텐데 여기서 사이드바 생성중인 이유?
-      itemDetails.appendChild(itemTitle);
-      itemDetails.appendChild(businessHours);
-      itemDetails.appendChild(address);
-      
-      link.appendChild(itemDetails);
-      link.appendChild(itemImage);
-      
-      listItem.appendChild(link);
-      itemListContainer.appendChild(listItem);
-    });
-  }, [curItemListInCurSection]); // 중요: 종속성은curItemListInCurSection만 유일, 추가 하지 말것
+  
 
   const toggleSidebar = () => {
     setIsSidebarVisible(!isSidebarVisible); // 사이드바 가시성 토글
@@ -962,50 +798,30 @@ export default function Editor() { // 메인 페이지
     };
   }, [tempOverlays]);
 
-  // 컴포넌트 마운트 시 전역 참조 설정
-  useEffect(() => {
-    // 컴포넌트 언마운트 시 정리
-    return () => {
-      // 전역 참조 제거 (더 이상 사용하지 않음)
-      if (window.currentItemListRef) {
-        delete window.currentItemListRef;
-      }
-    };
-  }, []);
-
-  // 마커/폴리곤 클릭으로 상점 선택 처리
-  useEffect(() => {
-    // selectedItemId 또는 selectedSectionName이 없으면 처리하지 않음
-    if (!selectedItemId || !selectedSectionName) {
-      return;
-    }
-    
-    console.log(`[Editor] 상점 선택 이벤트: ${selectedSectionName} 섹션의 ID ${selectedItemId}`);
-    
-    // SectionsDBManager에서 아이템 찾기
-    const item = SectionsDBManager.getItemByIDandSectionName(selectedItemId, selectedSectionName);
-    
-    if (item) {
-      // 현재 선택된 상점 업데이트
-      setCurSelectedShop(item);
-      
-      // 선택된 상점이 있는 위치로 지도 이동 (옵션)
-      if (instMap.current && item.serverDataset?.pinCoordinates) {
-        try {
-          const position = MapOverlayManager.parseCoordinates(item.serverDataset.pinCoordinates);
-          if (position) {
-            instMap.current.setCenter(position);
-           
-          }
-        } catch (error) {
-          console.error('지도 이동 중 오류 발생:', error);
+  
+  useEffect(() => { //[mapCenter, mapZoom] 지도의 좌표이동만을 위한 상태변수와 useEffect. 좌표이동 지시는 리덕스 액션으로 통합. 
+    // 지도 인스턴스와 중심 좌표가 있을 때만 처리
+    if (instMap.current && mapCenter) {
+      try {
+        // mapCenter가 이미 구글 LatLng 객체인지 확인하고, 아니라면 변환
+        const center = mapCenter instanceof google.maps.LatLng 
+          ? mapCenter 
+          : new google.maps.LatLng(mapCenter.lat, mapCenter.lng);
+        
+        // 지도 중심 이동
+        instMap.current.setCenter(center);
+        
+        // 줌 레벨이 있을 때만 설정
+        if (mapZoom) {
+          instMap.current.setZoom(mapZoom);
         }
+      } catch (error) {
+        console.error('지도 이동 중 오류 발생:', error);
       }
-    } else {
-      console.error(`[Editor] ${selectedSectionName} 섹션에서 ID가 ${selectedItemId}인 상점을 찾을 수 없습니다`);
     }
-  }, [selectedItemId, selectedSectionName]);
+  }, [mapCenter, mapZoom]);
 
+ 
   // 마지막에 추가 - SectionsDBManager를 전역 객체로 등록
   if (typeof window !== 'undefined') {
     window.SectionsDBManager = SectionsDBManager;
@@ -1019,13 +835,8 @@ export default function Editor() { // 메인 페이지
       
       {/* ExploringSidebar 컴포넌트 사용 */}
       <ExploringSidebar 
-        isSidebarVisible={isSidebarVisible}
-        toggleSidebar={toggleSidebar}
         curSectionName={curSectionName}
         curItemListInCurSection={curItemListInCurSection}
-        setCurSelectedShop={setCurSelectedShop}
-        instMap={instMap.current}
-        curSelectedShop={curSelectedShop}
       />
       
       {/* 지도 영역 */}
@@ -1054,21 +865,7 @@ export default function Editor() { // 메인 페이지
       
       {/* 오른쪽 사이드바 */}
       <RightSidebar
-        moveToCurrentLocation={moveToCurrentLocation}
         mapOverlayHandlers={mapOverlayHandlers}
-        curSelectedShop={curSelectedShop}
-        onShopUpdate={(updatedShop) => {
-          if (updatedShop === null) {
-            // 상점 선택 초기화
-            setCurSelectedShop(null);
-          } else if (curSelectedShop) {
-            // 원래 객체 구조 유지하면서 serverDataset만 업데이트
-            setCurSelectedShop({
-              ...curSelectedShop,
-              serverDataset: updatedShop
-            });
-          }
-        }}
       />
       
       {/* 구글 맵 스크립트 */}

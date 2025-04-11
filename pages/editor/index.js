@@ -395,12 +395,14 @@ export default function Editor() { // 메인 페이지
                    
         }
         
-        // 지도 이동 로직은 항상 실행
+        // 지도 이동 로직은 항상 실행 // setMapView 사용시 Redux용 개체 직렬화 문제가 있으므로, setMapview액션 대신 직접 지도 중심과 줌 레벨 설정. 
         if (detailPlace.geometry.viewport) {
-          dispatch(setMapView({ center: detailPlace.geometry.location, zoom: null }));
+          // 뷰포트가 있는 경우 지도 경계에 맞추기
           _mapInstance.fitBounds(detailPlace.geometry.viewport);
         } else {
-          dispatch(setMapView({ center: detailPlace.geometry.location, zoom: 15 }));
+          // 뷰포트가 없는 경우 직접 지도 중심과 줌 레벨 설정
+          _mapInstance.setCenter(detailPlace.geometry.location);
+          _mapInstance.setZoom(15);
         }
         
         // 검색 완료 후 인풋창 비우기

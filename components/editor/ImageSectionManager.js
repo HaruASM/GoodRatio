@@ -191,6 +191,9 @@ const ImageSectionManager = forwardRef(({
     // 유효한 이미지가 없으면 종료
     if (galleryImages.length === 0) return;
     
+    // 여기서 이미지 
+
+
     // 항상 직접 Redux 액션을 디스패치하여 갤러리 열기
     dispatch(openGallery({ images: galleryImages, index, source }));
   }, [imageRefs, propMainImage, propSubImages, dispatch, source]);

@@ -27,11 +27,13 @@ import {
 import ImageSectionManager from './ImageSectionManager';
 import { 
   openImageSelectionMode,
-  selectIsImageSelectionMode
+  selectIsImageSelectionMode,
+  resetImageSelection
 } from '../../lib/store/slices/imageManagerSlice';
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
-import { getValidImageRefs } from '../../lib/utils/imageHelpers';
 import { titlesofDataFoam, protoServerDataset } from '../../lib/models/editorModels';
+import crypto from 'crypto';
+import Md5 from 'crypto-js/md5';
 
 /**
  * 값이 비어있는지 확인하는 공통 함수
@@ -87,6 +89,30 @@ const hasAnyValidField = (data) => {
 };
 
 /**
+ * Google 이미지 참조 문자열을 Cloudinary public ID로 변환합니다.
+ * @param {string} photoReference - Google 이미지 참조 문자열
+ * @param {string} sectionName - 섹션 이름 (예: 'tempsection')
+ * @param {string|object} placeId - 장소 ID (문자열 또는 객체)
+ * @param {number} imageIndex - 이미지 인덱스
+ * @returns {string} Cloudinary public ID
+ */
+const convertGoogleImageReferenceToPublicId = (photoReference, sectionName, placeId, imageIndex) => {
+  if (!photoReference || typeof photoReference !== 'string' || photoReference.trim() === '') {
+    return '';
+  }
+
+  // placeId가 객체인 경우 문자열로 변환
+  const placeIdStr = typeof placeId === 'object' ? 
+    (placeId?.id || placeId?.placeId || placeId?.googleDataId || JSON.stringify(placeId)) : 
+    String(placeId || '');
+    
+  // MD5 해시를 사용하여 고유한 ID 생성
+  return `${sectionName}/${placeIdStr}/${imageIndex || 0}/${
+    Md5(photoReference).toString()
+  }`;
+};
+
+/**
  * 왼쪽 사이드바 내부 컴포넌트
  * 비교를 위한 상점 정보 표시 기능 제공
  * 
@@ -101,6 +127,23 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   const compareData = useSelector(selectCompareBarData);
   const isInserting = useSelector(selectIsInserting);
   const dispatch = useDispatch();
+  const selectedItemId = useSelector(selectSelectedItemId);
+  const selectedSectionName = useSelector(selectSelectedSectionName);
+  
+  console.log('compareData', compareData.googleDataId );
+  console.log('compareData', compareData.googleDataId );
+
+  // 구글 이미지 레퍼런스를 public ID로 변환
+  const mainImagePublicId = compareData?.mainImage 
+    ? convertGoogleImageReferenceToPublicId(compareData.mainImage, 'tempsection', compareData.googleDataId , 0) 
+    : '';
+    
+  // subImages 배열을 순회하여 각 항목을 public ID로 변환
+  const subImagesPublicIds = compareData?.subImages && Array.isArray(compareData.subImages)
+    ? compareData.subImages.map((ref, index) => 
+        convertGoogleImageReferenceToPublicId(ref, 'tempsection', compareData.googleDataId || selectedItemId, index + 1)
+      )
+    : [];
   
   // 입력 필드 스타일 결정 함수
   const getInputClassName = (fieldName) => {
@@ -125,27 +168,46 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   // 리덕스 상태 사용
   const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
   
-  // 이미지 갤러리에 이미지 삽입 핸들러
-  const handleInsertImagesToRightsidebar = () => {
-    // 이미지 데이터 유효성 검사
-    const validImages = getValidImageRefs(compareData?.mainImage, compareData?.subImages);
+  // 우측 사이드바에 이미지 삽입 처리 함수
+  const handleInsertImagesToRightsidebar = useCallback(() => {
+    // 이미지 모음 배열 초기화
+    const allImagePublicIds = [];
     
-    // 유효한 이미지가 없으면 종료
-    if (validImages.length === 0) {
-      return;
+    // 메인 이미지 처리
+    if (compareData.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '') {
+      const mainImageId = convertGoogleImageReferenceToPublicId(
+        compareData.mainImage, 
+        'tempsection',
+        typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
+        0
+      );
+      allImagePublicIds.push(mainImageId);
     }
     
-    // 이미지 매니저 상태 완전 초기화
-    dispatch({ type: 'imageManager/resetImageData' });
+    // 서브 이미지 처리
+    if (compareData.subImages && Array.isArray(compareData.subImages)) {
+      // 유효한 서브 이미지 참조만 필터링하고 공개 ID로 변환
+      compareData.subImages.forEach((ref, index) => {
+        if (ref && typeof ref === 'string' && ref.trim() !== '') {
+          const publicId = convertGoogleImageReferenceToPublicId(
+            ref, 
+            'tempsection',
+            typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
+            index + 1 // 메인 이미지 다음 인덱스부터 시작
+          );
+          allImagePublicIds.push(publicId);
+        }
+      });
+    }
     
-    // 이미지 선택 모드 활성화 - compareData의 원본 이미지를 직접 전달
-    dispatch(openImageSelectionMode({
-      source: 'compareBar',
-      mainImage: compareData?.mainImage || "",
-      subImages: compareData?.subImages || [],
-      availableImages: validImages // 모든 유효한 이미지를 별도 필드로 전달
-    }));
-  };
+    // 이미지 데이터 초기화
+    dispatch(resetImageSelection());
+    
+    // 갤러리를 열기 전에 이미지가 있는지 확인
+    if (allImagePublicIds.length > 0) {
+      handleToggleGallery(allImagePublicIds);
+    }
+  }, [compareData, selectedItemId, handleToggleGallery, dispatch]);
 
   // 이미지 선택 완료 핸들러
   const handleImagesSelected = (selectedImages) => {
@@ -153,7 +215,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImages || []));
     
     // 이미지 매니저 상태 즉시 초기화
-    dispatch({ type: 'imageManager/resetImageData' });
+    dispatch(resetImageSelection());
     
     // 복사된 이미지 유효성 검사
     const validImages = selectedImagesCopy.filter(img => 
@@ -184,7 +246,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   // 이미지 선택 취소 핸들러
   const handleCancelImageSelection = () => {
     // 이미지 매니저 상태 즉시 초기화
-    dispatch({ type: 'imageManager/resetImageData' });
+    dispatch(resetImageSelection());
   };
 
   return (
@@ -295,12 +357,13 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
         {/* 이미지 미리보기 섹션 */}
         <div className={styles.imageSectionPreviewContainer}>
           <ImageSectionManager 
-            mainImage={compareData?.mainImage}
-            subImages={compareData?.subImages}
+            mainImage={mainImagePublicId} // public ID로 변환된 메인 이미지
+            subImages={subImagesPublicIds} // public ID로 변환된 서브 이미지 배열
             onImagesSelected={handleImagesSelected}
             onCancelSelection={handleCancelImageSelection}
             isSelectionMode={isImageSelectionMode}
             source="compareBar"
+            lazyLoad={true} // 이미지를 프리뷰에서 보지 않음
           />
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}
           {isInserting && (
@@ -391,12 +454,12 @@ const CompareBar = () => {
           );
           
           if (selectedItem && selectedItem.serverDataset) {
-            dispatch(startEdit({ shopData: selectedItem.serverDataset }));
+            dispatch(startEdit({ itemdata: selectedItem.serverDataset }));
           }
         } else {
           // 선택된 아이템이 없거나 SectionsDBManager가 없는 경우
           // 빈 protoServerDataset으로 시작
-          dispatch(startEdit({ shopData: protoServerDataset }));
+          dispatch(startEdit({ itemdata: protoServerDataset }));
         }
       }
       
@@ -406,6 +469,55 @@ const CompareBar = () => {
       }
     }
   };
+
+  // 갤러리 열기 처리 함수
+  const handleOpenGallery = useCallback(() => {
+    // 이미지 모음 배열 초기화
+    const allImagePublicIds = [];
+    
+    // 메인 이미지 처리
+    if (compareData.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '') {
+      const mainImageId = convertGoogleImageReferenceToPublicId(
+        compareData.mainImage, 
+        'tempsection',
+        typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
+        0
+      );
+      allImagePublicIds.push(mainImageId);
+    }
+    
+    // 서브 이미지 처리
+    if (compareData.subImages && Array.isArray(compareData.subImages)) {
+      // 유효한 서브 이미지 참조만 필터링하고 공개 ID로 변환
+      compareData.subImages.forEach((ref, index) => {
+        if (ref && typeof ref === 'string' && ref.trim() !== '') {
+          const publicId = convertGoogleImageReferenceToPublicId(
+            ref, 
+            'tempsection',
+            typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
+            index + 1 // 메인 이미지 다음 인덱스부터 시작
+          );
+          allImagePublicIds.push(publicId);
+        }
+      });
+    }
+    
+    // 이미지 데이터 초기화
+    dispatch(resetImageSelection());
+    
+    // 갤러리를 열기 전에 이미지가 있는지 확인
+    if (allImagePublicIds.length > 0) {
+      handleToggleGallery(allImagePublicIds);
+    }
+  }, [compareData, selectedItemId, dispatch, handleToggleGallery]);
+
+  // 갤러리 토글 처리 함수
+  const handleToggleGallery = useCallback((images) => {
+    dispatch(openGallery({
+      images,
+      imageIndex: 0
+    }));
+  }, [dispatch]);
 
   return (
     <div className={styles.compareBarWrapper}>

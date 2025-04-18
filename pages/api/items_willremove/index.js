@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       }
       
       // Firestore 컬렉션 참조
-      const shopsCollectionRef = collection(firebasedb, 'sections', sectionName, 'shops');
+      const itemsCollectionRef = collection(firebasedb, 'sections', sectionName, 'items');
       
       // 쿼리 조건 구성
       let queryConstraints = [];
@@ -79,30 +79,30 @@ export default async function handler(req, res) {
       }
       
       // 쿼리 실행
-      const q = query(shopsCollectionRef, ...queryConstraints);
+      const q = query(itemsCollectionRef, ...queryConstraints);
       const querySnapshot = await getDocs(q);
       
       // 결과 데이터 구성
-      const shops = [];
+      const items = [];
       querySnapshot.forEach((doc) => {
-        shops.push(doc.data());
+        items.push(doc.data());
       });
       
       // 페이지네이션 정보
       const pagination = {
         pageSize: parseInt(pageSize),
-        hasMore: shops.length === parseInt(pageSize),
-        lastVisible: shops.length > 0 ? shops[shops.length - 1].id : null
+        hasMore: items.length === parseInt(pageSize),
+        lastVisible: items.length > 0 ? items[items.length - 1].id : null
       };
       
       return res.status(200).json({ 
         success: true,
-        message: '상점 목록 조회 성공', 
-        data: shops,
+        message: '아이템 목록 조회 성공', 
+        data: items,
         pagination
       });
     } catch (error) {
-      console.error('상점 목록 조회 오류:', error);
+      console.error('아이템 목록 조회 오류:', error);
       return res.status(500).json({ 
         success: false,
         message: '서버 오류', 
@@ -112,18 +112,18 @@ export default async function handler(req, res) {
   }
   
   // 요청 본문과 섹션명 추출 (POST, PUT, DELETE 메서드용)
-  let shopData, sectionName;
+  let itemdata, sectionName;
   
   if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
     try {
       if (req.body) {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        shopData = body.shopData;
+        itemdata = body.itemdata;
         sectionName = body.sectionName;
       }
       
       // 필수 데이터 검증
-      if (!shopData) {
+      if (!itemdata) {
         return res.status(400).json({ 
           success: false, 
           message: '상점 데이터가 누락되었습니다' 
@@ -149,7 +149,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       // 데이터 검증
-      if (!shopData.itemName) {
+      if (!itemdata.itemName) {
         return res.status(400).json({ 
           success: false, 
           message: '상점 이름은 필수 항목입니다' 
@@ -157,15 +157,15 @@ export default async function handler(req, res) {
       }
       
       // Firestore 컬렉션 참조
-      const shopsCollectionRef = collection(firebasedb, 'sections', sectionName, 'shops');
+      const itemsCollectionRef = collection(firebasedb, 'sections', sectionName, 'items');
       
       // 타임스탬프 제거하고 원본 데이터 사용
       const shopToSave = {
-        ...shopData
+        ...itemdata
       };
       
       // 문서 추가 (ID 자동 생성)
-      const docRef = await addDoc(shopsCollectionRef, shopToSave);
+      const docRef = await addDoc(itemsCollectionRef, shopToSave);
       
       // ID를 포함한 데이터 업데이트
       const shopWithId = {
@@ -187,7 +187,7 @@ export default async function handler(req, res) {
         message: '상점 생성 성공', 
         data: {
           id: docRef.id,
-          ...shopData
+          ...itemdata
         }
       });
     } catch (error) {
@@ -204,17 +204,17 @@ export default async function handler(req, res) {
   else if (req.method === 'PUT') {
     try {
       // ID가 필요함
-      if (!shopData.id) {
+      if (!itemdata.id) {
         return res.status(400).json({ 
           success: false, 
           message: '상점 ID가 필요합니다' 
         });
       }
       
-      const shopId = shopData.id;
+      const shopId = itemdata.id;
       
       // Firestore 문서 참조
-      const shopRef = doc(firebasedb, 'sections', sectionName, 'shops', shopId);
+      const shopRef = doc(firebasedb, 'sections', sectionName, 'items', shopId);
       
       // 문서가 존재하는지 확인
       const docSnapshot = await getDoc(shopRef);
@@ -226,12 +226,12 @@ export default async function handler(req, res) {
       }
       
       // 타임스탬프 없이 원본 데이터 그대로 사용
-      const updatedShopData = {
-        ...shopData
+      const updateditemdata = {
+        ...itemdata
       };
       
       // 문서 업데이트
-      await updateDoc(shopRef, updatedShopData);
+      await updateDoc(shopRef, updateditemdata);
       
       // 섹션 문서의 lastUpdated 필드 업데이트
       const sectionRef = doc(firebasedb, 'sections', sectionName);
@@ -242,7 +242,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ 
         success: true,
         message: '상점 업데이트 성공', 
-        data: updatedShopData
+        data: updateditemdata
       });
     } catch (error) {
       console.error('상점 업데이트 오류:', error);
@@ -257,7 +257,7 @@ export default async function handler(req, res) {
   // DELETE 요청 처리 (상점 삭제)
   else if (req.method === 'DELETE') {
     try {
-      const shopId = shopData.id;
+      const shopId = itemdata.id;
       
       if (!shopId) {
         return res.status(400).json({ 
@@ -267,7 +267,7 @@ export default async function handler(req, res) {
       }
       
       // Firestore 문서 참조
-      const shopRef = doc(firebasedb, 'sections', sectionName, 'shops', shopId);
+      const shopRef = doc(firebasedb, 'sections', sectionName, 'items', shopId);
       
       // 문서가 존재하는지 확인
       const docSnapshot = await getDoc(shopRef);

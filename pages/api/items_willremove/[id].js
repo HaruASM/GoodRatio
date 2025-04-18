@@ -78,13 +78,13 @@ export default async function handler(req, res) {
     // 2. PUT 요청 처리 (상점 업데이트)
     else if (req.method === 'PUT') {
       // 요청 본문에서 업데이트할 데이터 추출
-      let shopData;
+      let itemdata;
       if (req.body) {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        shopData = body.shopData;
+        itemdata = body.itemdata;
       }
       
-      if (!shopData) {
+      if (!itemdata) {
         return res.status(400).json({ 
           success: false, 
           message: '업데이트할 상점 데이터가 필요합니다' 
@@ -101,12 +101,12 @@ export default async function handler(req, res) {
       }
       
       // 타임스탬프 없이 원본 데이터 그대로 사용
-      const updatedShopData = {
-        ...shopData
+      const updateditemdata = {
+        ...itemdata
       };
       
       // ID가 URL의 ID와 일치하는지 확인
-      if (shopData.id && shopData.id !== id) {
+      if (itemdata.id && itemdata.id !== id) {
         return res.status(400).json({ 
           success: false, 
           message: '상점 ID가 URL의 ID와 일치하지 않습니다' 
@@ -114,10 +114,10 @@ export default async function handler(req, res) {
       }
       
       // ID 필드 추가/보존
-      updatedShopData.id = id;
+      updateditemdata.id = id;
       
       // 문서 업데이트
-      await updateDoc(shopRef, updatedShopData);
+      await updateDoc(shopRef, updateditemdata);
       
       // 섹션 문서의 lastUpdated 필드 업데이트
       const sectionRef = doc(firebasedb, 'sections', sectionName);
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ 
         success: true,
         message: '상점 업데이트 성공', 
-        data: updatedShopData
+        data: updateditemdata
       });
     }
     

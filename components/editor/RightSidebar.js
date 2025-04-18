@@ -11,15 +11,15 @@ import {
   cancelEdit,
   updateField,
   trackField,
-  saveShopData,
+  saveitemdata,
   selectIsPanelVisible,
   selectIsEditing,
   selectIsConfirming,
   selectHasChanges,
   selectFormData,
   selectModifiedFields,
-  selectEditNewShopDataSet,
-  selectOriginalShopData,
+  selectEditNewitemdataSet,
+  selectOriginalitemdata,
   selectStatus,
   selectError,
   selectIsDrawing,
@@ -131,8 +131,8 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   const hasChanges = useSelector(selectHasChanges);
   const formData = useSelector(selectFormData);
   const modifiedFields = useSelector(selectModifiedFields);
-  const editNewShopDataSet = useSelector(selectEditNewShopDataSet);
-  const originalShopData = useSelector(selectOriginalShopData);
+  const editNewitemdataSet = useSelector(selectEditNewitemdataSet);
+  const originalitemdata = useSelector(selectOriginalitemdata);
   const status = useSelector(selectStatus);
   const error = useSelector(selectError);
   const isDrawing = useSelector(selectIsDrawing);
@@ -149,16 +149,42 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   const [activeField, setActiveField] = useState(null);
   const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
   const [showCategoryOptions, setShowCategoryOptions] = useState(false); // 카테고리 옵션 표시 상태
+  const [showSectionOptions, setShowSectionOptions] = useState(false); // 섹션 옵션 표시 상태
   
   // 참조 객체 - 모든 useRef 호출을 여기로 이동
   const inputRefs = useRef({});
   const imageSectionManagerRef = useRef(null);
   const prevModalOpenRef = useRef(false);
+  const sectionOptionsRef = useRef(null); // 섹션 옵션 참조 추가
+  const categoryOptionsRef = useRef(null); // 카테고리 옵션 참조 추가
   
   // 새로운 상태 추가
   const selectedItemId = useSelector(selectSelectedItemId);
   const selectedSectionName = useSelector(selectSelectedSectionName);
   
+  // 외부 클릭 시 옵션 닫기 효과 추가
+  useEffect(() => {
+    function handleClickOutside(event) {
+      // 섹션 옵션 외부 클릭 시 닫기
+      if (showSectionOptions && sectionOptionsRef.current && !sectionOptionsRef.current.contains(event.target)) {
+        setShowSectionOptions(false);
+      }
+      
+      // 카테고리 옵션 외부 클릭 시 닫기
+      if (showCategoryOptions && categoryOptionsRef.current && !categoryOptionsRef.current.contains(event.target)) {
+        setShowCategoryOptions(false);
+      }
+    }
+    
+    // 이벤트 리스너 등록
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // 컴포넌트 언마운트 시 이벤트 리스너 제거
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSectionOptions, showCategoryOptions]);
+
   // 패널이 보이지 않으면 null 반환
   if (!isPanelVisible) {
     return null;
@@ -355,11 +381,11 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     const isEmpty = isValueEmpty(formData[fieldName], fieldName);
     
     // 기본 스타일 (비어있거나 채워져 있는지)
-    const baseClassName = !isEmpty ? styles.filledInput : styles.emptyInput;
+    const baseClassName = !isEmpty ? styles.rightSidebarFilledInput : styles.rightSidebarEmptyInput;
     
     // 수정된 필드인 경우 추가 스타일
     if (modifiedFields && modifiedFields[fieldName]) {
-      return `${baseClassName} ${styles.modifiedInput}`;
+      return `${baseClassName} ${styles.rightSidebarModifiedInput}`;
     }
     
     return baseClassName;
@@ -370,6 +396,11 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     // category 필드는 특별 처리
     if (fieldName === 'category') {
       return renderCategoryField(readOnly);
+    }
+    
+    // sectionName 필드 특별 처리 추가
+    if (fieldName === 'sectionName') {
+      return renderSectionNameField(readOnly);
     }
     
     const isActive = fieldName === activeField;
@@ -443,11 +474,12 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     // 카테고리 편집 버튼 클릭 핸들러
     const handleCategoryEditClick = (e) => {
       e.preventDefault();
+      e.stopPropagation(); // 이벤트 버블링 방지
       setShowCategoryOptions(!showCategoryOptions);
     };
     
     return (
-      <div className={styles.categoryFieldContainer}>
+      <div className={styles.rightSidebarCategoryFieldContainer}>
         <input
           type="text"
           name="category"
@@ -456,11 +488,17 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
           className={getInputClassName('category')}
           ref={el => inputRefs.current.category = el}
           autoComplete="off"
+          onClick={(e) => {
+            // 읽기 전용이 아닐 때만 클릭 처리
+            if (isEditorOn) {
+              handleCategoryEditClick(e);
+            }
+          }}
         />
         {isEditorOn && (
           <button
             type="button"
-            className={styles.inputOverlayButton}
+            className={styles.rightSidebarInputOverlayButton}
             onClick={handleCategoryEditClick}
             style={{ display: 'block' }}
             title="카테고리 선택"
@@ -469,14 +507,85 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
           </button>
         )}
         {showCategoryOptions && isEditorOn && (
-          <div className={styles.categoryOptionsContainer}>
+          <div className={styles.rightSidebarCategoryOptionsContainer} ref={categoryOptionsRef}>
             {categoryOptions.map(option => (
               <div 
                 key={option} 
-                className={styles.categoryOption}
+                className={styles.rightSidebarCategoryOption}
                 onClick={() => handleSelectCategory(option)}
               >
                 {option}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // sectionName 필드 렌더링 함수 추가
+  const renderSectionNameField = (readOnly) => {
+    const sectionOptions = [
+      { value: '반월당', country: '한국' },
+      { value: '앙헬레스', country: '필리핀' },
+      { value: '말라떼', country: '필리핀' },
+      { value: '세부', country: '필리핀' }
+    ];
+    
+    const value = formData.sectionName || '';
+    
+    // 섹션 옵션 선택 핸들러
+    const handleSelectSection = (selectedSection) => {
+      dispatch(updateField({ field: 'sectionName', value: selectedSection }));
+      dispatch(trackField({ field: 'sectionName' }));
+      setShowSectionOptions(false);
+    };
+    
+    // 섹션 편집 버튼 클릭 핸들러
+    const handleSectionEditClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // 이벤트 버블링 방지
+      setShowSectionOptions(!showSectionOptions);
+    };
+    
+    return (
+      <div className={styles.rightSidebarCategoryFieldContainer}>
+        <input
+          type="text"
+          name="sectionName"
+          value={value}
+          readOnly={true}
+          className={getInputClassName('sectionName')}
+          ref={el => inputRefs.current.sectionName = el}
+          autoComplete="off"
+          onClick={(e) => {
+            // 읽기 전용이 아닐 때만 클릭 처리
+            if (isEditorOn) {
+              handleSectionEditClick(e);
+            }
+          }}
+        />
+        {isEditorOn && (
+          <button
+            type="button"
+            className={styles.rightSidebarInputOverlayButton}
+            onClick={handleSectionEditClick}
+            style={{ display: 'block' }}
+            title="위치지역 선택"
+          >
+            {value ? '✏️' : '📍'}
+          </button>
+        )}
+        {showSectionOptions && isEditorOn && (
+          <div className={styles.rightSidebarCategoryOptionsContainer} ref={sectionOptionsRef}>
+            {sectionOptions.map(option => (
+              <div 
+                key={option.value} 
+                className={styles.rightSidebarCategoryOption}
+                onClick={() => handleSelectSection(option.value)}
+              >
+                <small className={styles.rightSidebarCountryLabel}>{option.country}</small>
+                {option.value}
               </div>
             ))}
           </div>
@@ -510,9 +619,9 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
             );
             
             if (selectedItem && selectedItem.serverDataset) {
-              dispatch(startEdit({ shopData: selectedItem.serverDataset }));
+              dispatch(startEdit({ itemdata: selectedItem.serverDataset }));
             } else {
-              dispatch(startEdit({ shopData: protoServerDataset }));
+              dispatch(startEdit({ itemdata: protoServerDataset }));
             }
           } else {
             console.error('selectedItemId 또는 selectedSectionName이 없거나 SectionsDBManager가 없습니다.');
@@ -768,7 +877,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     if (e) e.preventDefault();
     
     // 1. 기존 데이터가 없는 빈 상태에서 편집 시작
-    dispatch(startEdit({ shopData: protoServerDataset }));
+    dispatch(startEdit({ itemdata: protoServerDataset }));
     
     // 2. 편집 시작 후 약간의 시간 간격을 두고 구글탐색 기능도 함께 실행
     setTimeout(() => {
@@ -782,10 +891,10 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
       {/* 상단 버튼 영역 */}
       <div className={styles.editorHeader}>
         <div className={styles.statusMessage}>
-          {isEditorOn && !originalShopData?.id && (
+          {isEditorOn && !originalitemdata?.id && (
             <span className={styles.editingStatusText}>신규상점 입력 중...</span>
           )}
-          {isEditorOn && originalShopData?.id && (
+          {isEditorOn && originalitemdata?.id && (
             <span className={styles.editingStatusText}>데이터 수정 중...</span>
           )}
           {isConfirming && !hasChanges && !isEditorOn && (

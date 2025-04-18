@@ -5,7 +5,7 @@ import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
-import { protoServerDataset, protoShopDataSet, OVERLAY_COLOR, OVERLAY_ICON } from '../../lib/models/editorModels';
+import { protoServerDataset, protoitemdataSet, OVERLAY_COLOR, OVERLAY_ICON } from '../../lib/models/editorModels';
 import MapOverlayManager from '../../lib/components/map/MapOverlayManager';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData, setupFirebaseListener } from '../../lib/services/serverUtils';
@@ -20,7 +20,7 @@ import {
   togglePanel,
   selectIsPanelVisible,
   selectHasChanges,
-  selectEditNewShopDataSet,
+  selectEditNewitemdataSet,
   selectModifiedFields,
   selectIsDrawing,
   selectDrawingType,
@@ -71,7 +71,7 @@ const SectionsDBManager = {
   /**
    * 섹션 데이터 가져오기 (캐시 -> 로컬 스토리지 -> 서버 순으로 시도)
    * @param {string} sectionName - 가져올 섹션 이름
-   * @returns {Promise<Array>} - 변환된 아이템 리스트 (protoShopDataSet 형태)
+   * @returns {Promise<Array>} - 변환된 아이템 리스트 (protoitemdataSet 형태)
    */
   getSectionItems: async function(sectionName) {
     // 1. 캐시에서 먼저 확인
@@ -87,7 +87,7 @@ const SectionsDBManager = {
       // 2. 캐시에 없으면 getSectionData 함수 호출 (로컬 스토리지 -> 서버)
       const serverItems = await getSectionData(sectionName);
       
-      // 3. 서버 형식(protoServerDataset)에서 클라이언트 형식(protoShopDataSet)으로 변환
+      // 3. 서버 형식(protoServerDataset)에서 클라이언트 형식(protoitemdataSet)으로 변환
       const clientItems = this._transformToClientFormat(serverItems);
       
       // 4. 캐시에 저장
@@ -179,7 +179,7 @@ const SectionsDBManager = {
   /**
    * 서버 형식에서 클라이언트 형식으로 데이터 변환
    * @param {Array} serverItems - 서버 형식 아이템 리스트 (protoServerDataset 형태)
-   * @returns {Array} - 변환된 아이템 리스트 (protoShopDataSet 형태)
+   * @returns {Array} - 변환된 아이템 리스트 (protoitemdataSet 형태)
    */
   _transformToClientFormat: function(serverItems, sectionName = "반월당") {
 
@@ -192,7 +192,7 @@ const SectionsDBManager = {
 
     return serverItems.map(item => {
       const clientItems = {
-        ...protoShopDataSet,
+        ...protoitemdataSet,
         serverDataset: { ...item }
       };
       
@@ -272,13 +272,13 @@ export default function Editor() { // 메인 페이지
 
   // 로컬 저장소에서 sectionsDB 저장 함수는 serverUtils.js로 이동했습니다.
 
-  // protoServerDataset과 protoShopDataSet은 dataModels.js로 이동했습니다.
+  // protoServerDataset과 protoitemdataSet은 dataModels.js로 이동했습니다.
   
   // Redux 상태 및 디스패치 가져오기
   const dispatch = useDispatch();
   const isPanelVisible = useSelector(selectIsPanelVisible);
   const hasChanges = useSelector(selectHasChanges);
-  const editNewShopDataSet = useSelector(selectEditNewShopDataSet);
+  const editNewitemdataSet = useSelector(selectEditNewitemdataSet);
   const modifiedFields = useSelector(selectModifiedFields);
   // 드로잉 관련 상태 추가
   const isDrawing = useSelector(selectIsDrawing);
@@ -374,13 +374,13 @@ export default function Editor() { // 메인 페이지
         console.error(`구글place 미작동: '${detailPlace.name}'`);
         return;
       }
-      
+      console.log('[DEBUG] 구글 장소 검색 결과 객체:', detailPlace);
       try {
         // 최신 compareBar 상태 가져오기
         const reduxState = store.getState();
         const compareBarState = reduxState.compareBar;
                   
-        // 유틸리티 함수를 사용하여 구글 장소 데이터를 앱 형식으로 변환
+        // 유틸리티 함수를 사용하여 구글 장소 데이터를 앱 형식인 protoServerDataset으로 변환
         const convertedGoogleData = parseGooglePlaceData(detailPlace, myAPIkeyforMap);
         
         // isSyncGoogleSearchCompareBar 값이 true일 때 CompareBar 업데이트
@@ -437,7 +437,7 @@ export default function Editor() { // 메인 페이지
 
   }
 
-  // 드로잉 매니저의 생성이유와 용도는 MyshopData의 pin과 다각형 도형 수정과 출력을 그리기용용
+  // 드로잉 매니저의 생성이유와 용도는 Myitemdata의 pin과 다각형 도형 수정과 출력을 그리기용용
   // 드로잉매니저 초기화 단계에서는 마커의 디자인과 기본 동일한 동작만 세팅 
   // 객체 관리 이벤트 처리는 핸들러에서 처리함. 
   // 이벤트 처리 순서는 overlaycomplete 공통-> polygoncomplete, markercomplete 

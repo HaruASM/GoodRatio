@@ -10,15 +10,16 @@ import {
   goToImage,
   selectIsGalleryOpen,
   selectGalleryImages,
-  selectCurrentImageIndex
+  selectCurrentImageIndex,
+  selectGallerySource
 } from '../../lib/store/slices/imageGallerySlice';
 
 // 이미지 URL 변환 유틸리티 임포트
-import { getProxiedPhotoUrl } from '../../lib/utils/imageHelpers';
+import { getProxiedPhotoUrl, getThumbnailUrl, getOriginalSizeUrl } from '../../lib/utils/imageHelpers';
 
 /**
  * 이미지 갤러리 컴포넌트
- * 이미지 배열을 전체 화면 갤러리로 표시
+ * Cloudinary public ID 배열을 전체 화면 갤러리로 표시
  * 
  * @returns {React.ReactElement} 이미지 갤러리 UI 컴포넌트
  */
@@ -26,12 +27,14 @@ const ImageGallery = () => {
   // Redux 상태 및 디스패치 
   const dispatch = useDispatch();
   const isOpen = useSelector(selectIsGalleryOpen);
-  const images = useSelector(selectGalleryImages);
+  const images = useSelector(selectGalleryImages); // public ID 배열
   const currentIndex = useSelector(selectCurrentImageIndex);
+  const source = useSelector(selectGallerySource);
   
   // 로컬 상태
   const [isBrowserReady, setIsBrowserReady] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
+  const [loadingImage, setLoadingImage] = useState(false);
   
   // 브라우저 환경 체크
   useEffect(() => {
@@ -39,6 +42,11 @@ const ImageGallery = () => {
       setIsBrowserReady(true);
     }
   }, []);
+  
+  // 이미지 인덱스가 변경될 때마다 로딩 상태 초기화
+  useEffect(() => {
+    setLoadingImage(true);
+  }, [currentIndex]);
   
   // 갤러리 닫기
   const handleClose = useCallback(() => {
@@ -67,6 +75,12 @@ const ImageGallery = () => {
       ...prev,
       [key]: true
     }));
+    setLoadingImage(false);
+  }, []);
+  
+  // 이미지 로드 완료 처리
+  const handleImageLoad = useCallback(() => {
+    setLoadingImage(false);
   }, []);
   
   // 키보드 이벤트 처리
@@ -109,8 +123,8 @@ const ImageGallery = () => {
     return null;
   }
   
-  // 현재 이미지 참조
-  const currentImageRef = images[currentIndex];
+  // 현재 이미지 public ID
+  const currentPublicId = images[currentIndex];
   const hasError = imageErrors[`gallery-current`];
   
   // 갤러리 렌더링
@@ -136,13 +150,21 @@ const ImageGallery = () => {
           
           <div className={styles.galleryImageContainer}>
             {!hasError ? (
-              <img 
-                src={getProxiedPhotoUrl(currentImageRef, 800)} 
-                alt={`이미지 ${currentIndex + 1}`}
-                className={styles.galleryImagePreview}
-                onError={() => handleImageError('gallery-current')}
-                style={{ height: "100%", width: "auto" }}
-              />
+              <>
+                {loadingImage && (
+                  <div className={styles.imageLoadingContainer}>
+                    <span>이미지 로딩 중...</span>
+                  </div>
+                )}
+                <img 
+                  src={getOriginalSizeUrl(currentPublicId)} 
+                  alt={`이미지 ${currentIndex + 1}`}
+                  className={`${styles.galleryImagePreview} ${loadingImage ? styles.imageLoading : ''}`}
+                  onError={() => handleImageError('gallery-current')}
+                  onLoad={handleImageLoad}
+                  style={{ height: "100%", width: "auto" }}
+                />
+              </>
             ) : (
               <div className={styles.imageErrorPlaceholderContainer}>
                 <span>이미지를 불러올 수 없습니다.</span>
@@ -160,7 +182,7 @@ const ImageGallery = () => {
         </div>
         
         <div className={styles.galleryThumbnailsContainer}>
-          {images.map((imageRef, index) => (
+          {images.map((publicId, index) => (
             <div 
               key={`gallery-thumb-${index}`}
               className={`${styles.galleryThumbnailItem} ${index === currentIndex ? styles.isActiveThumbnail : ''} ${imageErrors[`gallery-thumb-${index}`] ? styles.isErrorThumbnail : ''}`}
@@ -170,7 +192,7 @@ const ImageGallery = () => {
                 <div className={styles.thumbnailErrorPlaceholderContainer}></div>
               ) : (
                 <img 
-                  src={getProxiedPhotoUrl(imageRef, 100)} 
+                  src={getThumbnailUrl(publicId)} 
                   alt={`썸네일 ${index + 1}`}
                   onError={() => handleImageError(`gallery-thumb-${index}`)}
                   style={{ height: "100%", width: "auto" }}

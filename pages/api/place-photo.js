@@ -57,12 +57,11 @@ import {
 } from '../../lib/cloudinary';
 import fetch from 'node-fetch';
 
-// 상단에 일관된 이미지 사이즈 상수 정의
-const DEFAULT_MAX_WIDTH = 800; // 기본 이미지 너비
-const THUMBNAIL_WIDTH = 400;   // 썸네일 크기
-const MEDIUM_WIDTH = 800;      // 중간 크기
-const FALLBACK_WIDTH = 600;    // 실패 시 대체 크기
-const MAX_SAFE_ORIGINAL = 2000; // 원본 이미지 안전 상한선
+// imageHelpers.js와 일치하도록 이미지 크기 상수 정의
+const NORMAL_WIDTH = 400;         // 일반 크기 (getNormalPhotoUrl)
+const THUMBNAIL_WIDTH = 150;      // 썸네일 크기 (getThumbnailPhotoUrl)
+const MAX_SAFE_ORIGINAL = 2000;   // 원본 이미지 안전 상한선 (getOriginalSizePhotoUrl)
+const FALLBACK_WIDTH = 400;       // 실패 시 대체 크기 - 일반 크기와 동일
 
 /**
  * 로깅을 위한 문자열 단축 유틸리티 함수
@@ -95,9 +94,21 @@ export default async function handler(req, res) {
   } = req.query;
 
   // 원본 이미지 요청 여부 확인
-  const isOriginalRequest = original === 'true' || maxwidth === undefined;
-  // 기본 최대 너비 (원본 요청이 아닌 경우에만 사용)
-  const effectiveMaxWidth = isOriginalRequest ? null : (maxwidth || DEFAULT_MAX_WIDTH);
+  const isOriginalRequest = original === 'true' || original === '1';
+  
+  // 썸네일 요청 여부 확인 (width가 150 이하인 경우)
+  const isThumbnailRequest = !isOriginalRequest && 
+    (parseInt(maxwidth, 10) <= THUMBNAIL_WIDTH || maxwidth === undefined);
+  
+  // 적용할 크기 결정
+  let effectiveWidth;
+  if (isOriginalRequest) {
+    effectiveWidth = null; // 원본 요청은 크기 제한 없음
+  } else if (isThumbnailRequest) {
+    effectiveWidth = THUMBNAIL_WIDTH; // 썸네일 요청
+  } else {
+    effectiveWidth = NORMAL_WIDTH; // 기본은 일반 크기 (400px)
+  }
   
   // API 키 검증
   const apiKey = process.env.NEXT_PUBLIC_MAPS_API_KEY;
@@ -115,7 +126,7 @@ export default async function handler(req, res) {
       // public_id가 제공된 경우, 직접 사용
       publicId = public_id;
       console.log(`클라이언트가 제공한 public_id 사용: ${truncateForLogging(publicId)}`);
-      console.log(`요청 타입: ${isOriginalRequest ? '원본 크기' : `${effectiveMaxWidth}px 크기`}`);
+      console.log(`요청 타입: ${isOriginalRequest ? '원본 크기' : `${effectiveWidth}px 크기`}`);
     } else if (photo_reference) {
       // photo_reference가 제공된 경우, publicId 생성
       publicId = getCloudinaryPublicId(photo_reference, section, place_id, image_index);
@@ -185,7 +196,7 @@ export default async function handler(req, res) {
       if (!isOriginalRequest) {
         // 썸네일 이미지 요청 - 변환 파라미터 사용
         const imageOptions = {
-          width: parseInt(effectiveMaxWidth, 10),
+          width: effectiveWidth,
           crop: mode,
           quality: quality,
           fetch_format: 'auto'
@@ -222,7 +233,7 @@ export default async function handler(req, res) {
         
         // 썸네일 요청인 경우
         if (!isOriginalRequest) {
-          const uploadResult = await uploadGooglePlaceImage(photo_reference, effectiveMaxWidth, apiKey, uploadOptions);
+          const uploadResult = await uploadGooglePlaceImage(photo_reference, effectiveWidth, apiKey, uploadOptions);
           imageUrl = uploadResult.secure_url;
         } else {
           // 원본 이미지 요청인 경우
@@ -233,149 +244,47 @@ export default async function handler(req, res) {
           imageUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`;
         }
       } catch (uploadError) {
-        console.error('Cloudinary 업로드 실패, 직접 Google API 호출로 대체:', uploadError.message);
-        // 업로드 실패 시 Google API 직접 호출로 대체
-        if (isOriginalRequest) {
-          imageUrl = `https://maps.googleapis.com/maps/api/place/photo?photo_reference=${photo_reference}&key=${apiKey}`;
-        } else {
-          imageUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${effectiveMaxWidth}&photo_reference=${photo_reference}&key=${apiKey}`;
-          
-          if (maxheight) {
-            imageUrl += `&maxheight=${maxheight}`;
-          }
-        }
+        console.error('Cloudinary 업로드 실패:', uploadError.message);
+        // 업로드 실패 시 오류 응답 반환
+        return res.status(500).json({ 
+          error: '이미지를 Cloudinary에 업로드하는 데 실패했습니다',
+          detail: uploadError.message
+        });
       }
     } else {
       // public_id만 있고 Cloudinary에 이미지가 없는 경우 404 반환
       return res.status(404).json({ error: 'Image not found in Cloudinary and no photo_reference provided' });
     }
     
-    // 5. 이미지 리디렉션 또는 프록시
-    if (process.env.USE_IMAGE_REDIRECT === 'true') {
-      // 리디렉션 방식
-      res.redirect(imageUrl);
-    } else {
-      // 프록시 방식 - 이미지 데이터를 직접 전달
-      const MAX_RETRY = 1; // 재시도 횟수
-
-      try {
-        const fetchImage = async (url) => {
-          console.log(`이미지 가져오기 시도: ${url.substring(0, 100)}...`);
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`이미지 가져오기 실패: ${response.status} ${response.statusText}`);
-          }
-          
-          return {
-            buffer: await response.buffer(),
-            contentType: response.headers.get('content-type')
-          };
-        };
-        
-        let imageData;
-        let retryCount = 0;
-        
-        // 첫 시도
-        try {
-          imageData = await fetchImage(imageUrl);
-        } catch (fetchError) {
-          console.warn(`이미지 가져오기 실패 (${isOriginalRequest ? '원본' : effectiveMaxWidth + 'px'}): ${fetchError.message}`);
-          
-          // 이미지 가져오기 실패 처리 로직
-          if (isOriginalRequest) {
-            // 1. Cloudinary에 이미지가 있는 경우 (캐시는 있으나 URL 접근 실패)
-            if (imageInfo) {
-              console.log('Cloudinary에 이미지가 있으나 원본 접근 실패, 대체 방식으로 시도');
-              try {
-                // 1차 시도: 기본 SDK를 통한 URL 생성
-                console.log('1차 시도: SDK로 기본 URL 생성');
-                const fallbackUrl = getCloudinaryUrl(publicId, { quality: 'auto' });
-                imageData = await fetchImage(fallbackUrl);
-              } catch (sdkError) {
-                console.warn('SDK URL 방식으로도 실패, 다른 Cloudinary 접근 방식 시도');
-                try {
-                  // 2차 시도: 버전 없이 접근
-                  console.log('2차 시도: 버전 정보 없이 접근');
-                  const noVersionUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`;
-                  imageData = await fetchImage(noVersionUrl);
-                } catch (noVersionError) {
-                  try {
-                    // 3차 시도: 썸네일 변환으로 접근 (원본과 거의 동일한 크기)
-                    console.log('3차 시도: 대용량 이미지로 접근 (원본에 근접한 크기)');
-                    const largeImageUrl = getCloudinaryUrl(publicId, { width: MAX_SAFE_ORIGINAL, height: MAX_SAFE_ORIGINAL, crop: 'limit', quality: 'auto' });
-                    imageData = await fetchImage(largeImageUrl);
-                  } catch (largeError) {
-                    console.warn('모든 Cloudinary 접근 방식 실패, 중간 크기 이미지로 대체');
-                    // 최종 대체: 중간 크기 이미지로 대체 (실패 방지)
-                    const mediumImageUrl = getCloudinaryUrl(publicId, { width: MEDIUM_WIDTH, crop: 'scale', quality: 'auto' });
-                    try {
-                      imageData = await fetchImage(mediumImageUrl);
-                    } catch (finalError) {
-                      console.error('모든 Cloudinary 접근 방식 실패, 기본 이미지 사용');
-                      // 기본 이미지 URL (애플리케이션에 기본 이미지가 있다면 사용)
-                      const defaultImage = '/images/default-photo.jpg';
-                      throw new Error('이미지를 가져올 수 없습니다');
-                    }
-                  }
-                }
-              }
-            } 
-            // 2. Cloudinary에 이미지가 없는 경우 (새로 업로드 시도 실패)
-            else {
-              console.log('Cloudinary에 이미지가 없음, 구글 API에서 직접 가져오기 시도');
-              try {
-                const googleUrl = `https://maps.googleapis.com/maps/api/place/photo?photo_reference=${photo_reference}&key=${apiKey}`;
-                imageData = await fetchImage(googleUrl);
-              } catch (googleError) {
-                console.warn('구글 API 원본 이미지 가져오기 실패, 기본 이미지로 대체');
-                // 기본 이미지로 대체 (중간 크기 이미지)
-                const fallbackUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${MEDIUM_WIDTH}&photo_reference=${photo_reference}&key=${apiKey}`;
-                imageData = await fetchImage(fallbackUrl);
-              }
-            }
-          } 
-          // 썸네일 이미지 가져오기 실패 처리 (원래 로직과 유사)
-          else if (retryCount < MAX_RETRY && parseInt(effectiveMaxWidth, 10) > FALLBACK_WIDTH) {
-            retryCount++;
-            
-            // 이미지 크기 줄이기
-            if (imageInfo) {
-              // Cloudinary 이미지가 있으면 더 작은 크기로 생성
-              const fallbackOptions = {
-                width: FALLBACK_WIDTH,
-                crop: 'scale',
-                quality: 'auto',
-                fetch_format: 'auto'
-              };
-              
-              const fallbackUrl = getCloudinaryUrl(publicId, fallbackOptions);
-              console.log(`대체 이미지 요청 시도 (${FALLBACK_WIDTH}px)`);
-              imageData = await fetchImage(fallbackUrl);
-            } else {
-              // 구글 API 직접 호출로 더 작은 크기 요청
-              const fallbackUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${FALLBACK_WIDTH}&photo_reference=${photo_reference}&key=${apiKey}`;
-              console.log(`Google API에서 대체 이미지 요청 (${FALLBACK_WIDTH}px)`);
-              imageData = await fetchImage(fallbackUrl);
-            }
-          } else {
-            // 모든 시도 실패
-            throw fetchError;
-          }
-        }
-        
-        // 캐싱 헤더 설정 (1주일)
-        res.setHeader('Cache-Control', 'public, max-age=604800, s-maxage=604800');
-        res.setHeader('Content-Type', imageData.contentType);
-        // 원본 photo_reference 정보 포함
-        res.setHeader('X-Original-Photo-Reference', photo_reference);
-        res.setHeader('X-Image-Width', retryCount > 0 ? FALLBACK_WIDTH.toString() : effectiveMaxWidth);
-        res.send(imageData.buffer);
-      } catch (error) {
-        console.error('이미지 프록시 처리 오류:', error);
-        // 실패 시 오류 응답 반환
-        res.status(500).json({ error: '이미지를 가져오는 중 오류가 발생했습니다', detail: error.message });
+    // 5. 이미지 데이터를 직접 전달
+    try {
+      console.log(`이미지 가져오기 시도: ${imageUrl?.substring(0, 100)}...`);
+      const response = await fetch(imageUrl);
+      
+      if (!response.ok) {
+        throw new Error(`이미지 가져오기 실패: ${response.status} ${response.statusText}`);
       }
+      
+      const buffer = await response.buffer();
+      const contentType = response.headers.get('content-type');
+      
+      // 캐싱 헤더 설정 (1주일)
+      res.setHeader('Cache-Control', 'public, max-age=604800, s-maxage=604800');
+      res.setHeader('Content-Type', contentType);
+      // 원본 photo_reference 정보 포함
+      if (photo_reference) {
+        res.setHeader('X-Original-Photo-Reference', photo_reference);
+      }
+      res.setHeader('X-Image-Width', effectiveWidth || 'original');
+      res.send(buffer);
+      
+    } catch (error) {
+      console.error('이미지 프록시 처리 오류:', error);
+      // 실패 시 오류 응답 반환
+      res.status(500).json({ 
+        error: '이미지를 가져오는 중 오류가 발생했습니다', 
+        detail: error.message 
+      });
     }
   } catch (error) {
     console.error('Place Photo API 오류:', error);

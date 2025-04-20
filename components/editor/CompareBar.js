@@ -29,7 +29,7 @@ import {
   openImageSelectionMode,
   selectIsImageSelectionMode,
   resetImageSelection
-} from '../../lib/store/slices/imageManagerSlice';
+} from '../../lib/store/slices/imageGallerySlice';
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { titlesofDataFoam, protoServerDataset } from '../../lib/models/editorModels';
 import crypto from 'crypto';
@@ -203,14 +203,17 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     // 이미지 데이터 초기화
     dispatch(resetImageSelection());
     
-    // 갤러리를 열기 전에 이미지가 있는지 확인
-    if (allImagePublicIds.length > 0) {
-      handleToggleGallery(allImagePublicIds);
-    }
-  }, [compareData, selectedItemId, handleToggleGallery, dispatch]);
+// 갤러리를 열기 전에 이미지가 있는지 확인
+if (allImagePublicIds.length > 0) {
+  dispatch(openGallery({
+    images: allImagePublicIds,
+    imageIndex: 0
+  }));
+}
+}, [compareData, selectedItemId, dispatch]);
 
-  // 이미지 선택 완료 핸들러
-  const handleImagesSelected = (selectedImages) => {
+  // 이미지 선택 완료 핸들러(이미지 선택 겔러리의 완료 동작을 위한 핸들러. 
+  const handleSelectGalleryDone = (selectedImages) => {
     // 선택된 이미지 배열 깊은 복사 (문자열 배열이므로 JSON 방식 사용)
     const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImages || []));
     
@@ -359,7 +362,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
           <ImageSectionManager 
             mainImage={mainImagePublicId} // public ID로 변환된 메인 이미지
             subImages={subImagesPublicIds} // public ID로 변환된 서브 이미지 배열
-            onImagesSelected={handleImagesSelected}
+            onImagesSelected={handleSelectGalleryDone}
             onCancelSelection={handleCancelImageSelection}
             isSelectionMode={isImageSelectionMode}
             source="compareBar"
@@ -470,54 +473,54 @@ const CompareBar = () => {
     }
   };
 
-  // 갤러리 열기 처리 함수
-  const handleOpenGallery = useCallback(() => {
-    // 이미지 모음 배열 초기화
-    const allImagePublicIds = [];
+  // // 갤러리 열기 처리 함수 (리덕스로 변경 )
+  // const handleOpenGallery = useCallback(() => {
+  //   // 이미지 모음 배열 초기화
+  //   const allImagePublicIds = [];
     
-    // 메인 이미지 처리
-    if (compareData.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '') {
-      const mainImageId = convertGoogleImageReferenceToPublicId(
-        compareData.mainImage, 
-        'tempsection',
-        typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
-        0
-      );
-      allImagePublicIds.push(mainImageId);
-    }
+  //   // 메인 이미지 처리
+  //   if (compareData.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '') {
+  //     const mainImageId = convertGoogleImageReferenceToPublicId(
+  //       compareData.mainImage, 
+  //       'tempsection',
+  //       typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
+  //       0
+  //     );
+  //     allImagePublicIds.push(mainImageId);
+  //   }
     
-    // 서브 이미지 처리
-    if (compareData.subImages && Array.isArray(compareData.subImages)) {
-      // 유효한 서브 이미지 참조만 필터링하고 공개 ID로 변환
-      compareData.subImages.forEach((ref, index) => {
-        if (ref && typeof ref === 'string' && ref.trim() !== '') {
-          const publicId = convertGoogleImageReferenceToPublicId(
-            ref, 
-            'tempsection',
-            typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
-            index + 1 // 메인 이미지 다음 인덱스부터 시작
-          );
-          allImagePublicIds.push(publicId);
-        }
-      });
-    }
+  //   // 서브 이미지 처리
+  //   if (compareData.subImages && Array.isArray(compareData.subImages)) {
+  //     // 유효한 서브 이미지 참조만 필터링하고 공개 ID로 변환
+  //     compareData.subImages.forEach((ref, index) => {
+  //       if (ref && typeof ref === 'string' && ref.trim() !== '') {
+  //         const publicId = convertGoogleImageReferenceToPublicId(
+  //           ref, 
+  //           'tempsection',
+  //           typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
+  //           index + 1 // 메인 이미지 다음 인덱스부터 시작
+  //         );
+  //         allImagePublicIds.push(publicId);
+  //       }
+  //     });
+  //   }
     
-    // 이미지 데이터 초기화
-    dispatch(resetImageSelection());
+  //   // 이미지 데이터 초기화
+  //   dispatch(resetImageSelection());
     
-    // 갤러리를 열기 전에 이미지가 있는지 확인
-    if (allImagePublicIds.length > 0) {
-      handleToggleGallery(allImagePublicIds);
-    }
-  }, [compareData, selectedItemId, dispatch, handleToggleGallery]);
+  //   // 갤러리를 열기 전에 이미지가 있는지 확인
+  //   if (allImagePublicIds.length > 0) {
+  //     handleToggleGallery(allImagePublicIds);
+  //   }
+  // }, [compareData, selectedItemId, dispatch, handleToggleGallery]);
 
-  // 갤러리 토글 처리 함수
-  const handleToggleGallery = useCallback((images) => {
-    dispatch(openGallery({
-      images,
-      imageIndex: 0
-    }));
-  }, [dispatch]);
+  // // 갤러리 토글 처리 함수
+  // const handleToggleGallery = useCallback((images) => {
+  //   dispatch(openGallery({
+  //     images,
+  //     imageIndex: 0
+  //   }));
+  // }, [dispatch]);
 
   return (
     <div className={styles.compareBarWrapper}>

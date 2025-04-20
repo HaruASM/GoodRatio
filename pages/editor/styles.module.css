@@ -494,15 +494,24 @@
 .thumbnailsContainer {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 5px;
+  width: 100%;
+  height: 140px;
 }
 
 .thumbnailItem {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
+  border: 1px dashed #ddd;
+  background-color: #f9f9f9;
+}
+
+.mainThumbnail {
+  grid-column: 1;
+  grid-row: 1 / span 2;
 }
 
 .thumbnail {
@@ -526,7 +535,7 @@
 .emptyImage {
   width: 100%;
   height: 100%;
-  background-color: #e0e0e0;
+  background-color: #f0f0f0;
   display: flex;
   align-items: center;
   justify-content: center;

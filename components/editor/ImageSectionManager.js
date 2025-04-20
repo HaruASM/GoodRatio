@@ -1,16 +1,43 @@
-import React, { useCallback, forwardRef, useImperativeHandle } from 'react';
+/**
+ * 이미지 섹션 관리자 컴포넌트 (ImageSectionManager)
+ * 
+ * 역할:
+ * - 메인 이미지와 서브 이미지 미리보기 UI 제공
+ * - 이미지 추가/변경 및 순서 조정 기능 버튼 제공
+ * - 실제 이미지 프리뷰 표시 (인라인 컴포넌트)
+ * 
+ * 이미지 갤러리 시스템 개요:
+ * 
+ * 1. 이미지 관련 갤러리 유형:
+ *    - 이미지 확인 갤러리: 전체 화면 이미지 보기 (ImageGallery.js)
+ *    - 이미지 선택 갤러리: 이미지 선택 기능
+ *    - 이미지 순서 편집 갤러리: 순서 변경 기능
+ * 
+ * 2. 데이터 흐름:
+ *    - Redux 액션을 통해 갤러리 열기/닫기 관리 (imageGallerySlice.js)
+ *    - 부모 컴포넌트(RightSidebar/CompareBar)에서 props 전달 (mainImage, subImages)
+ *    - 사용자 이벤트 발생 시 Redux 액션 디스패치 및 부모 콜백 호출
+ * 
+ * 3. 주요 상호작용:
+ *    - 이미지 추가/변경 버튼 클릭 → openImageSelectionMode 액션 디스패치
+ *    - 순서 변경 버튼 클릭 → openImageOrderEditor 액션 디스패치
+ *    - 갤러리 이벤트 완료 → 부모 컴포넌트 콜백(onImageOrderChange) 호출
+ * 
+ * 참고: 이 컴포넌트는 ImageGallery.js와 분리되어 있으며, ImageGallery는 전체 화면 
+ * 이미지 보기에 중점을 두는 반면, 이 컴포넌트는 이미지 관리에 중점을 둡니다.
+ */
+
+import React, { forwardRef, useImperativeHandle } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import styles from '../../pages/editor/styles.module.css';
 
-// 이미지 매니저 슬라이스에서 필요한 액션과 선택자만 가져오기
+// 이미지 갤러리 슬라이스에서 필요한 액션과 선택자만 가져오기
 import {
   openImageOrderEditor,
   openImageSelectionMode,
   selectIsImageSelectionMode,
-  selectSelectedImages,
-  closeImageSelectionMode,
-  closeImageOrderEditor,
-} from '../../lib/store/slices/imageManagerSlice';
+  selectSelectedImages
+} from '../../lib/store/slices/imageGallerySlice';
 
 /**
  * 이미지 관리 컴포넌트 - 이미지 배열을 출력하고 관리
@@ -23,14 +50,10 @@ import {
  */
 const ImageSectionManager = forwardRef(({ 
   mainImage, 
-  subImages = [], 
-  onImageOrderChange
+  subImages = []
 }, ref) => {
   const dispatch = useDispatch();
   
-  // Redux 상태 가져오기
-  const isModalOpen = useSelector(selectIsImageSelectionMode);
-  const selectedImages = useSelector(selectSelectedImages);
   
   // 유효한 메인 이미지와 서브 이미지 확인
   const validMainImage = mainImage && typeof mainImage === 'string' && mainImage.trim() !== '';
@@ -55,108 +78,81 @@ const ImageSectionManager = forwardRef(({
       }));
     }
   }));
-  
-  // 이미지 선택 완료 핸들러
-  const handleImagesSelected = useCallback(() => {
-    const selectedImageIds = selectedImages;
-    
-    if (selectedImageIds.length > 0) {
-      // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
-      const mainImage = selectedImageIds[0];
-      const subImages = selectedImageIds.slice(1);
-      
-      // 선택한 이미지로 항목 업데이트
-      onImageOrderChange({
-        mainImage,
-        subImages
-      });
-      
-      // 선택 모드 종료
-      dispatch(closeImageSelectionMode());
-    }
-  }, [selectedImages, onImageOrderChange, dispatch]);
 
-  // // 이미지 순서 편집 완료 핸들러
-  // const handleOrderConfirmed = useCallback((orderedImages) => {
-  //   if (Array.isArray(orderedImages) && orderedImages.length > 0) {
-  //     // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
-  //     const mainImage = orderedImages[0];
-  //     const subImages = orderedImages.slice(1);
-      
-  //     // 순서가 변경된 이미지로 항목 업데이트
-  //     onImageOrderChange({
-  //       mainImage,
-  //       subImages
-  //     });
-      
-  //     // 순서 편집 모드 종료
-  //     dispatch(closeImageOrderEditor());
-  //   }
-  // }, [onImageOrderChange, dispatch]);
+  // 서브 이미지가 있는지 확인
+  const hasValidSubImages = validSubImages.length > 0;
+  
+  // 추가 이미지 개수 (4개 초과분)
+  const additionalImages = validSubImages.length > 4 ? validSubImages.length - 4 : 0;
 
   return (
     <div className={styles.imageSectionManager}>
-      <div className={styles.header}>
-        <h5>이미지 섹션</h5>
-        <div className={styles.buttonGroup}>
-          <button 
-            className={styles.button}
-            onClick={() => dispatch(openImageSelectionMode({
-              images: allImages
-            }))}
-          >
-            {allImages.length === 0 ? '이미지 추가' : '이미지 변경'}
-          </button>
-          
-          {allImages.length > 0 && (
-            <button 
-              className={styles.button}
-              onClick={() => dispatch(openImageOrderEditor({
-                images: allImages
-              }))}
-            >
-              순서 변경
-            </button>
-          )}
-        </div>
-      </div>
-      
-      <div className={styles.imagePreview}>
-        {allImages.length === 0 && (
-          <div className={styles.noImages}>
-            이미지가 없습니다. '이미지 추가' 버튼을 클릭하여 이미지를 추가하세요.
-          </div>
-        )}
-        
-        {validMainImage && (
+      <div className={styles.imagesPreviewContainer}>
+        {/* 메인 이미지 */}
+        <div className={styles.imageSection}>
           <div className={styles.mainImageContainer}>
-            <div className={styles.imageLabel}>메인 이미지</div>
-            <img 
-              src={`/api/place-photo?public_id=${encodeURIComponent(mainImage)}`}
-              alt="메인 이미지"
-              className={styles.mainImage}
-            />
+            {validMainImage ? (
+              <img 
+                src={`/api/place-photo?public_id=${encodeURIComponent(mainImage)}`}
+                alt="메인 이미지" 
+                className={styles.mainImagePreview}
+                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+              />
+            ) : (
+              <div className={styles.emptyImagePlaceholder}>
+                <span>이미지 없음</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
         
-        {validSubImages.length > 0 && (
-          <div className={styles.subImagesContainer}>
-            <div className={styles.imageLabel}>추가 이미지 ({validSubImages.length})</div>
-            <div className={styles.subImagesGrid}>
-              {validSubImages.map((imgRef, index) => (
-                <img 
-                  key={`sub-img-${index}`}
-                  src={`/api/place-photo?public_id=${encodeURIComponent(imgRef)}`}
-                  alt={`추가 이미지 ${index + 1}`}
-                  className={styles.subImage}
-                />
-              ))}
-            </div>
+        {/* 서브 이미지 */}
+        <div className={styles.imageSection}>
+          <div 
+            className={styles.subImagesContainer} 
+            style={{ gap: '5px', gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: 'repeat(2, 1fr)' }}
+          >
+            {hasValidSubImages ? (
+              <>
+                {validSubImages.slice(0, 4).map((subImageRef, imgIndex) => {
+                  return (
+                    <div 
+                      key={`sub-${imgIndex}`}
+                      className={styles.subImageItem}
+                    >
+                      {subImageRef && typeof subImageRef === 'string' && subImageRef.trim() !== '' ? (
+                        <div className={imgIndex === 3 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
+                          <img 
+                            src={`/api/place-photo?public_id=${encodeURIComponent(subImageRef)}`}
+                            alt={`서브 이미지 ${imgIndex + 1}`} 
+                            className={styles.subImagePreview}
+                            style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                          />
+                          {imgIndex === 3 && additionalImages > 0 && (
+                            <div className={styles.imageCountOverlay}>
+                              +{additionalImages}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className={styles.emptyImagePlaceholder}></div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              Array(4).fill(null).map((_, index) => (
+                <div key={index} className={styles.subImageItem}>
+                  <div className={styles.emptyImagePlaceholder}></div>
+                </div>
+              ))
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
 });
 
-export default ImageSectionManager;
+export default ImageSectionManager; 

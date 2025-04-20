@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from './styles.module.css';
 import { parseCoordinates } from '../../lib/models/editorModels';
-import { getProxiedPhotoUrl } from '../../lib/utils/imageHelpers';
+import { getNormalPhotoUrl } from '../../lib/utils/imageHelpers';
 import { 
   itemSelectedThunk, 
   selectSelectedItemId 
@@ -31,7 +31,7 @@ const ExploringSidebar = ({
   const isSidebarVisible = useSelector(selectIsSidebarVisible);
   
   // 상점 선택 핸들러
-  const handleShopSelect = (item, e) => {
+  const handleItemSelect = (item, e) => {
     e.preventDefault();
     
     // 선택된 상점 설정 - 리덕스 액션으로 변경
@@ -50,15 +50,15 @@ const ExploringSidebar = ({
     e.stopPropagation();
     
     // 이미지가 속한 상점 찾기
-    const shop = curItemListInCurSection.find(item => 
-      (item.serverDataset?.itemName === itemName) ||
-      (item.itemName === itemName)
+    const _shop = curItemListInCurSection.find(_item => 
+      (_item.serverDataset?.itemName === itemName) ||
+      (_item.itemName === itemName)
     );
     
-    if (shop && shop.serverDataset?.id) {
+    if (_shop && _shop.serverDataset?.id) {
       // 상점 선택 - 리덕스 액션으로 변경
       dispatch(itemSelectedThunk({
-        id: shop.serverDataset.id,
+        id: _shop.serverDataset.id,
         sectionName: curSectionName
       }));
     } else {
@@ -97,7 +97,7 @@ const ExploringSidebar = ({
               key={`shop-${index}-${item.serverDataset.itemName}`} 
               className={isItemSelected(item) ? styles['explSidebar-selectedItem'] : styles['explSidebar-item']}
             >
-              <a href="#" onClick={(e) => handleShopSelect(item, e)}>
+              <a href="#" onClick={(e) => handleItemSelect(item, e)}>
                 <div className={styles['explSidebar-itemDetails']}>
                   <span className={styles['explSidebar-itemTitle']}>
                     {item.serverDataset.itemName || ''} 
@@ -109,7 +109,7 @@ const ExploringSidebar = ({
                   {item.serverDataset.mainImage && item.serverDataset.mainImage.trim() !== '' ? (
                     <div className={styles['explSidebar-mainImage']}>
                       <Image
-                        src={getProxiedPhotoUrl(item.serverDataset.mainImage, 400)}
+                        src={getNormalPhotoUrl(item.serverDataset.mainImage)}
                         alt={`${item.serverDataset.itemName || ''} 메인 이미지`}
                         fill
                         sizes="280px"

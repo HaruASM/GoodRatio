@@ -45,9 +45,10 @@ import {
   openImageSelectionMode,
   selectIsImageSelectionMode,
   openImageOrderEditor,
-  resetImageData,
-  selectIsImageOrderEditorOpen
-} from '../../lib/store/slices/imageManagerSlice';
+  resetImageSelection,
+  selectIsImageOrderEditorMode,
+  selectIsGalleryOpen
+} from '../../lib/store/slices/imageGallerySlice';
 import { getValidImageRefs } from '../../lib/utils/imageHelpers';
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { selectSelectedItemId, selectSelectedSectionName } from '../../lib/store/slices/mapEventSlice';
@@ -139,9 +140,9 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   const drawingType = useSelector(selectDrawingType);
   const isIdle = useSelector(selectIsIdle);
   const isInsertingMode = useSelector(selectIsInserting);
-  const isImageOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
+  const isImageOrderEditorMode = useSelector(selectIsImageOrderEditorMode);
   const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
-  const isGalleryOpen = useSelector(state => state.imageManager.isGalleryOpen);
+  const isGalleryOpen = useSelector(selectIsGalleryOpen);
   
   // 상태 추가 - 모든 useState 호출을 여기로 이동
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -724,7 +725,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     dispatch(cancelEdit());
     
     // 이미지 매니저 상태 초기화 액션 추가
-    dispatch(resetImageData());
+    dispatch(resetImageSelection());
     
     // 편집 상태 종료 (isEditing = false)
     dispatch(endEdit());
@@ -793,17 +794,23 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   // 이미지 관리 관련 상태 및 Redux 상태
   
   // 이미지 편집 핸들러
-  const handleEditImagesOfGallery = () => {
-    // 이미지 순서 편집기 열기 (Redux 액션 사용)
+  const handleOpenOrderEditImagesGallery = () => {
+    // 모든 이미지를 단일 배열로 통합
+    const allImages = [
+      ...(formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '' ? [formData.mainImage] : []),
+      ...(Array.isArray(formData.subImages) ? 
+        formData.subImages.filter(img => img && typeof img === 'string' && img.trim() !== '') : [])
+    ];
+
+    // 이미지 순서 편집기 열기 (Redux 액션 사용) - 단일 배열 전달
     dispatch(openImageOrderEditor({
       source: 'rightSidebar',
-      mainImage: formData.mainImage,
-      subImages: formData.subImages
+      images: allImages
     }));
   };
   
-  // 이미지 선택 완료 처리
-  const handleImagesSelected = (selectedImages) => {
+  // 이미지 순서 갤러리의 완료 처리 
+  const handleOrderGalleryDone = (selectedImages) => {
     // 이미지 배열이 비어있는 경우 메인/서브 이미지 모두 초기화
     if (!selectedImages || selectedImages.length === 0) {
       // 모든 이미지 초기화 (protoServerDataset 초기값과 일치)
@@ -825,7 +832,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     if (!validImages.length) return;
     
     // 순서 편집 모달에서 호출된 경우 (이미지 순서 변경)
-    if (isImageOrderEditorOpen) {
+    if (isImageOrderEditorMode) {
       // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
       if (validImages.length > 0) {
         // 메인 이미지 설정
@@ -1107,7 +1114,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
                 ref={imageSectionManagerRef}
                 mainImage={formData.mainImage} 
                 subImages={formData.subImages}
-                onImagesSelected={handleImagesSelected}
+                onImagesSelected={handleOrderGalleryDone}
                 onCancelSelection={handleCancelImageSelection}
                 isSelectionMode={isImageSelectionMode}
                 source="rightSidebar"
@@ -1121,9 +1128,9 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
                 <button 
                   type="button"
                   className={styles.imageSectionOverlayContainer}
-                  onClick={handleEditImagesOfGallery}
+                  onClick={handleOpenOrderEditImagesGallery}
                 >
-                  <span className={styles.imageSectionOverlayText}>이미지 편집</span>
+                  <span className={styles.imageSectionOverlayText}>이미지 순서편집</span>
                 </button>
               )}
             </div>

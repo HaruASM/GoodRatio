@@ -15,7 +15,7 @@ import {
 } from '../../lib/store/slices/imageGallerySlice';
 
 // 이미지 URL 변환 유틸리티 임포트
-import { getProxiedPhotoUrl, getThumbnailUrl, getOriginalSizeUrl } from '../../lib/utils/imageHelpers';
+import { getNormalPhotoUrl, getThumbnailPhotoUrl, getOriginalSizePhotoUrl } from '../../lib/utils/imageHelpers';
 
 /**
  * 이미지 갤러리 컴포넌트
@@ -157,7 +157,7 @@ const ImageGallery = () => {
                   </div>
                 )}
                 <img 
-                  src={getOriginalSizeUrl(currentPublicId)} 
+                  src={getOriginalSizePhotoUrl(currentPublicId)} 
                   alt={`이미지 ${currentIndex + 1}`}
                   className={`${styles.galleryImagePreview} ${loadingImage ? styles.imageLoading : ''}`}
                   onError={() => handleImageError('gallery-current')}
@@ -192,7 +192,7 @@ const ImageGallery = () => {
                 <div className={styles.thumbnailErrorPlaceholderContainer}></div>
               ) : (
                 <img 
-                  src={getThumbnailUrl(publicId)} 
+                  src={getThumbnailPhotoUrl(publicId)} 
                   alt={`썸네일 ${index + 1}`}
                   onError={() => handleImageError(`gallery-thumb-${index}`)}
                   style={{ height: "100%", width: "auto" }}

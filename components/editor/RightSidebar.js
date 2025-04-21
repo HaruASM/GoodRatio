@@ -42,14 +42,14 @@ import {
 import { setCompareBarActive, setSyncGoogleSearch, selectIsInserting, endCompareBar } from '../../lib/store/slices/compareBarSlice';
 import ImageSectionManager from './ImageSectionManager';
 import { 
-  openImageSelectionMode,
+  
   selectIsImageSelectionMode,
   openImageOrderEditor,
   resetImageSelection,
   selectIsImageOrderEditorMode,
   selectIsGalleryOpen
 } from '../../lib/store/slices/imageGallerySlice';
-import { getValidImageRefs } from '../../lib/utils/imageHelpers';
+
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { selectSelectedItemId, selectSelectedSectionName } from '../../lib/store/slices/mapEventSlice';
 
@@ -791,9 +791,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     }
   };
 
-  // 이미지 관리 관련 상태 및 Redux 상태
-  
-  // 이미지 편집 핸들러
+  // 이미지 순서 편집 핸들러
   const handleOpenOrderEditImagesGallery = () => {
     // 모든 이미지를 단일 배열로 통합
     const allImages = [
@@ -810,9 +808,10 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   };
   
   // 이미지 순서 갤러리의 완료 처리 
-  const handleOrderGalleryDone = (selectedImages) => {
-    // 이미지 배열이 비어있는 경우 메인/서브 이미지 모두 초기화
-    if (!selectedImages || selectedImages.length === 0) {
+  const handleOrderEditGalleryDone = (selectedImagesfromOerderEditGallery) => {
+    //TODO 이미지 배열이 비어있다는 것이 "" 빈 문자열인지 null값인지 구분에 대한 명확한 규정이 필요한듯 함. 
+    // 이미지 배열이 비어있는 경우 기존 값이 모두 삭제된 것이므로, 그대로 메인/서브 이미지 모두 초기화
+    if (!selectedImagesfromOerderEditGallery || selectedImagesfromOerderEditGallery.length === 0) {
       // 모든 이미지 초기화 (protoServerDataset 초기값과 일치)
       dispatch(updateField({ field: 'mainImage', value: "" }));
       dispatch(trackField({ field: 'mainImage' }));
@@ -822,7 +821,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     }
     
     // 선택된 이미지 배열 깊은 복사 (문자열 배열이므로 JSON 방식 사용)
-    const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImages || []));
+    const selectedImagesCopy = JSON.parse(JSON.stringify(selectedImagesfromOerderEditGallery || []));
     
     // 유효한 이미지만 필터링
     const validImages = selectedImagesCopy.filter(img => 
@@ -1114,7 +1113,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
                 ref={imageSectionManagerRef}
                 mainImage={formData.mainImage} 
                 subImages={formData.subImages}
-                onImagesSelected={handleOrderGalleryDone}
+                onImagesSelected={handleOrderEditGalleryDone}
                 onCancelSelection={handleCancelImageSelection}
                 isSelectionMode={isImageSelectionMode}
                 source="rightSidebar"

@@ -78,7 +78,7 @@ const ImageSectionManager = forwardRef(({
       }));
     }
   }));
-
+  
   // 서브 이미지가 있는지 확인
   const hasValidSubImages = validSubImages.length > 0;
   
@@ -94,10 +94,10 @@ const ImageSectionManager = forwardRef(({
             {validMainImage ? (
               <img 
                 src={`/api/place-photo?public_id=${encodeURIComponent(mainImage)}`}
-                alt="메인 이미지" 
-                className={styles.mainImagePreview}
-                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
-              />
+                  alt="메인 이미지" 
+                  className={styles.mainImagePreview}
+                  style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                />
             ) : (
               <div className={styles.emptyImagePlaceholder}>
                 <span>이미지 없음</span>
@@ -115,30 +115,30 @@ const ImageSectionManager = forwardRef(({
             {hasValidSubImages ? (
               <>
                 {validSubImages.slice(0, 4).map((subImageRef, imgIndex) => {
-                  return (
-                    <div 
-                      key={`sub-${imgIndex}`}
-                      className={styles.subImageItem}
+                    return (
+                      <div 
+                        key={`sub-${imgIndex}`}
+                        className={styles.subImageItem}
                     >
                       {subImageRef && typeof subImageRef === 'string' && subImageRef.trim() !== '' ? (
-                        <div className={imgIndex === 3 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
-                          <img 
+                            <div className={imgIndex === 3 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
+                              <img 
                             src={`/api/place-photo?public_id=${encodeURIComponent(subImageRef)}`}
-                            alt={`서브 이미지 ${imgIndex + 1}`} 
-                            className={styles.subImagePreview}
-                            style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
-                          />
-                          {imgIndex === 3 && additionalImages > 0 && (
-                            <div className={styles.imageCountOverlay}>
-                              +{additionalImages}
+                                alt={`서브 이미지 ${imgIndex + 1}`} 
+                                className={styles.subImagePreview}
+                                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                              />
+                              {imgIndex === 3 && additionalImages > 0 && (
+                                <div className={styles.imageCountOverlay}>
+                                  +{additionalImages}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className={styles.emptyImagePlaceholder}></div>
-                      )}
-                    </div>
-                  );
+                        ) : (
+                          <div className={styles.emptyImagePlaceholder}></div>
+                        )}
+                      </div>
+                    );
                 })}
               </>
             ) : (

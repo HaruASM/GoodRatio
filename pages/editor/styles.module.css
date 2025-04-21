@@ -833,74 +833,8 @@
   border-radius: 3px;
 }
 
-/* 비교 모달 스타일 */
-/* 스타일을 제거할 때 CSS 선택자의 순서와 중첩 구조를 유지해야 합니다 */
-/* 제거할 스타일:
-.rightSidebarCompareModal
-.rightSidebarCompareModal.rightSidebarVisible
-.rightSidebarCompareModalHeader
-.rightSidebarCompareModalHeader h3
-등등
-*/
 
-/* 모바일 환경에서 변경 표시기 조정 */
-@media (max-width: 768px) {
-  .rightSidebarChangeIndicator {
-    right: 5px;
-    font-size: 10px;
-    padding: 1px 4px;
-  }
-}
 
-/* 비교 컨테이너 스타일 - 간격 조정 */
-.rightSidebarComparisonContainer {
-  display: flex;
-  flex: 1;
-  gap: 5px; /* 간격 조정 (1px → 5px) */
-  justify-content: center; /* 중앙 정렬로 변경 */
-}
-
-/* 원본값과 수정값 컨테이너 스타일 - 겹치지 않도록 조정 */
-.rightSidebarOriginalValueContainer,
-.rightSidebarEditedValueContainer {
-  flex: 0 0 calc(50% - 4px); /* 너비 조정 */
-  position: relative;
-  min-width: 0;
-  max-width: calc(50% - 4px); /* 최대 너비 조정 */
-  border-radius: 4px;
-  overflow: hidden; /* 내용이 넘치지 않도록 */
-}
-
-/* 원본값 스타일 */
-.rightSidebarOriginalValue {
-  border: 1px solid #4dabf7;
-  background-color: #e7f5ff;
-  box-sizing: border-box; /* 박스 사이징 추가 */
-  width: 100%; /* 너비 100%로 설정 */
-}
-
-.rightSidebarComparisonHeader {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  border-bottom: 1px solid #ddd;
-  margin-bottom: 10px;
-}
-
-.rightSidebarComparisonHeader h3 {
-  flex: 1;
-  font-size: 14px;
-  text-align: center;
-  margin: 0;
-  padding: 5px;
-}
-
-/* 헤더버튼 그룹 스타일 추가 */
-.rightSidebarHeaderButtonGroup {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
 
 /* 비교 모달 내 인풋 필드 스타일 */
 .rightSidebarFilledInput {

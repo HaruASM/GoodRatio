@@ -24,15 +24,14 @@ import {
   selectSelectedItemId,
   selectSelectedSectionName
 } from '../../lib/store/slices/mapEventSlice';
-import ImageSectionManager from './ImageSectionManager';
+
 import { 
   openImageSelectionMode,
-  selectIsImageSelectionMode,
+  //selectIsImageSelectionMode,
+  openGallery,
   resetImageSelection
 } from '../../lib/store/slices/imageGallerySlice';
-import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { titlesofDataFoam, protoServerDataset } from '../../lib/models/editorModels';
-import crypto from 'crypto';
 import Md5 from 'crypto-js/md5';
 
 /**
@@ -96,18 +95,10 @@ const hasAnyValidField = (data) => {
  * @param {number} imageIndex - 이미지 인덱스
  * @returns {string} Cloudinary public ID
  */
-const convertGoogleImageReferenceToPublicId = (photoReference, sectionName, placeId, imageIndex) => {
-  if (!photoReference || typeof photoReference !== 'string' || photoReference.trim() === '') {
-    return '';
-  }
-
-  // placeId가 객체인 경우 문자열로 변환
-  const placeIdStr = typeof placeId === 'object' ? 
-    (placeId?.id || placeId?.placeId || placeId?.googleDataId || JSON.stringify(placeId)) : 
-    String(placeId || '');
-    
+const convertGoogleImageReferenceToPublicId = (photoReference, sectionName, placeId ) => {
+ 
   // MD5 해시를 사용하여 고유한 ID 생성
-  return `${sectionName}/${placeIdStr}/${imageIndex || 0}/${
+  return `${sectionName}/${placeId}/${
     Md5(photoReference).toString()
   }`;
 };
@@ -128,22 +119,8 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   const isInserting = useSelector(selectIsInserting);
   const dispatch = useDispatch();
   const selectedItemId = useSelector(selectSelectedItemId);
-  const selectedSectionName = useSelector(selectSelectedSectionName);
+  //const selectedSectionName = useSelector(selectSelectedSectionName);
   
-  console.log('compareData', compareData.googleDataId );
-  console.log('compareData', compareData.googleDataId );
-
-  // 구글 이미지 레퍼런스를 public ID로 변환
-  const mainImagePublicId = compareData?.mainImage 
-    ? convertGoogleImageReferenceToPublicId(compareData.mainImage, 'tempsection', compareData.googleDataId , 0) 
-    : '';
-    
-  // subImages 배열을 순회하여 각 항목을 public ID로 변환
-  const subImagesPublicIds = compareData?.subImages && Array.isArray(compareData.subImages)
-    ? compareData.subImages.map((ref, index) => 
-        convertGoogleImageReferenceToPublicId(ref, 'tempsection', compareData.googleDataId || selectedItemId, index + 1)
-      )
-    : [];
   
   // 입력 필드 스타일 결정 함수
   const getInputClassName = (fieldName) => {
@@ -163,54 +140,65 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   };
 
   // 데이터에 유효한 필드가 있는지 확인
-  const hasValidData = hasAnyValidField(compareData);
+  const hasValidData = hasAnyValidField(compareData); //FIXME 이게 왜 필요하지
 
   // 리덕스 상태 사용
-  const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
+  //const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
+
+  // 유효한 이미지 개수 계산, 구글 photo reference ID를  publicID로 변환 
+  let totalCountValidImages = 0; //구글 이미지 섹션 DOM에서 이미지 개수 표시용
+  const allImagePublicIds = []; // 이미지 갤러리 열기 액션의 payload용
   
+  if( typeof compareData?.mainImage === 'string' && compareData?.mainImage.trim() !== '' ) { //''문자열은 빈값
+    totalCountValidImages++;
+    allImagePublicIds.push(convertGoogleImageReferenceToPublicId(compareData.mainImage, 'tempsection', compareData.googleDataId ))
+  }
+ 
+  if( Array.isArray(compareData?.subImages) ) {
+    compareData.subImages.filter(imgRef => {
+      if( typeof imgRef === 'string' && imgRef.trim() !== '' ) {
+        totalCountValidImages++;
+        allImagePublicIds.push(convertGoogleImageReferenceToPublicId(imgRef, 'tempsection', compareData.googleDataId ))
+      }
+    }) 
+  }
+
+  console.log('totalCountValidImages', totalCountValidImages);
+  console.log('allImagePublicIds', allImagePublicIds.length);
+
+  
+  // 이미지 갤러리 열기 핸들러.
+  const handleViewGallery = useCallback(() => {
+
+    // 이 핸들러는 inserting 상태에서 호출되지 않음. DOM 랜더링 부터 안되도록 함.
+    if( totalCountValidImages === 0 ) return;
+            
+      // 갤러리 열기
+      if (allImagePublicIds.length > 0) {
+        dispatch(openGallery({
+          images: allImagePublicIds,
+          index: 0
+        }));
+      }
+    
+  }, [totalCountValidImages, allImagePublicIds, dispatch]);
+
   // 우측 사이드바에 이미지 삽입 처리 함수
   const handleInsertImagesToRightsidebar = useCallback(() => {
-    // 이미지 모음 배열 초기화
-    const allImagePublicIds = [];
-    
-    // 메인 이미지 처리
-    if (compareData.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '') {
-      const mainImageId = convertGoogleImageReferenceToPublicId(
-        compareData.mainImage, 
-        'tempsection',
-        typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
-        0
-      );
-      allImagePublicIds.push(mainImageId);
-    }
-    
-    // 서브 이미지 처리
-    if (compareData.subImages && Array.isArray(compareData.subImages)) {
-      // 유효한 서브 이미지 참조만 필터링하고 공개 ID로 변환
-      compareData.subImages.forEach((ref, index) => {
-        if (ref && typeof ref === 'string' && ref.trim() !== '') {
-          const publicId = convertGoogleImageReferenceToPublicId(
-            ref, 
-            'tempsection',
-            typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
-            index + 1 // 메인 이미지 다음 인덱스부터 시작
-          );
-          allImagePublicIds.push(publicId);
-        }
-      });
-    }
-    
+   
+    if( totalCountValidImages === 0 ) return;
+
     // 이미지 데이터 초기화
     dispatch(resetImageSelection());
     
-// 갤러리를 열기 전에 이미지가 있는지 확인
-if (allImagePublicIds.length > 0) {
-  dispatch(openGallery({
-    images: allImagePublicIds,
-    imageIndex: 0
-  }));
-}
-}, [compareData, selectedItemId, dispatch]);
+    // 갤러리를 열기 전에 이미지가 있는지 확인
+    if (allImagePublicIds.length > 0) {
+      dispatch(openImageSelectionMode({
+        images: allImagePublicIds,
+        imageIndex: 0
+      }));
+    }
+  }, [totalCountValidImages, allImagePublicIds, dispatch]);
 
   // 이미지 선택 완료 핸들러(이미지 선택 겔러리의 완료 동작을 위한 핸들러. 
   const handleSelectGalleryDone = (selectedImages) => {
@@ -359,15 +347,18 @@ if (allImagePublicIds.length > 0) {
         
         {/* 이미지 미리보기 섹션 */}
         <div className={styles.imageSectionPreviewContainer}>
-          <ImageSectionManager 
-            mainImage={mainImagePublicId} // public ID로 변환된 메인 이미지
-            subImages={subImagesPublicIds} // public ID로 변환된 서브 이미지 배열
-            onImagesSelected={handleSelectGalleryDone}
-            onCancelSelection={handleCancelImageSelection}
-            isSelectionMode={isImageSelectionMode}
-            source="compareBar"
-            lazyLoad={true} // 이미지를 프리뷰에서 보지 않음
-          />
+          <div 
+            className={styles.emptyImagePlaceholder}
+            style={{ cursor: totalCountValidImages > 0 && !isInserting ? 'pointer' : 'default' }}
+            onClick={handleViewGallery}
+          >
+            <div style={{ fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              {totalCountValidImages > 0 
+                ? `구글 이미지 ${totalCountValidImages}개${!isInserting ? ' ' : ''}` 
+                : ' '}
+            </div>
+          </div>
+          
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}
           {isInserting && (
             <div 
@@ -473,54 +464,6 @@ const CompareBar = () => {
     }
   };
 
-  // // 갤러리 열기 처리 함수 (리덕스로 변경 )
-  // const handleOpenGallery = useCallback(() => {
-  //   // 이미지 모음 배열 초기화
-  //   const allImagePublicIds = [];
-    
-  //   // 메인 이미지 처리
-  //   if (compareData.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '') {
-  //     const mainImageId = convertGoogleImageReferenceToPublicId(
-  //       compareData.mainImage, 
-  //       'tempsection',
-  //       typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
-  //       0
-  //     );
-  //     allImagePublicIds.push(mainImageId);
-  //   }
-    
-  //   // 서브 이미지 처리
-  //   if (compareData.subImages && Array.isArray(compareData.subImages)) {
-  //     // 유효한 서브 이미지 참조만 필터링하고 공개 ID로 변환
-  //     compareData.subImages.forEach((ref, index) => {
-  //       if (ref && typeof ref === 'string' && ref.trim() !== '') {
-  //         const publicId = convertGoogleImageReferenceToPublicId(
-  //           ref, 
-  //           'tempsection',
-  //           typeof compareData.googleDataId === 'string' ? compareData.googleDataId : selectedItemId,
-  //           index + 1 // 메인 이미지 다음 인덱스부터 시작
-  //         );
-  //         allImagePublicIds.push(publicId);
-  //       }
-  //     });
-  //   }
-    
-  //   // 이미지 데이터 초기화
-  //   dispatch(resetImageSelection());
-    
-  //   // 갤러리를 열기 전에 이미지가 있는지 확인
-  //   if (allImagePublicIds.length > 0) {
-  //     handleToggleGallery(allImagePublicIds);
-  //   }
-  // }, [compareData, selectedItemId, dispatch, handleToggleGallery]);
-
-  // // 갤러리 토글 처리 함수
-  // const handleToggleGallery = useCallback((images) => {
-  //   dispatch(openGallery({
-  //     images,
-  //     imageIndex: 0
-  //   }));
-  // }, [dispatch]);
 
   return (
     <div className={styles.compareBarWrapper}>

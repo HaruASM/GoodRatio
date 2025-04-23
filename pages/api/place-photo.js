@@ -50,7 +50,7 @@
 
 import { 
   checkImageExists, 
-  getCloudinaryPublicId, 
+  getPublicIdFromReference, 
   getCloudinaryUrl, 
   uploadGooglePlaceImage, 
   isImageExpired
@@ -129,10 +129,17 @@ export default async function handler(req, res) {
       console.log(`요청 타입: ${isOriginalRequest ? '원본 크기' : `${effectiveWidth}px 크기`}`);
     } else if (photo_reference) {
       // photo_reference가 제공된 경우, publicId 생성
-      publicId = getCloudinaryPublicId(photo_reference, section, place_id, image_index);
+      
+      // place_id가 없으면 오류 반환
+      if (!place_id) {
+        return res.status(400).json({ error: 'place_id is required when using photo_reference' });
+      }
+      
+      // getPublicIdFromReference 함수는 세 개의 필수 매개변수가 필요합니다
+      publicId = getPublicIdFromReference(photo_reference, section, place_id);
       originalReference = photo_reference;
       console.log(`photo_reference로 public_id 생성: ${truncateForLogging(publicId)}`);
-      console.log(`섹션: ${section}, 장소ID: ${place_id || '없음'}, 이미지 번호: ${image_index}`);
+      console.log(`섹션: ${section}, 장소ID: ${place_id}`);
     } else {
       // 둘 다 없는 경우, 에러 반환
       return res.status(400).json({ error: 'photo_reference or public_id is required' });

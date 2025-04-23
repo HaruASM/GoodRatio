@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import store from '../../lib/store';
+import Image from 'next/image';
 
 import styles from '../../pages/editor/styles.module.css';
 import { 
@@ -32,6 +33,7 @@ import {
   resetImageSelection
 } from '../../lib/store/slices/imageGallerySlice';
 import { titlesofDataFoam, protoServerDataset } from '../../lib/models/editorModels';
+import { batchPreCacheImagesForGoggleReferece } from '../../lib/utils/imageHelpers';
 import Md5 from 'crypto-js/md5';
 
 /**
@@ -118,7 +120,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   const compareData = useSelector(selectCompareBarData);
   const isInserting = useSelector(selectIsInserting);
   const dispatch = useDispatch();
-  const selectedItemId = useSelector(selectSelectedItemId);
+  //const selectedItemId = useSelector(selectSelectedItemId);
   //const selectedSectionName = useSelector(selectSelectedSectionName);
   
   
@@ -145,43 +147,138 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   // 리덕스 상태 사용
   //const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
 
-  // 유효한 이미지 개수 계산, 구글 photo reference ID를  publicID로 변환 
+  // 유효한 이미지 개수 계산, 구글 photo reference ID를 publicID로 변환 
   let totalCountValidImages = 0; //구글 이미지 섹션 DOM에서 이미지 개수 표시용
   const allImagePublicIds = []; // 이미지 갤러리 열기 액션의 payload용
+  // 모든 관련 정보를 함께 저장하는 배열 추가
+  const imageInfoArray = []; // pre캐싱을 위한 이미지 정보 배열
   
   if( typeof compareData?.mainImage === 'string' && compareData?.mainImage.trim() !== '' ) { //''문자열은 빈값
     totalCountValidImages++;
-    allImagePublicIds.push(convertGoogleImageReferenceToPublicId(compareData.mainImage, 'tempsection', compareData.googleDataId ))
+    const publicId = convertGoogleImageReferenceToPublicId(compareData.mainImage, 'tempsection', compareData.googleDataId);
+    allImagePublicIds.push(publicId);
+    
+    // 이미지 정보 배열에 추가
+    imageInfoArray.push({
+      publicId,
+      reference: compareData.mainImage,
+      placeId: compareData.googleDataId
+    });
   }
- 
-  if( Array.isArray(compareData?.subImages) ) {
-    compareData.subImages.filter(imgRef => {
-      if( typeof imgRef === 'string' && imgRef.trim() !== '' ) {
-        totalCountValidImages++;
-        allImagePublicIds.push(convertGoogleImageReferenceToPublicId(imgRef, 'tempsection', compareData.googleDataId ))
-      }
-    }) 
-  }
+
+  console.log('compareData', compareData.mainImage);
+  console.log('compareData', compareData.subImages);
+
+ //FIXME 임시 코드주석
+
+  // if( Array.isArray(compareData?.subImages) ) {
+  //   compareData.subImages.forEach((imgRef, index) => {
+  //     if( typeof imgRef === 'string' && imgRef.trim() !== '' ) {
+  //       totalCountValidImages++;
+  //       const publicId = convertGoogleImageReferenceToPublicId(imgRef, 'tempsection', compareData.googleDataId);
+  //       allImagePublicIds.push(publicId);
+        
+  //       // 이미지 정보 배열에 추가
+  //       imageInfoArray.push({
+  //         publicId,
+  //         reference: imgRef,
+  //         placeId: compareData.googleDataId
+  //       });
+  //     }
+  //   });
+  // }
 
   console.log('totalCountValidImages', totalCountValidImages);
   console.log('allImagePublicIds', allImagePublicIds.length);
+  console.log('imageInfoArray', imageInfoArray.length);
 
   
   // 이미지 갤러리 열기 핸들러.
-  const handleViewGallery = useCallback(() => {
-
+  const handleViewGallery = useCallback(async () => {
     // 이 핸들러는 inserting 상태에서 호출되지 않음. DOM 랜더링 부터 안되도록 함.
-    if( totalCountValidImages === 0 ) return;
-            
-      // 갤러리 열기
+    if (totalCountValidImages === 0) return;
+    
+    // 로딩 상태 표시 (DOM에 표시)
+    const placeholderElement = document.querySelector(`.${styles.emptyImagePlaceholder} div`);
+    let originalText = '';
+    
+    if (placeholderElement) {
+      originalText = placeholderElement.textContent || `구글 이미지 ${totalCountValidImages}개`;
+      
+      // SVG 로딩 애니메이션 추가
+      placeholderElement.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <svg width="30" height="30" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <style>
+              .spinner {
+                transform-origin: center;
+                animation: spin 1.5s linear infinite;
+              }
+              @keyframes spin {
+                100% { transform: rotate(360deg); }
+              }
+              .circle {
+                stroke: #4CAF50;
+                stroke-dasharray: 80;
+                stroke-dashoffset: 60;
+                animation: dash 1.5s ease-in-out infinite;
+              }
+              @keyframes dash {
+                0% { stroke-dashoffset: 60; }
+                50% { stroke-dashoffset: 20; }
+                100% { stroke-dashoffset: 60; }
+              }
+            </style>
+            <circle class="spinner" cx="12" cy="12" r="10" fill="none" stroke="#e6e6e6" stroke-width="2" />
+            <circle class="circle" cx="12" cy="12" r="10" fill="none" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <div style="margin-top: 8px; font-size: 13px;">이미지 로딩중...</div>
+        </div>
+      `;
+    }
+    
+    try {
+      // 이미지 정보 배열에서 필요한 데이터만 사용하여 배치 프리캐싱 실행
+      const cachedPublicIds = await batchPreCacheImagesForGoggleReferece(imageInfoArray, compareData.googleDataId, 3);
+      
+      // 작업 완료 후 로딩 표시 제거 및 이미지 갯수 표시 복원
+      if (placeholderElement) {
+        placeholderElement.innerHTML = `<div style="font-size: 15px; display: flex; justify-content: center; align-items: center;">구글 이미지 ${totalCountValidImages}개</div>`;
+      }
+      
+      // cachedPublicIds가 null, undefined 또는 빈 배열이면 allImagePublicIds를 사용함
+      if (!cachedPublicIds || !cachedPublicIds.length) {
+        // 배치 프리캐싱이 실패한 경우 기존 방식으로 갤러리 열기
+        if (allImagePublicIds.length > 0) {
+          dispatch(openGallery({
+            images: allImagePublicIds,
+            index: 0
+          }));
+        }
+      } else {
+        // 캐싱된 이미지가 있으면 갤러리 열기
+        dispatch(openGallery({
+          images: cachedPublicIds,
+          index: 0
+        }));
+      }
+    } catch (error) {
+      console.error('이미지 캐싱 중 오류 발생:', error);
+      
+      // 오류 발생 시 로딩 표시 제거 및 이미지 갯수 표시 복원
+      if (placeholderElement) {
+        placeholderElement.innerHTML = `<div style="font-size: 15px; display: flex; justify-content: center; align-items: center;">구글 이미지 ${totalCountValidImages}개</div>`;
+      }
+      
+      // 오류 발생 시 기존 ID 사용하여 갤러리 열기
       if (allImagePublicIds.length > 0) {
         dispatch(openGallery({
           images: allImagePublicIds,
           index: 0
         }));
       }
-    
-  }, [totalCountValidImages, allImagePublicIds, dispatch]);
+    }
+  }, [compareData, totalCountValidImages, allImagePublicIds, imageInfoArray, dispatch, styles.emptyImagePlaceholder]);
 
   // 우측 사이드바에 이미지 삽입 처리 함수
   const handleInsertImagesToRightsidebar = useCallback(() => {
@@ -357,6 +454,27 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
                 ? `구글 이미지 ${totalCountValidImages}개${!isInserting ? ' ' : ''}` 
                 : ' '}
             </div>
+
+            {/* 메인 이미지 썸네일 미리보기 */}
+            {compareData?.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '' && (
+              <div style={{ position: 'relative', width: '100%', height: '120px', marginTop: '8px' }}>
+                <Image 
+                  src={`/api/image-proxy?photo_reference=${encodeURIComponent(compareData.mainImage)}&maxwidth=150`}
+                  alt="구글 이미지 미리보기"
+                  fill
+                  style={{ 
+                    objectFit: 'contain',
+                    borderRadius: '4px'
+                  }}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    console.error('구글 이미지 로딩 실패');
+                  }}
+                  unoptimized // 외부 URL을 사용하므로 Next.js의 이미지 최적화를 비활성화
+                />
+              </div>
+            )}
+            
           </div>
           
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}

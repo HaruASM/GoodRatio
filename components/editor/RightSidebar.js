@@ -141,7 +141,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   const isIdle = useSelector(selectIsIdle);
   const isInsertingMode = useSelector(selectIsInserting);
   const isImageOrderEditorMode = useSelector(selectIsImageOrderEditorMode);
-  const isImageSelectionMode = useSelector(selectIsImageSelectionMode);
   const isGalleryOpen = useSelector(selectIsGalleryOpen);
   
   // 상태 추가 - 모든 useState 호출을 여기로 이동
@@ -1115,7 +1114,6 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
                 subImages={formData.subImages}
                 onImagesSelected={handleOrderEditGalleryDone}
                 onCancelSelection={handleCancelImageSelection}
-                isSelectionMode={isImageSelectionMode}
                 source="rightSidebar"
               />
               {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}

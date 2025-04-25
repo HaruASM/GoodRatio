@@ -35,7 +35,6 @@ import styles from '../../pages/editor/styles.module.css';
 import {
   openImageOrderEditor,
   openImageSelectionMode,
-  selectIsImageSelectionMode,
   selectSelectedImages
 } from '../../lib/store/slices/imageGallerySlice';
 

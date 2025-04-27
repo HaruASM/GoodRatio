@@ -46,12 +46,13 @@ import {
   selectIsImageSelectionMode,
   openImageOrderEditor,
   resetImageSelection,
-  selectIsImageOrderEditorMode,
+  selectIsImageOrderEditorOpen,
   selectIsGalleryOpen
 } from '../../lib/store/slices/imageGallerySlice';
 
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { selectSelectedItemId, selectSelectedSectionName } from '../../lib/store/slices/mapEventSlice';
+import { createLoadingOverlayforDIV, withLoadingOverlay } from '../../lib/utils/uiHelpers';
 
 // 확인 모달 컴포넌트
 const ConfirmModal = ({ isOpen, itemName, onConfirm, onCancel }) => {
@@ -140,7 +141,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   const drawingType = useSelector(selectDrawingType);
   const isIdle = useSelector(selectIsIdle);
   const isInsertingMode = useSelector(selectIsInserting);
-  const isImageOrderEditorMode = useSelector(selectIsImageOrderEditorMode);
+  const isImageOrderEditorOpen = useSelector(selectIsImageOrderEditorOpen);
   const isGalleryOpen = useSelector(selectIsGalleryOpen);
   
   // 상태 추가 - 모든 useState 호출을 여기로 이동
@@ -161,6 +162,11 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   // 새로운 상태 추가
   const selectedItemId = useSelector(selectSelectedItemId);
   const selectedSectionName = useSelector(selectSelectedSectionName);
+  
+  // 로딩 오버레이를 표시할 DOM 요소 참조를 위한 useRef
+  const galleryContainerRef = useRef(null); // 갤러리 보기 버튼에 로딩 오버레이 표시용
+  const imageSelectionContainerRef = useRef(null); // 이미지 선택 버튼에 로딩 오버레이 표시용
+  const galleryLoadingContainerOfRightSidebarRef = useRef(null); // 이미지 순서 편집 버튼에 로딩 오버레이 표시용
   
   // 외부 클릭 시 옵션 닫기 효과 추가
   useEffect(() => {
@@ -790,20 +796,54 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     }
   };
 
-  // 이미지 순서 편집 핸들러
+  // 이미지 순서 편집 갤러리 열기 핸들러
   const handleOpenOrderEditImagesGallery = () => {
-    // 모든 이미지를 단일 배열로 통합
-    const allImages = [
-      ...(formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '' ? [formData.mainImage] : []),
-      ...(Array.isArray(formData.subImages) ? 
-        formData.subImages.filter(img => img && typeof img === 'string' && img.trim() !== '') : [])
-    ];
+    // 이미지가 완전히 없을 때만 반환 (subImages가 비어있고 mainImage도 없을 때)
+    if (!formData.mainImage && (!formData.subImages || formData.subImages.length === 0)) {
+      return;
+    }
 
-    // 이미지 순서 편집기 열기 (Redux 액션 사용) - 단일 배열 전달
-    dispatch(openImageOrderEditor({
-      source: 'rightSidebar',
-      images: allImages
-    }));
+    // withLoadingOverlay를 사용하여 로딩 오버레이 표시
+    return withLoadingOverlay(
+      async () => {
+        // 현재 메인 이미지와 서브 이미지 배열을 합쳐서 모든 이미지 배열 생성
+        const allImages = [];
+        
+        // mainImage 존재 여부 확인
+        const hasMainImage = formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '';
+        
+        // mainImage가 있으면 추가
+        if (hasMainImage) {
+          allImages.push(formData.mainImage);
+        }
+        
+        // 서브 이미지 추가
+        if (formData.subImages && formData.subImages.length > 0) {
+          // 빈 문자열이 아닌 유효한 이미지만 추가
+          const validSubImages = formData.subImages.filter(
+            img => img && typeof img === 'string' && img.trim() !== ''
+          );
+          if (validSubImages.length > 0) {
+            allImages.push(...validSubImages);
+          }
+        }
+        
+        // 이미지 순서 편집 모드 활성화 (hasMainImage 플래그 전달)
+        // 메인 이미지가 없고(hasMainImage=false), 서브 이미지만 있거나 또는 빈 경우 설정
+        dispatch(openImageOrderEditor({
+          source: 'rightSidebar',
+          images: allImages,
+          hasMainImage: hasMainImage // 불리언 값으로 메인 이미지 존재 여부 전달
+        }));
+      },
+      // 로딩 오버레이가 표시될 DOM 요소
+      galleryLoadingContainerOfRightSidebarRef.current,
+      // 오버레이 옵션
+      {
+        message: '이미지 준비중...',
+        zIndex: 20
+      }
+    )();
   };
   
   // 이미지 순서 갤러리의 완료 처리 
@@ -824,16 +864,25 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     
     // 유효한 이미지만 필터링
     const validImages = selectedImagesCopy.filter(img => 
-      img && typeof img === 'string' && img.trim() !== ''
+      img && typeof img === 'string' && img.trim() !== '' && img !== 'blank'
     );
     
     if (!validImages.length) return;
     
     // 순서 편집 모달에서 호출된 경우 (이미지 순서 변경)
-    if (isImageOrderEditorMode) {
-      // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
-      if (validImages.length > 0) {
-        // 메인 이미지 설정
+    if (isImageOrderEditorOpen) {
+      // 첫 번째 이미지가 'blank'인지 확인 (메인 이미지 슬롯이 비어있음을 의미)
+      const hasBlankMainImage = selectedImagesCopy.length > 0 && selectedImagesCopy[0] === 'blank';
+      
+      if (hasBlankMainImage) {
+        // 메인 이미지가 'blank'인 경우 (hasMainImage=false 였던 경우)
+        // 메인 이미지는 비우고 모든 유효 이미지를 서브 이미지로 설정
+        dispatch(updateField({ field: 'mainImage', value: "" }));
+        dispatch(trackField({ field: 'mainImage' }));
+        dispatch(updateField({ field: 'subImages', value: validImages }));
+        dispatch(trackField({ field: 'subImages' }));
+      } else if (validImages.length > 0) {
+        // 첫 번째 이미지를 메인 이미지로, 나머지를 서브 이미지로 설정
         dispatch(updateField({ field: 'mainImage', value: validImages[0] }));
         dispatch(trackField({ field: 'mainImage' }));
         
@@ -1117,19 +1166,24 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
                 source="rightSidebar"
               />
               {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
-              {isEditorOn && (
-                (formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '') || 
-                (Array.isArray(formData.subImages) && formData.subImages.length > 0 && 
-                  formData.subImages.some(img => img && typeof img === 'string' && img.trim() !== ''))
-              ) && (
-                <button 
-                  type="button"
-                  className={styles.imageSectionOverlayContainer}
-                  onClick={handleOpenOrderEditImagesGallery}
-                >
-                  <span className={styles.imageSectionOverlayText}>이미지 순서편집</span>
-                </button>
-              )}
+              {(() => {
+                
+                const mainImageValid = formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '';
+                const subImagesValid = Array.isArray(formData.subImages) && formData.subImages.length > 0 && 
+                  formData.subImages.some(img => img && typeof img === 'string' && img.trim() !== '');
+                
+                const shouldShowButton = mainImageValid || subImagesValid;
+                
+                return shouldShowButton && (
+                  <div
+                    ref={galleryLoadingContainerOfRightSidebarRef}
+                    className={styles.imageSectionOverlayContainer}
+                    onClick={handleOpenOrderEditImagesGallery}
+                  >
+                    <span className={styles.imageSectionOverlayText}>이미지 순서편집</span>
+                  </div>
+                );
+              })()}
             </div>
           </form>
         )}

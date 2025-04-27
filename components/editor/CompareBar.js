@@ -171,8 +171,6 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     });
   }
 
-  console.log('compareData', compareData.mainImage);
-  console.log('compareData', compareData.subImages);
 
  //FIXME 임시 코드주석. 서브이미지를 제외하도록 해놓았음. 1개의 이미지만 메인이미지에서 사용해서 로직 테스트 중
 
@@ -199,8 +197,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
 
   
   // 로딩 오버레이를 표시할 DOM 요소 참조를 위한 useRef
-  const galleryLoadingContainerRef = useRef(null); // 갤러리 보기 버튼에 로딩 오버레이 표시용
-  const imageSelectionLoadingContainerRef = useRef(null); // 이미지 삽입 버튼에 로딩 오버레이 표시용
+  const galleryLoadingContainerRef = useRef(null); // 갤러리 보기 버튼에 로딩 오버레이 표시용, 이미지 삽입 버튼에 로딩 오버레이 표시에도 재사용
   
   // 이미지 갤러리 열기 핸들러 수정
   const handleViewGallery = () => {
@@ -270,10 +267,10 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
         }
       },
       // 로딩 오버레이가 표시될 DOM 요소
-      imageSelectionLoadingContainerRef.current,
+      galleryLoadingContainerRef.current,
       // 오버레이 옵션
       {
-        message: '이미지 준비중...',
+        //message: '이미지 준비중...',
         zIndex: 20
       }
     )();
@@ -403,7 +400,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
         <div className={styles.imageSectionPreviewContainer}>
           {/* 이미지 갤러리 버튼 영역 */}
           <div 
-            ref={galleryLoadingContainerRef} // 로딩 오버레이가 표시될 DOM 요소
+            
             className={styles.emptyImagePlaceholder}
             style={{ cursor: totalCountValidImages > 0 && !isInserting ? 'pointer' : 'default' }}
             onClick={!isInserting && totalCountValidImages > 0 ? handleViewGallery : undefined}
@@ -414,6 +411,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
                 : ' '}
             </div>
 
+            
             {/* 메인 이미지 썸네일 미리보기
             {compareData?.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '' && (
               <div style={{ position: 'relative', width: '100%', height: '120px', marginTop: '8px' }}>
@@ -436,17 +434,20 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
             
           </div>
           
+          
           {/* 삽입 모드일 때 이미지 오버레이 표시 */}
           {isInserting && (
             <div 
-              ref={imageSelectionLoadingContainerRef} // 로딩 오버레이가 표시될 DOM 요소
               className={styles.imageSectionOverlayContainer}
               onClick={handleImageSectionOverlayClick}
             >
               <span className={styles.imageSectionOverlayText}>&gt;&gt; 이미지 삽입</span>
             </div>
           )}
+
+          
         </div>
+        <div ref={galleryLoadingContainerRef} > </div>
       </form>
     </div>
   );

@@ -1,4 +1,10 @@
-import { getPublicIdFromReference, uploadGooglePlaceImage, checkImageExists } from '../../lib/cloudinary';
+import { 
+  getPublicIdFromReference, 
+  uploadGooglePlaceImage, 
+  checkImageExists,
+  stripAssetFolder,  // 에셋 폴더 제거 유틸리티 함수 임포트
+  getPublicIdFromGoogleReference
+} from '../../lib/cloudinary';
 
 /**
  * 구글 이미지 배치 프리캐싱을 위한 API 핸들러
@@ -41,49 +47,47 @@ export default async function handler(req, res) {
   for (const imageInfo of imageInfoArray) {
     try {
       // 필수 정보 확인
-      const { reference, publicId, placeId } = imageInfo;
-      const itemId = placeId || defaultPlaceId;
+      const { reference, publicId } = imageInfo;
       
       // 디버그 로그 추가
-      console.log(`이미지 처리: reference=${reference?.substring(0, 10)}..., placeId=${placeId}, defaultPlaceId=${defaultPlaceId}, 최종 itemId=${itemId}`);
+      console.log(`이미지 처리: reference=${reference?.substring(0, 10)}...`);
       
       if (!reference) {
         failedImages.push({ reference: imageInfo.reference || 'unknown', error: '이미지 참조 누락' });
         continue;
       }
-      
-      if (!itemId) {
-        failedImages.push({ reference: imageInfo.reference || 'unknown', error: '유효한 placeId가 필요합니다' });
-        continue;
-      }
 
       // 이미 캐시된 publicId가 있는 경우 먼저 확인
       if (publicId) {
+        // checkImageExists는 내부적으로 에셋 폴더를 처리하므로 직접 에셋 폴더 추가 불필요
         const exists = await checkImageExists(publicId);
         if (exists) {
-          cachedImageIds.push(publicId);
+          // 에셋 폴더가 없는 논리적 경로만 클라이언트에 반환
+          cachedImageIds.push(stripAssetFolder(publicId));
           console.log(`이미지가 이미 캐시됨 (publicId: ${publicId})`);
           continue;
         }
       }
 
-      // 이미지 참조로 publicId 생성
-      const computedPublicId = getPublicIdFromReference(reference, 'tempsection', itemId);
+      // 이미지 참조로 publicId 생성 (항상 tempsection과 tempID 사용)
+      const computedPublicId = getPublicIdFromGoogleReference(reference);
 
       // 이미지가 이미 클라우드에 존재하는지 확인
       const imageExists = await checkImageExists(computedPublicId);
 
       if (imageExists) {
-        cachedImageIds.push(computedPublicId);
+        // 에셋 폴더가 없는 논리적 경로만 클라이언트에 반환
+        cachedImageIds.push(stripAssetFolder(computedPublicId));
         console.log(`이미지가 이미 존재함 (${computedPublicId})`);
       } else {
-        // 이미지 업로드 - 기본 maxWidth 값으로 800 사용 (null 대신)
-        // image-proxy.js와 동일한 방식으로 apiKey 전달
-        console.log(`이미지 업로드 시작: reference=${reference.substring(0, 10)}..., itemId=${itemId}`);
-        const result = await uploadGooglePlaceImage(reference, 800, apiKey, itemId);
+        // 이미지 업로드 - 기본 maxWidth 값으로 800 사용
+        console.log(`이미지 업로드 시작: reference=${reference.substring(0, 10)}...`);
+        // 구글 이미지는 항상 tempsection과 tempID 사용 (함수 내부에서 처리)
+        const result = await uploadGooglePlaceImage(reference, 800, apiKey);
         
         if (result && result.public_id) {
-          cachedImageIds.push(result.public_id);
+          // 에셋 폴더가 없는 논리적 경로만 클라이언트에 반환
+          cachedImageIds.push(stripAssetFolder(result.public_id));
           console.log(`이미지 성공적으로 업로드됨 (${result.public_id})`);
         } else {
           throw new Error('업로드 결과에 public_id가 없음');

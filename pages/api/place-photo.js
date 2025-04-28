@@ -50,10 +50,11 @@
 
 import { 
   checkImageExists, 
-  getPublicIdFromReference, 
+  getPublicIdFromGoogleReference, 
   getCloudinaryUrl, 
   uploadGooglePlaceImage, 
-  isImageExpired
+  isImageExpired,
+  getFullPublicId
 } from '../../lib/cloudinary';
 import fetch from 'node-fetch';
 
@@ -130,23 +131,22 @@ export default async function handler(req, res) {
     } else if (photo_reference) {
       // photo_reference가 제공된 경우, publicId 생성
       
-      // place_id가 없으면 오류 반환
-      if (!place_id) {
-        return res.status(400).json({ error: 'place_id is required when using photo_reference' });
-      }
-      
-      // getPublicIdFromReference 함수는 세 개의 필수 매개변수가 필요합니다
-      publicId = getPublicIdFromReference(photo_reference, section, place_id);
+      // 구글 이미지는 항상 tempsection과 tempID를 사용 (함수 내부에서 처리)
+      publicId = getPublicIdFromGoogleReference(photo_reference);
       originalReference = photo_reference;
       console.log(`photo_reference로 public_id 생성: ${truncateForLogging(publicId)}`);
-      console.log(`섹션: ${section}, 장소ID: ${place_id}`);
     } else {
       // 둘 다 없는 경우, 에러 반환
       return res.status(400).json({ error: 'photo_reference or public_id is required' });
     }
     
+    // Cloudinary에서 이미지 확인 시 에셋 폴더 추가 (cloudinary.js의 함수 사용)
+    // 중요: DB에 저장된 publicId는 논리적 ID(placeImages/...)지만, Cloudinary에는 map-Images/placeImages/...로 저장됨
+    const cloudinaryPublicId = getFullPublicId(publicId);
+    console.log(`Cloudinary 이미지 확인: ${truncateForLogging(publicId)} → ${truncateForLogging(cloudinaryPublicId)}`);
+    
     // 2. Cloudinary에서 이미지 확인 (메타데이터 포함)
-    const imageInfo = await checkImageExists(publicId, true);
+    const imageInfo = await checkImageExists(cloudinaryPublicId, true);
     
     // 3. 메타데이터 요청 처리
     if (metadata === 'true' || metadata === '1') {
@@ -188,11 +188,11 @@ export default async function handler(req, res) {
     
     // 4. 이미지 존재 여부 확인 및 만료 체크
     let imageUrl;
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dzjjy5oxi';
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'dzjjy5oxi';
 
     if (imageInfo && !isImageExpired(imageInfo)) {
       // 기존 이미지 사용
-      console.log(`Cloudinary에서 기존 이미지 사용: ${publicId}`);
+      console.log(`Cloudinary에서 기존 이미지 사용: ${cloudinaryPublicId}`);
       
       if (photo_reference) {
         console.log(`🔵 [캐시 사용] photo_reference: ${photo_reference.substring(0, 15)}...`);
@@ -218,7 +218,7 @@ export default async function handler(req, res) {
       } else {
         // 원본 이미지 요청인 경우
         // 원본 요청은 Cloudinary에서 직접 가져옴
-        imageUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`;
+        imageUrl = getCloudinaryUrl(publicId);
       }
     } else if (photo_reference) {
       // 이미지가 없거나 만료되었지만 photo_reference가 있는 경우 Google API에서 가져옴
@@ -240,15 +240,16 @@ export default async function handler(req, res) {
         
         // 썸네일 요청인 경우
         if (!isOriginalRequest) {
-          const uploadResult = await uploadGooglePlaceImage(photo_reference, effectiveWidth, apiKey, uploadOptions);
+          // 구글 이미지는 항상 tempsection과 tempID를 사용 (함수 내부에서 처리)
+          const uploadResult = await uploadGooglePlaceImage(photo_reference, effectiveWidth, apiKey);
           imageUrl = uploadResult.secure_url;
         } else {
           // 원본 이미지 요청인 경우
           console.log('원본 크기로 구글 API 이미지 요청 및 Cloudinary에 업로드');
           // 원본 요청 시에도 안전한 최대 크기를 적용 (너무 큰 이미지 방지)
-          const uploadResult = await uploadGooglePlaceImage(photo_reference, MAX_SAFE_ORIGINAL, apiKey, uploadOptions);
-          // 직접 URL 구성 (버전 정보 없이)
-          imageUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`;
+          const uploadResult = await uploadGooglePlaceImage(photo_reference, MAX_SAFE_ORIGINAL, apiKey);
+          // 직접 URL 구성 대신 getCloudinaryUrl 함수 사용 (asset 폴더 자동 추가 위해)
+          imageUrl = getCloudinaryUrl(publicId);
         }
       } catch (uploadError) {
         console.error('Cloudinary 업로드 실패:', uploadError.message);

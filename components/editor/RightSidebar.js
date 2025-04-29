@@ -1165,14 +1165,14 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
                 onCancelSelection={handleCancelImageSelection}
                 source="rightSidebar"
               />
-              {/* 이미지 편집 오버레이 - 에디터 모드일 때만 표시 */}
+              {/* 이미지 순서 편집 오버레이 - 에디터 모드일 때만 표시 */}
               {(() => {
                 
                 const mainImageValid = formData.mainImage && typeof formData.mainImage === 'string' && formData.mainImage.trim() !== '';
                 const subImagesValid = Array.isArray(formData.subImages) && formData.subImages.length > 0 && 
                   formData.subImages.some(img => img && typeof img === 'string' && img.trim() !== '');
                 
-                const shouldShowButton = mainImageValid || subImagesValid;
+                const shouldShowButton = (mainImageValid || subImagesValid) && isEditorOn;
                 
                 return shouldShowButton && (
                   <div

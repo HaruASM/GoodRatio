@@ -27,8 +27,9 @@
  * 이미지 보기에 중점을 두는 반면, 이 컴포넌트는 이미지 관리에 중점을 둡니다.
  */
 
-import React, { forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useImperativeHandle, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import Image from 'next/image';
 import styles from '../../pages/editor/styles.module.css';
 
 // 이미지 갤러리 슬라이스에서 필요한 액션과 선택자만 가져오기
@@ -37,6 +38,8 @@ import {
   openImageSelectionMode,
   selectSelectedImages
 } from '../../lib/store/slices/imageGallerySlice';
+
+import { createTemplateImageProps, IMAGE_TEMPLATES } from '../../lib/utils/imageHelpers';
 
 /**
  * 이미지 관리 컴포넌트 - 이미지 배열을 출력하고 관리
@@ -53,6 +56,10 @@ const ImageSectionManager = forwardRef(({
 }, ref) => {
   const dispatch = useDispatch();
   
+  // 상태 추가
+  const [mainImageUrl, setMainImageUrl] = useState('');
+  const [subImageUrls, setSubImageUrls] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   // 유효한 메인 이미지와 서브 이미지 확인
   const validMainImage = mainImage && typeof mainImage === 'string' && mainImage.trim() !== '';
@@ -65,6 +72,38 @@ const ImageSectionManager = forwardRef(({
     ...(validMainImage ? [mainImage] : []),
     ...validSubImages
   ];
+  
+  // 이미지 URL 로드
+  useEffect(() => {
+    const loadImageUrls = async () => {
+      setIsLoading(true);
+      
+      // 메인 이미지 URL 생성
+      if (validMainImage) {
+        const imageProps = await createTemplateImageProps(mainImage, IMAGE_TEMPLATES.THUMBNAIL);
+        setMainImageUrl(imageProps.src);
+      } else {
+        setMainImageUrl('');
+      }
+      
+      // 서브 이미지 URL 생성
+      if (validSubImages.length > 0) {
+        const urls = await Promise.all(
+          validSubImages.map(async (publicId) => {
+            const imageProps = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL);
+            return imageProps.src;
+          })
+        );
+        setSubImageUrls(urls);
+      } else {
+        setSubImageUrls([]);
+      }
+      
+      setIsLoading(false);
+    };
+    
+    loadImageUrls();
+  }, [mainImage, subImages, validMainImage, validSubImages]);
   
   // ref를 통해 외부에서 접근 가능한 함수 노출
   useImperativeHandle(ref, () => ({
@@ -90,13 +129,13 @@ const ImageSectionManager = forwardRef(({
         {/* 메인 이미지 */}
         <div className={styles.imageSection}>
           <div className={styles.mainImageContainer}>
-            {validMainImage ? (
+            {validMainImage && mainImageUrl ? (
               <img 
-                src={`/api/place-photo?public_id=${encodeURIComponent(mainImage)}`}
-                  alt="메인 이미지" 
-                  className={styles.mainImagePreview}
-                  style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
-                />
+                src={mainImageUrl}
+                alt="메인 이미지" 
+                className={styles.mainImagePreview}
+                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+              />
             ) : (
               <div className={styles.emptyImagePlaceholder}>
                 <span>이미지 없음</span>
@@ -114,15 +153,16 @@ const ImageSectionManager = forwardRef(({
             {hasValidSubImages ? (
               <>
                 {validSubImages.slice(0, 4).map((subImageRef, imgIndex) => {
+                    const imageUrl = subImageUrls[imgIndex] || '';
                     return (
                       <div 
                         key={`sub-${imgIndex}`}
                         className={styles.subImageItem}
                     >
-                      {subImageRef && typeof subImageRef === 'string' && subImageRef.trim() !== '' ? (
+                      {subImageRef && typeof subImageRef === 'string' && subImageRef.trim() !== '' && imageUrl ? (
                             <div className={imgIndex === 3 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
                               <img 
-                            src={`/api/place-photo?public_id=${encodeURIComponent(subImageRef)}`}
+                                src={imageUrl}
                                 alt={`서브 이미지 ${imgIndex + 1}`} 
                                 className={styles.subImagePreview}
                                 style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}

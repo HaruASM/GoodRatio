@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Image from 'next/image';
-import { createImageProps, createThumbnailImageProps } from '../../lib/utils/imageHelpers';
+import { createTemplateImageProps, IMAGE_TEMPLATES } from '../../lib/utils/imageHelpers';
 import { 
   toggleImageSelection,
   confirmImageSelection,
@@ -44,6 +44,10 @@ const ImageSelectionGallery = () => {
   // 선택된 이미지 로컬 상태
   const [selectedImages, setSelectedImages] = useState([]);
   
+  // 이미지 URL 상태 추가
+  const [imageUrls, setImageUrls] = useState({});
+  const [tooltipImageUrl, setTooltipImageUrl] = useState('');
+  
   // 툴팁 상태 (마우스 오버 시 이미지 확대 보기)
   const [tooltipImage, setTooltipImage] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -63,11 +67,37 @@ const ImageSelectionGallery = () => {
       document.body.style.overflow = 'hidden';
       // 상태 초기화
       setSelectedImages(selectedImagesFromRedux || []);
+      
+      // 이미지 URL 로드
+      loadImageUrls();
     }
     return () => {
       document.body.style.overflow = '';
     };
   }, [isActive, selectedImagesFromRedux]);
+  
+  // 이미지 URL 로드 함수
+  const loadImageUrls = async () => {
+    if (!galleryImages || !galleryImages.length) return;
+    
+    // 이미지 URL 매핑 생성
+    const urlPromises = galleryImages.map(async (publicId) => {
+      try {
+        const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
+          alt: '이미지',
+          width: 150,
+          height: 150
+        });
+        return [publicId, props.src];
+      } catch (error) {
+        console.error('이미지 URL 생성 오류:', error);
+        return [publicId, ''];
+      }
+    });
+    
+    const urlEntries = await Promise.all(urlPromises);
+    setImageUrls(Object.fromEntries(urlEntries));
+  };
   
   // 이미지 선택 토글
   const handleImageSelect = (imageId) => {
@@ -82,13 +112,28 @@ const ImageSelectionGallery = () => {
   };
   
   // 툴팁 관련 핸들러
-  const handleMouseEnter = (imageId, e) => {
+  const handleMouseEnter = async (imageId, e) => {
     setTooltipImage(imageId);
     updateTooltipPosition(e, setTooltipPosition);
+    
+    // 툴팁 이미지 URL 로드
+    try {
+      const props = await createTemplateImageProps(imageId, IMAGE_TEMPLATES.NORMAL, {
+        width: 300, 
+        height: 200, 
+        alt: "이미지 미리보기",
+        objectFit: "contain"
+      });
+      setTooltipImageUrl(props.src);
+    } catch (error) {
+      console.error('툴팁 이미지 URL 생성 오류:', error);
+      setTooltipImageUrl('');
+    }
   };
   
   const handleMouseLeave = () => {
     setTooltipImage(null);
+    setTooltipImageUrl('');
   };
   
   const handleMouseMove = (e) => {
@@ -132,18 +177,24 @@ const ImageSelectionGallery = () => {
               onMouseLeave={handleMouseLeave}
             >
               <div className={styles.imageContainerItem}>
-                <Image 
-                  {...createThumbnailImageProps(publicId, {
-                    alt: `이미지 ${index + 1}`
-                  })}
-                />
+                {imageUrls[publicId] ? (
+                  <img 
+                    src={imageUrls[publicId]}
+                    alt={`이미지 ${index + 1}`}
+                    width={150}
+                    height={150}
+                    style={{ objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
+                )}
               </div>
             </div>
           ))}
         </div>
         
         {/* 이미지 확대 툴팁 */}
-        {tooltipImage && (
+        {tooltipImage && tooltipImageUrl && (
           <div 
             className={styles.galleryImageTooltip}
             style={{
@@ -151,13 +202,12 @@ const ImageSelectionGallery = () => {
               top: `${tooltipPosition.y}px`
             }}
           >
-            <Image
-              {...createImageProps(tooltipImage, {
-                width: 300,
-                height: 200,
-                alt: "이미지 미리보기",
-                objectFit: "contain"
-              })}
+            <img
+              src={tooltipImageUrl}
+              alt="이미지 미리보기"
+              width={300}
+              height={200}
+              style={{ objectFit: 'contain' }}
             />
           </div>
         )}
@@ -188,27 +238,6 @@ const ImageSelectionGallery = () => {
  * 
  * @returns {React.ReactElement} 이미지 순서 편집 갤러리 UI 컴포넌트
  */
-
-/**
- * 이미지 순서 편집 갤러리 로직 명세:
- * 1. 상태 관리:
- *    - orderedImages: 현재 이미지 배열 상태
- *    - localHasMainImage: 메인 이미지 존재 여부 (UI 표시용 로컬 상태)
- * 
- * 2. 핵심 기능:
- *    - 드래그 앤 드롭: 이미지 순서 변경
- *    - 이미지 삭제: 특정 이미지 제거 (메인 이미지 삭제 시 'blank'로 대체)
- *    - 'blank' 처리: 메인 이미지 없을 때 첫 위치를 'blank'로 표시
- * 
- * 3. 이미지 타입 처리:
- *    - 메인 이미지: orderedImages[0]가 'blank'가 아니면 메인 이미지
- *    - 서브 이미지: 메인 이미지를 제외한 나머지 이미지
- * 
- * 4. 중요 처리 로직:
- *    - 메인 이미지 슬롯에 이미지 드롭: 해당 이미지가 메인 이미지가 되고 localHasMainImage=true
- *    - 메인 이미지 삭제: 'blank'로 대체하고 localHasMainImage=false
- *    - 최종 확인: formatImagesForSubmission 함수로 mainImage와 subImages 형식으로 변환
- */
 const ImageOrderEditorGallery = () => {
   const dispatch = useDispatch();
   
@@ -222,6 +251,9 @@ const ImageOrderEditorGallery = () => {
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [renderKey, setRenderKey] = useState(0); // 강제 리렌더링을 위한 키
   const [localHasMainImage, setLocalHasMainImage] = useState(hasMainImage); // 로컬 hasMainImage 상태
+  
+  // 이미지 URL 상태 추가
+  const [imageUrls, setImageUrls] = useState({});
   
   // 이미지 컨테이너 ref
   const containerRef = useRef(null);
@@ -248,15 +280,45 @@ const ImageOrderEditorGallery = () => {
     setLocalHasMainImage(hasMainImage);
     setRenderKey(prev => prev + 1); // 초기화 시 렌더링 키 업데이트
     
+    // 이미지 URL 로드
+    loadImageUrls(newOrderedImages);
+    
     return () => {
       document.body.style.overflow = '';
     };
   }, [isOpen, storeOrderedImages, hasMainImage]);
   
+  // 이미지 URL 로드 함수
+  const loadImageUrls = async (images) => {
+    if (!images || !images.length) return;
+    
+    // 이미지 URL 매핑 생성 - 'blank'는 제외
+    const validImages = images.filter(img => img !== 'blank');
+    const urlPromises = validImages.map(async (publicId) => {
+      try {
+        const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
+          alt: '이미지',
+          width: 100,
+          height: 100
+        });
+        return [publicId, props.src];
+      } catch (error) {
+        console.error('이미지 URL 생성 오류:', error);
+        return [publicId, ''];
+      }
+    });
+    
+    const urlEntries = await Promise.all(urlPromises);
+    setImageUrls(Object.fromEntries(urlEntries));
+  };
+  
   // orderedImages 변경 시 DOM 갱신을 위한 useEffect
   useEffect(() => {
     if (orderedImages.length > 0) {
       console.log("orderedImages 변경됨:", orderedImages);
+      
+      // 이미지 URL 업데이트
+      loadImageUrls(orderedImages);
       
       // DOM 업데이트를 위한 강제 리렌더링 트리거
       const timer = setTimeout(() => {
@@ -521,14 +583,17 @@ const ImageOrderEditorGallery = () => {
               <div className={styles.imageContainerItem}>
                 {orderedImages.length > 0 && orderedImages[0] !== 'blank' ? (
                   <>
-                    <Image 
-                      {...createThumbnailImageProps(orderedImages[0], {
-                        alt: '메인 이미지',
-                        width: 100,
-                        height: 100,
-                        style: { objectFit: 'contain' }
-                      })}
-                    />
+                    {imageUrls[orderedImages[0]] ? (
+                      <img 
+                        src={imageUrls[orderedImages[0]]}
+                        alt='메인 이미지'
+                        width={100}
+                        height={100}
+                        style={{ objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
+                    )}
                     <button 
                       className={styles.imageDeleteButton}
                       onClick={() => handleDeleteImage(0)}
@@ -587,14 +652,17 @@ const ImageOrderEditorGallery = () => {
                 onDrop={(e) => handleDrop(e, index)}
               >
                 <div className={styles.imageContainerItem}>
-                  <Image 
-                    {...createThumbnailImageProps(publicId, {
-                      alt: `이미지 ${displayIndex}`,
-                      width: 100,
-                      height: 100,
-                      style: { objectFit: 'contain' }
-                    })}
-                  />
+                  {imageUrls[publicId] ? (
+                    <img 
+                      src={imageUrls[publicId]}
+                      alt={`이미지 ${displayIndex}`}
+                      width={100}
+                      height={100}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
+                  )}
                   <button 
                     className={styles.imageDeleteButton}
                     onClick={() => handleDeleteImage(index)}

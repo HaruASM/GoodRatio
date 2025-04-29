@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from './styles.module.css';
 import { parseCoordinates } from '../../lib/models/editorModels';
-import { getNormalPhotoUrl } from '../../lib/utils/imageHelpers';
+import { createTemplateImageProps, IMAGE_TEMPLATES } from '../../lib/utils/imageHelpers';
 import { 
   itemSelectedThunk, 
   selectSelectedItemId 
@@ -30,6 +30,41 @@ const ExploringSidebar = ({
   const highlightedItemId = useSelector(selectHighlightedItemId);
   const isSidebarVisible = useSelector(selectIsSidebarVisible);
   
+  // 이미지 URL 관리를 위한 상태 추가
+  const [imageUrls, setImageUrls] = useState({});
+  
+  // 아이템 리스트가 변경될 때 이미지 URL 로드
+  useEffect(() => {
+    if (!curItemListInCurSection || !curItemListInCurSection.length) return;
+    
+    // 각 아이템의 메인 이미지 URL 로드
+    const loadImageUrls = async () => {
+      const urlPromises = curItemListInCurSection.map(async (item) => {
+        if (!item.serverDataset || !item.serverDataset.mainImage) return null;
+        
+        const publicId = item.serverDataset.mainImage;
+        if (!publicId || publicId.trim() === '') return null;
+        
+        try {
+          const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.BANNER_WIDE, {
+            alt: `${item.serverDataset.itemName || ''} 메인 이미지`,
+            width: 280,
+            height: 120
+          });
+          return [publicId, props.src];
+        } catch (error) {
+          console.error('이미지 URL 생성 오류:', error);
+          return null;
+        }
+      });
+      
+      const urlEntries = (await Promise.all(urlPromises)).filter(Boolean);
+      setImageUrls(Object.fromEntries(urlEntries));
+    };
+    
+    loadImageUrls();
+  }, [curItemListInCurSection]);
+  
   // 상점 선택 핸들러
   const handleItemSelect = (item, e) => {
     e.preventDefault();
@@ -45,7 +80,7 @@ const ExploringSidebar = ({
   };
 
   // 이미지 클릭 핸들러
-  const handleImageClick = (e, photoReference, itemName) => {
+  const handleImageClick = (e, publicId, itemName) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -108,16 +143,20 @@ const ExploringSidebar = ({
                   {/* 메인 이미지 */}
                   {item.serverDataset.mainImage && item.serverDataset.mainImage.trim() !== '' ? (
                     <div className={styles['explSidebar-mainImage']}>
-                      <Image
-                        src={getNormalPhotoUrl(item.serverDataset.mainImage)}
-                        alt={`${item.serverDataset.itemName || ''} 메인 이미지`}
-                        fill
-                        sizes="280px"
-                        style={{ objectFit: 'cover' }}
-                        unoptimized={true}
-                        priority
-                        onClick={(e) => handleImageClick(e, item.serverDataset.mainImage, item.serverDataset.itemName)}
-                      />
+                      {imageUrls[item.serverDataset.mainImage] ? (
+                        <img
+                          src={imageUrls[item.serverDataset.mainImage]}
+                          alt={`${item.serverDataset.itemName || ''} 메인 이미지`}
+                          width={280}
+                          height={120}
+                          style={{ objectFit: 'cover' }}
+                          onClick={(e) => handleImageClick(e, item.serverDataset.mainImage, item.serverDataset.itemName)}
+                        />
+                      ) : (
+                        <div className={styles['explSidebar-emptyImagePlaceholder']} style={{ width: '100%', height: 120 }}>
+                          <span>로딩 중...</span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className={styles['explSidebar-mainImage']}>

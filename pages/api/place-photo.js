@@ -52,11 +52,22 @@ import {
   checkImageExists, 
   getPublicIdFromGoogleReference, 
   getCloudinaryUrl, 
-  uploadGooglePlaceImage, 
   isImageExpired,
-  getFullPublicId
+  getFullPublicId,
+  generateSignedUrl
 } from '../../lib/cloudinary';
-import fetch from 'node-fetch';
+
+// Cloudinary 템플릿 타입
+const TEMPLATE_TYPES = {
+  THUMBNAIL: 'thumbnail',
+  NORMAL: 'normal',
+  BANNER_WIDE: 'banner_wide',
+  BANNER_TALL: 'banner_tall',
+  CIRCLE: 'circle',
+  SQUARE: 'square',
+  SHARPENED: 'sharpened',
+  ORIGINAL: 'original'
+};
 
 // imageHelpers.js와 일치하도록 이미지 크기 상수 정의
 const NORMAL_WIDTH = 400;         // 일반 크기 (getNormalPhotoUrl)
@@ -77,6 +88,7 @@ const truncateForLogging = (str, maxLength = 40) => {
 
 /**
  * Google Place 사진 또는 Cloudinary Public ID 처리 핸들러
+ * 직접 Cloudinary URL을 반환하는 방식으로 변경됨
  */
 export default async function handler(req, res) {
   console.log('Place Photo API 호출됨');
@@ -85,41 +97,33 @@ export default async function handler(req, res) {
     public_id,
     maxwidth, 
     maxheight,
-    mode = 'scale',
+    mode = 'fill',
     quality = 'auto',
     metadata = false,
     original = false,
+    template = '',  // 템플릿 타입 (thumbnail, normal, banner_wide 등)
     section = 'default',
     place_id = null,
     image_index = 1
   } = req.query;
 
   // 원본 이미지 요청 여부 확인
-  const isOriginalRequest = original === 'true' || original === '1';
+  const isOriginalRequest = original === 'true' || original === '1' || template === TEMPLATE_TYPES.ORIGINAL;
   
-  // 썸네일 요청 여부 확인 (width가 150 이하인 경우)
-  const isThumbnailRequest = !isOriginalRequest && 
-    (parseInt(maxwidth, 10) <= THUMBNAIL_WIDTH || maxwidth === undefined);
-  
-  // 적용할 크기 결정
-  let effectiveWidth;
-  if (isOriginalRequest) {
-    effectiveWidth = null; // 원본 요청은 크기 제한 없음
-  } else if (isThumbnailRequest) {
-    effectiveWidth = THUMBNAIL_WIDTH; // 썸네일 요청
+  // 템플릿 타입 확인
+  let templateType = '';
+  if (template) {
+    templateType = template.toLowerCase();
+  } else if (isOriginalRequest) {
+    templateType = TEMPLATE_TYPES.ORIGINAL;
+  } else if (parseInt(maxwidth, 10) <= THUMBNAIL_WIDTH || maxwidth === undefined) {
+    templateType = TEMPLATE_TYPES.THUMBNAIL;
   } else {
-    effectiveWidth = NORMAL_WIDTH; // 기본은 일반 크기 (400px)
-  }
-  
-  // API 키 검증
-  const apiKey = process.env.NEXT_PUBLIC_MAPS_API_KEY;
-  if (!apiKey) {
-    console.error('NEXT_PUBLIC_MAPS_API_KEY가 설정되지 않았습니다');
-    return res.status(500).json({ error: 'API key is not configured' });
+    templateType = TEMPLATE_TYPES.NORMAL;
   }
 
   try {
-    // 1. Cloudinary 공개 ID 결정 (public_id 파라미터가 있으면 그것을 사용, 없으면 photo_reference로 생성)
+    // 1. Cloudinary 공개 ID 결정
     let publicId;
     let originalReference;
     
@@ -127,10 +131,8 @@ export default async function handler(req, res) {
       // public_id가 제공된 경우, 직접 사용
       publicId = public_id;
       console.log(`클라이언트가 제공한 public_id 사용: ${truncateForLogging(publicId)}`);
-      console.log(`요청 타입: ${isOriginalRequest ? '원본 크기' : `${effectiveWidth}px 크기`}`);
     } else if (photo_reference) {
       // photo_reference가 제공된 경우, publicId 생성
-      
       // 구글 이미지는 항상 tempsection과 tempID를 사용 (함수 내부에서 처리)
       publicId = getPublicIdFromGoogleReference(photo_reference);
       originalReference = photo_reference;
@@ -140,8 +142,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'photo_reference or public_id is required' });
     }
     
-    // Cloudinary에서 이미지 확인 시 에셋 폴더 추가 (cloudinary.js의 함수 사용)
-    // 중요: DB에 저장된 publicId는 논리적 ID(placeImages/...)지만, Cloudinary에는 map-Images/placeImages/...로 저장됨
+    // Cloudinary에서 이미지 확인 시 에셋 폴더 추가
     const cloudinaryPublicId = getFullPublicId(publicId);
     console.log(`Cloudinary 이미지 확인: ${truncateForLogging(publicId)} → ${truncateForLogging(cloudinaryPublicId)}`);
     
@@ -186,116 +187,115 @@ export default async function handler(req, res) {
       }
     }
     
-    // 4. 이미지 존재 여부 확인 및 만료 체크
-    let imageUrl;
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'dzjjy5oxi';
-
-    if (imageInfo && !isImageExpired(imageInfo)) {
-      // 기존 이미지 사용
-      console.log(`Cloudinary에서 기존 이미지 사용: ${cloudinaryPublicId}`);
-      
-      if (photo_reference) {
-        console.log(`🔵 [캐시 사용] photo_reference: ${photo_reference.substring(0, 15)}...`);
-      } else {
-        console.log(`🔵 [캐시 사용] public_id: ${truncateForLogging(publicId)}`);
-      }
-      
-      if (!isOriginalRequest) {
-        // 썸네일 이미지 요청 - 변환 파라미터 사용
-        const imageOptions = {
-          width: effectiveWidth,
-          crop: mode,
-          quality: quality,
-          fetch_format: 'auto'
-        };
-        
-        // maxheight가 제공된 경우 추가
-        if (maxheight) {
-          imageOptions.height = parseInt(maxheight, 10);
-        }
-        
-        imageUrl = getCloudinaryUrl(publicId, imageOptions);
-      } else {
-        // 원본 이미지 요청인 경우
-        // 원본 요청은 Cloudinary에서 직접 가져옴
-        imageUrl = getCloudinaryUrl(publicId);
-      }
-    } else if (photo_reference) {
-      // 이미지가 없거나 만료되었지만 photo_reference가 있는 경우 Google API에서 가져옴
-      console.log(`Cloudinary 캐시 없음 - Google API에서 이미지 가져와 업로드: ${photo_reference}`);
-      try {
-        // 업로드 옵션 구성
-        const uploadOptions = {
-          section,
-          placeId: place_id,
-          imageIndex: image_index,
-          mode,
-          quality,
-          provider: 'google'
-        };
-        
-        if (maxheight) {
-          uploadOptions.maxheight = maxheight;
-        }
-        
-        // 썸네일 요청인 경우
-        if (!isOriginalRequest) {
-          // 구글 이미지는 항상 tempsection과 tempID를 사용 (함수 내부에서 처리)
-          const uploadResult = await uploadGooglePlaceImage(photo_reference, effectiveWidth, apiKey);
-          imageUrl = uploadResult.secure_url;
-        } else {
-          // 원본 이미지 요청인 경우
-          console.log('원본 크기로 구글 API 이미지 요청 및 Cloudinary에 업로드');
-          // 원본 요청 시에도 안전한 최대 크기를 적용 (너무 큰 이미지 방지)
-          const uploadResult = await uploadGooglePlaceImage(photo_reference, MAX_SAFE_ORIGINAL, apiKey);
-          // 직접 URL 구성 대신 getCloudinaryUrl 함수 사용 (asset 폴더 자동 추가 위해)
-          imageUrl = getCloudinaryUrl(publicId);
-        }
-      } catch (uploadError) {
-        console.error('Cloudinary 업로드 실패:', uploadError.message);
-        // 업로드 실패 시 오류 응답 반환
-        return res.status(500).json({ 
-          error: '이미지를 Cloudinary에 업로드하는 데 실패했습니다',
-          detail: uploadError.message
-        });
-      }
-    } else {
-      // public_id만 있고 Cloudinary에 이미지가 없는 경우 404 반환
-      return res.status(404).json({ error: 'Image not found in Cloudinary and no photo_reference provided' });
-    }
-    
-    // 5. 이미지 데이터를 직접 전달
-    try {
-      console.log(`이미지 가져오기 시도: ${imageUrl?.substring(0, 100)}...`);
-      const response = await fetch(imageUrl);
-      
-      if (!response.ok) {
-        throw new Error(`이미지 가져오기 실패: ${response.status} ${response.statusText}`);
-      }
-      
-      const buffer = await response.buffer();
-      const contentType = response.headers.get('content-type');
-      
-      // 캐싱 헤더 설정 (1주일)
-      res.setHeader('Cache-Control', 'public, max-age=604800, s-maxage=604800');
-      res.setHeader('Content-Type', contentType);
-      // 원본 photo_reference 정보 포함
-      if (photo_reference) {
-        res.setHeader('X-Original-Photo-Reference', photo_reference);
-      }
-      res.setHeader('X-Image-Width', effectiveWidth || 'original');
-      res.send(buffer);
-      
-    } catch (error) {
-      console.error('이미지 프록시 처리 오류:', error);
-      // 실패 시 오류 응답 반환
-      res.status(500).json({ 
-        error: '이미지를 가져오는 중 오류가 발생했습니다', 
-        detail: error.message 
+    // 4. 이미지 존재 여부 확인
+    if (!imageInfo) {
+      // 이미지가 Cloudinary에 없는 경우 404 반환
+      return res.status(404).json({ 
+        error: 'Image not found in Cloudinary',
+        message: '이미지를 찾을 수 없습니다. 이미지를 먼저 batch-image-precache API를 통해 업로드해주세요.'
       });
     }
+    
+    // 이미지가 만료된 경우
+    if (isImageExpired(imageInfo)) {
+      return res.status(410).json({
+        error: 'Image has expired',
+        message: '이미지가 만료되었습니다. batch-image-precache API를 통해 다시 업로드해주세요.'
+      });
+    }
+    
+    // 5. 템플릿 타입에 따른 Cloudinary 변환 옵션 설정
+    let transformationOptions = {};
+    
+    switch(templateType) {
+      case TEMPLATE_TYPES.THUMBNAIL:
+        transformationOptions = {
+          width: parseInt(maxwidth, 10) || THUMBNAIL_WIDTH,
+          height: parseInt(maxheight, 10) || parseInt(maxwidth, 10) || THUMBNAIL_WIDTH,
+          crop: mode,
+          quality: quality
+        };
+        break;
+        
+      case TEMPLATE_TYPES.NORMAL:
+        transformationOptions = {
+          width: parseInt(maxwidth, 10) || NORMAL_WIDTH,
+          crop: mode,
+          quality: quality
+        };
+        if (maxheight) {
+          transformationOptions.height = parseInt(maxheight, 10);
+        }
+        break;
+        
+      case TEMPLATE_TYPES.BANNER_WIDE:
+        transformationOptions = {
+          width: 970,
+          height: 250,
+          crop: 'fill',
+          quality: quality
+        };
+        break;
+        
+      case TEMPLATE_TYPES.BANNER_TALL:
+        transformationOptions = {
+          width: 300,
+          height: 600,
+          crop: 'fill',
+          quality: quality
+        };
+        break;
+        
+      case TEMPLATE_TYPES.CIRCLE:
+        transformationOptions = {
+          width: 1010,
+          height: 1010,
+          crop: 'fill',
+          radius: 'max',
+          quality: quality
+        };
+        break;
+        
+      case TEMPLATE_TYPES.SQUARE:
+        transformationOptions = {
+          width: 1000,
+          height: 1000,
+          crop: 'fill',
+          quality: quality
+        };
+        break;
+        
+      case TEMPLATE_TYPES.SHARPENED:
+        transformationOptions = {
+          width: 1000,
+          height: 563,
+          crop: 'fill',
+          effect: 'sharpen',
+          quality: quality
+        };
+        break;
+        
+      case TEMPLATE_TYPES.ORIGINAL:
+      default:
+        // 원본 크기에 대해서도 적절한 제한 적용
+        transformationOptions = {
+          quality: quality
+        };
+        break;
+    }
+    
+    // 6. Cloudinary URL 생성 (서명된 URL)
+    const signedUrl = generateSignedUrl(publicId, transformationOptions);
+    
+    // 7. 직접 URL을 응답으로 반환
+    res.status(200).json({ 
+      url: signedUrl,
+      template: templateType,
+      public_id: publicId
+    });
+    
   } catch (error) {
     console.error('Place Photo API 오류:', error);
-    res.status(500).json({ error: '이미지를 가져오는 중 오류가 발생했습니다' });
+    res.status(500).json({ error: '이미지 URL 생성 중 오류가 발생했습니다' });
   }
 } 

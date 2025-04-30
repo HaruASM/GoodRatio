@@ -219,7 +219,7 @@ const ExploringSidebar = ({
                           <span>
                             {imageLoadingStates[item.serverDataset.mainImage] === 'error' 
                               ? '이미지 로드 실패' 
-                              : '로딩 중...'}
+                              : '...'}
                           </span>
                         </div>
                       )}

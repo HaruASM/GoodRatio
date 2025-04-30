@@ -157,7 +157,7 @@ const ImageGallery = () => {
               />
             ) : (
               <div className={styles.emptyImagePlaceholder}>
-                <span>이미지 로딩 중...</span>
+                <span>...</span>
               </div>
             )}
           </div>
@@ -197,7 +197,7 @@ const ImageGallery = () => {
                   style={{ objectFit: 'cover', width: 'auto', height: 'auto' }}
                 />
               ) : (
-                <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
+                <div className={styles.emptyImagePlaceholder}>...</div>
               )}
             </div>
           ))}

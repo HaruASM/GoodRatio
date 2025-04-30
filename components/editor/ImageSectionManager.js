@@ -249,7 +249,7 @@ const ImageSectionManager = forwardRef(({
                   {imageLoadingStates[mainImage] === 'error' 
                     ? '이미지 로드 실패' 
                     : imageLoadingStates[mainImage] === 'loading' 
-                      ? '로딩 중...' 
+                      ? '...' 
                       : '이미지 없음'}
                 </span>
               </div>
@@ -299,7 +299,7 @@ const ImageSectionManager = forwardRef(({
                               {imageLoadingStates[subImageRef] === 'error' 
                                 ? '이미지 로드 실패' 
                                 : imageLoadingStates[subImageRef] === 'loading' 
-                                  ? '로딩 중...' 
+                                  ? '...' 
                                   : ''}
                             </span>
                           </div>

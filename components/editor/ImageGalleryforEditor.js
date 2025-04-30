@@ -186,7 +186,7 @@ const ImageSelectionGallery = () => {
                     style={{ objectFit: 'cover', width: 'auto', height: 'auto' }}
                   />
                 ) : (
-                  <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
+                  <div className={styles.emptyImagePlaceholder}>...</div>
                 )}
               </div>
             </div>
@@ -586,7 +586,7 @@ const ImageOrderEditorGallery = () => {
                         style={{ objectFit: 'contain' }}
                       />
                     ) : (
-                      <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
+                      <div className={styles.emptyImagePlaceholder}>...</div>
                     )}
                     <button 
                       className={styles.imageDeleteButton}
@@ -652,7 +652,7 @@ const ImageOrderEditorGallery = () => {
                       style={{ objectFit: 'contain' }}
                     />
                   ) : (
-                    <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
+                    <div className={styles.emptyImagePlaceholder}>...</div>
                   )}
                   <button 
                     className={styles.imageDeleteButton}

@@ -2,12 +2,23 @@ import { Provider } from 'react-redux';
 import { wrapper } from '../lib/store';
 import '../styles/globals.css'; // 전역 스타일시트 임포트
 import dynamic from 'next/dynamic';
-import ImageGallery from '../components/editor/ImageGallery';
-import { ImageSelectionGallery, ImageOrderEditorGallery } from '../components/editor/ImageGalleryforEditor';
 
 // 로깅 필터 컴포넌트를 클라이언트 사이드에서만 로드
 const LoggingFilter = dynamic(() => import('../components/LoggingFilter'), { 
   ssr: false 
+});
+
+// 이미지 갤러리 컴포넌트들을 클라이언트 사이드에서만 로드
+const ImageGallery = dynamic(() => import('../components/editor/ImageGallery'), {
+  ssr: false
+});
+
+const ImageSelectionGallery = dynamic(() => import('../components/editor/ImageGalleryforEditor').then(mod => mod.ImageSelectionGallery), {
+  ssr: false
+});
+
+const ImageOrderEditorGallery = dynamic(() => import('../components/editor/ImageGalleryforEditor').then(mod => mod.ImageOrderEditorGallery), {
+  ssr: false
 });
 
 /**

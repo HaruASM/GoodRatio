@@ -238,7 +238,7 @@ const ImageSectionManager = forwardRef(({
               <Image 
                 {...mainImageProps}
                 className={styles.mainImagePreview}
-                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain", cursor: "pointer" }}
+                style={{ width: "auto", height: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain", cursor: "pointer" }}
                 onLoad={() => handleImageLoad(mainImage)}
                 onError={(e) => handleImageError(mainImage, e)}
                 onClick={() => handleImageClick(0)}

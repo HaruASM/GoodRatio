@@ -153,7 +153,7 @@ const ImageGallery = () => {
               <Image 
                 {...mainImageProps}
                 className={styles.galleryImagePreview}
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', width: 'auto', height: 'auto' }}
               />
             ) : (
               <div className={styles.emptyImagePlaceholder}>
@@ -194,7 +194,7 @@ const ImageGallery = () => {
               {thumbnailProps[publicId] ? (
                 <Image 
                   {...thumbnailProps[publicId]}
-                  style={{ objectFit: 'cover' }}
+                  style={{ objectFit: 'cover', width: 'auto', height: 'auto' }}
                 />
               ) : (
                 <div className={styles.emptyImagePlaceholder}>로딩 중...</div>

@@ -46,7 +46,6 @@ const ExploringSidebar = ({
     
     // 각 아이템의 메인 이미지 props 로드
     const loadImageProps = async () => {
-      console.log('[ExploringSidebar] 이미지 props 로드 시작');
       
       // 로딩 상태 초기화
       const initialLoadingStates = {};
@@ -64,7 +63,6 @@ const ExploringSidebar = ({
         if (!publicId || publicId.trim() === '') return null;
         
         try {
-          console.log(`[ExploringSidebar] 이미지 props 생성: ${publicId}`);
           
           // createNextImageProps 함수 사용 (비동기)
           const props = await createNextImageProps(publicId, IMAGE_TEMPLATES.BANNER_WIDE, {
@@ -87,11 +85,10 @@ const ExploringSidebar = ({
       });
       
       const propsEntries = (await Promise.all(propsPromises)).filter(Boolean);
-      console.log(`[ExploringSidebar] 로드된 이미지 props 수: ${propsEntries.length}`);
       
       if (propsEntries.length > 0) {
         const newImageProps = Object.fromEntries(propsEntries);
-        console.log('[ExploringSidebar] 이미지 props 맵:', Object.keys(newImageProps));
+        
         setImageProps(newImageProps);
         
         // 로딩 상태 업데이트
@@ -111,7 +108,7 @@ const ExploringSidebar = ({
   
   // 이미지 로드 성공 핸들러
   const handleImageLoad = (publicId, itemName) => {
-    console.log(`[ExploringSidebar] 이미지 로드 성공: ${itemName}`);
+    
     setImageLoadingStates(prev => ({
       ...prev,
       [publicId]: 'loaded'

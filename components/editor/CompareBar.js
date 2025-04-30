@@ -230,7 +230,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
       galleryLoadingContainerRef.current,
       // 오버레이 옵션
       {
-        message: '이미지 로딩중...',
+        message: '...',
         zIndex: 10
       }
     )();

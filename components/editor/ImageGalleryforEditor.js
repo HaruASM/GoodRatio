@@ -183,7 +183,7 @@ const ImageSelectionGallery = () => {
                 {imageProps[publicId] ? (
                   <Image 
                     {...imageProps[publicId]}
-                    style={{ objectFit: 'cover' }}
+                    style={{ objectFit: 'cover', width: 'auto', height: 'auto' }}
                   />
                 ) : (
                   <div className={styles.emptyImagePlaceholder}>로딩 중...</div>
@@ -196,15 +196,15 @@ const ImageSelectionGallery = () => {
         {/* 이미지 확대 툴팁 */}
         {tooltipImage && tooltipImageProps && (
           <div 
-            className={styles.galleryImageTooltip}
+            className={styles.imageTooltip}
             style={{
-              left: `${tooltipPosition.x}px`,
-              top: `${tooltipPosition.y}px`
+              top: tooltipPosition.y,
+              left: tooltipPosition.x
             }}
           >
-            <Image
+            <Image 
               {...tooltipImageProps}
-              style={{ objectFit: 'contain' }}
+              style={{ objectFit: 'contain', width: 'auto', height: 'auto' }}
             />
           </div>
         )}

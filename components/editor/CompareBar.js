@@ -172,24 +172,22 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   }
 
 
- //FIXME 임시 코드주석. 서브이미지를 제외하도록 해놓았음. 1개의 이미지만 메인이미지에서 사용해서 로직 테스트 중
-
-  // if( Array.isArray(compareData?.subImages) ) {
-  //   compareData.subImages.forEach((imgRef, index) => {
-  //     if( typeof imgRef === 'string' && imgRef.trim() !== '' ) {
-  //       totalCountValidImages++;
-  //       const publicId = convertGoogleImageReferenceToPublicId(imgRef, 'tempsection', compareData.googleDataId);
-  //       allImagePublicIds.push(publicId);
+  if( Array.isArray(compareData?.subImages) ) {
+    compareData.subImages.forEach((imgRef, index) => {
+      if( typeof imgRef === 'string' && imgRef.trim() !== '' ) {
+        totalCountValidImages++;
+        const publicId = convertGoogleImageReferenceToPublicId(imgRef, 'tempsection', compareData.googleDataId);
+        allImagePublicIds.push(publicId);
         
-  //       // 이미지 정보 배열에 추가
-  //       imageInfoArray.push({
-  //         publicId,
-  //         reference: imgRef,
-  //         placeId: compareData.googleDataId
-  //       });
-  //     }
-  //   });
-  // }
+        // 이미지 정보 배열에 추가
+        imageInfoArray.push({
+          publicId,
+          reference: imgRef,
+          placeId: compareData.googleDataId
+        });
+      }
+    });
+  }
 
   console.log('totalCountValidImages', totalCountValidImages);
   console.log('allImagePublicIds', allImagePublicIds.length);
@@ -411,27 +409,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
                 : ' '}
             </div>
 
-            
-            {/* 메인 이미지 썸네일 미리보기
-            {compareData?.mainImage && typeof compareData.mainImage === 'string' && compareData.mainImage.trim() !== '' && (
-              <div style={{ position: 'relative', width: '100%', height: '120px', marginTop: '8px' }}>
-                <Image 
-                  src={`/api/image-proxy?photo_reference=${encodeURIComponent(compareData.mainImage)}&maxwidth=150`}
-                  alt="구글 이미지 미리보기"
-                  fill
-                  style={{ 
-                    objectFit: 'contain',
-                    borderRadius: '4px'
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    console.error('구글 이미지 로딩 실패');
-                  }}
-                  unoptimized // 외부 URL을 사용하므로 Next.js의 이미지 최적화를 비활성화
-                />
-              </div>
-            )} */}
-            
+           
           </div>
           
           

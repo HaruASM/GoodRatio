@@ -36,7 +36,8 @@ import styles from '../../pages/editor/styles.module.css';
 import {
   openImageOrderEditor,
   openImageSelectionMode,
-  selectSelectedImages
+  selectSelectedImages,
+  openGallery
 } from '../../lib/store/slices/imageGallerySlice';
 
 import { 
@@ -192,6 +193,18 @@ const ImageSectionManager = forwardRef(({
     }
   };
   
+  // 이미지 클릭 핸들러 - 갤러리 열기
+  const handleImageClick = (index = 0) => {
+    // 이미지가 없으면 실행하지 않음
+    if (allImages.length === 0) return;
+    
+    // 이미지 갤러리 열기 액션 디스패치
+    dispatch(openGallery({
+      images: allImages,
+      index: index
+    }));
+  };
+  
   // ref를 통해 외부에서 접근 가능한 함수 노출
   useImperativeHandle(ref, () => ({
     openImageOrderEditor: () => {
@@ -225,9 +238,10 @@ const ImageSectionManager = forwardRef(({
               <Image 
                 {...mainImageProps}
                 className={styles.mainImagePreview}
-                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain", cursor: "pointer" }}
                 onLoad={() => handleImageLoad(mainImage)}
                 onError={(e) => handleImageError(mainImage, e)}
+                onClick={() => handleImageClick(0)}
               />
             ) : (
               <div className={styles.emptyImagePlaceholder}>
@@ -263,9 +277,15 @@ const ImageSectionManager = forwardRef(({
                               <Image 
                                 {...imageProps}
                                 className={styles.subImagePreview}
-                                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                                style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain", cursor: "pointer" }}
                                 onLoad={() => handleImageLoad(subImageRef)}
                                 onError={(e) => handleImageError(subImageRef, e)}
+                                onClick={() => {
+                                  // 메인 이미지 존재 여부에 따라 인덱스 조정
+                                  const mainImageExists = mainImage && typeof mainImage === 'string' && mainImage.trim() !== '';
+                                  const index = mainImageExists ? imgIndex + 1 : imgIndex;
+                                  handleImageClick(index);
+                                }}
                               />
                               {imgIndex === 3 && additionalImages > 0 && (
                                 <div className={styles.imageCountOverlay}>

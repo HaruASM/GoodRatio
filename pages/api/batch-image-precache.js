@@ -3,7 +3,8 @@ import {
   uploadGooglePlaceImage, 
   checkImageExists,
   stripAssetFolder,  // 에셋 폴더 제거 유틸리티 함수 임포트
-  getPublicIdFromGoogleReference
+  getPublicIdFromGoogleReference,
+  getFullPublicId     // 에셋 폴더 포함 풀 경로 생성 함수 추가
 } from '../../lib/cloudinary';
 
 /**
@@ -37,7 +38,7 @@ export default async function handler(req, res) {
   const cachedImageIds = [];
   const failedImages = [];
 
-  // API 키 가져오기 (image-proxy.js와 동일)
+  // API 키 가져오기 
   const apiKey = process.env.NEXT_PUBLIC_MAPS_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'API key is not configured' });
@@ -59,8 +60,9 @@ export default async function handler(req, res) {
 
       // 이미 캐시된 publicId가 있는 경우 먼저 확인
       if (publicId) {
-        // checkImageExists는 내부적으로 에셋 폴더를 처리하므로 직접 에셋 폴더 추가 불필요
-        const exists = await checkImageExists(publicId);
+        // [수정] 물리 경로로 publicId 변환 후 존재 여부 확인
+        const fullPublicId = getFullPublicId(publicId);
+        const exists = await checkImageExists(fullPublicId);
         if (exists) {
           // 에셋 폴더가 없는 논리적 경로만 클라이언트에 반환
           cachedImageIds.push(stripAssetFolder(publicId));
@@ -72,8 +74,9 @@ export default async function handler(req, res) {
       // 이미지 참조로 publicId 생성 (항상 tempsection과 tempID 사용)
       const computedPublicId = getPublicIdFromGoogleReference(reference);
 
-      // 이미지가 이미 클라우드에 존재하는지 확인
-      const imageExists = await checkImageExists(computedPublicId);
+      // [수정] 물리 경로로 computedPublicId 변환 후 존재 여부 확인
+      const fullComputedId = getFullPublicId(computedPublicId);
+      const imageExists = await checkImageExists(fullComputedId);
 
       if (imageExists) {
         // 에셋 폴더가 없는 논리적 경로만 클라이언트에 반환

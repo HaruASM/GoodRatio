@@ -189,17 +189,21 @@ export default async function handler(req, res) {
     
     // 4. 이미지 존재 여부 확인
     if (!imageInfo) {
-      // 이미지가 Cloudinary에 없는 경우 404 반환
-      return res.status(404).json({ 
-        error: 'Image not found in Cloudinary',
+      // 이미지가 Cloudinary에 없는 경우 404 반환 대신 200 상태 코드로 imageNotFound 플래그 전송
+      return res.status(200).json({ 
+        imageNotFound: true,
+        public_id: publicId,
+        template: templateType,
         message: '이미지를 찾을 수 없습니다. 이미지를 먼저 batch-image-precache API를 통해 업로드해주세요.'
       });
     }
     
     // 이미지가 만료된 경우
     if (isImageExpired(imageInfo)) {
-      return res.status(410).json({
-        error: 'Image has expired',
+      return res.status(200).json({
+        imageExpired: true,
+        public_id: publicId,
+        template: templateType,
         message: '이미지가 만료되었습니다. batch-image-precache API를 통해 다시 업로드해주세요.'
       });
     }

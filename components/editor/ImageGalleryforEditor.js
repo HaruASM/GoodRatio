@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Image from 'next/image';
-import { createTemplateImageProps, IMAGE_TEMPLATES } from '../../lib/utils/imageHelpers';
+import { 
+  IMAGE_TEMPLATES,
+  createNextImageProps
+} from '../../lib/utils/imageHelpers';
 import { 
   toggleImageSelection,
   confirmImageSelection,
@@ -44,9 +47,9 @@ const ImageSelectionGallery = () => {
   // 선택된 이미지 로컬 상태
   const [selectedImages, setSelectedImages] = useState([]);
   
-  // 이미지 URL 상태 추가
-  const [imageUrls, setImageUrls] = useState({});
-  const [tooltipImageUrl, setTooltipImageUrl] = useState('');
+  // 이미지 props 상태 추가
+  const [imageProps, setImageProps] = useState({});
+  const [tooltipImageProps, setTooltipImageProps] = useState(null);
   
   // 툴팁 상태 (마우스 오버 시 이미지 확대 보기)
   const [tooltipImage, setTooltipImage] = useState(null);
@@ -68,35 +71,35 @@ const ImageSelectionGallery = () => {
       // 상태 초기화
       setSelectedImages(selectedImagesFromRedux || []);
       
-      // 이미지 URL 로드
-      loadImageUrls();
+      // 이미지 props 로드
+      loadImageProps();
     }
     return () => {
       document.body.style.overflow = '';
     };
   }, [isActive, selectedImagesFromRedux]);
   
-  // 이미지 URL 로드 함수
-  const loadImageUrls = async () => {
+  // 이미지 props 로드 함수
+  const loadImageProps = async () => {
     if (!galleryImages || !galleryImages.length) return;
     
-    // 이미지 URL 매핑 생성
-    const urlPromises = galleryImages.map(async (publicId) => {
+    // 이미지 props 매핑 생성
+    const propsPromises = galleryImages.map(async (publicId) => {
       try {
-        const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
+        const props = await createNextImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
           alt: '이미지',
           width: 150,
           height: 150
         });
-        return [publicId, props.src];
+        return [publicId, props];
       } catch (error) {
-        console.error('이미지 URL 생성 오류:', error);
-        return [publicId, ''];
+        console.error('이미지 props 생성 오류:', error);
+        return [publicId, null];
       }
     });
     
-    const urlEntries = await Promise.all(urlPromises);
-    setImageUrls(Object.fromEntries(urlEntries));
+    const propsEntries = await Promise.all(propsPromises);
+    setImageProps(Object.fromEntries(propsEntries));
   };
   
   // 이미지 선택 토글
@@ -116,24 +119,24 @@ const ImageSelectionGallery = () => {
     setTooltipImage(imageId);
     updateTooltipPosition(e, setTooltipPosition);
     
-    // 툴팁 이미지 URL 로드
+    // 툴팁 이미지 props 로드
     try {
-      const props = await createTemplateImageProps(imageId, IMAGE_TEMPLATES.NORMAL, {
+      const props = await createNextImageProps(imageId, IMAGE_TEMPLATES.NORMAL, {
         width: 300, 
         height: 200, 
         alt: "이미지 미리보기",
         objectFit: "contain"
       });
-      setTooltipImageUrl(props.src);
+      setTooltipImageProps(props);
     } catch (error) {
-      console.error('툴팁 이미지 URL 생성 오류:', error);
-      setTooltipImageUrl('');
+      console.error('툴팁 이미지 props 생성 오류:', error);
+      setTooltipImageProps(null);
     }
   };
   
   const handleMouseLeave = () => {
     setTooltipImage(null);
-    setTooltipImageUrl('');
+    setTooltipImageProps(null);
   };
   
   const handleMouseMove = (e) => {
@@ -177,12 +180,9 @@ const ImageSelectionGallery = () => {
               onMouseLeave={handleMouseLeave}
             >
               <div className={styles.imageContainerItem}>
-                {imageUrls[publicId] ? (
-                  <img 
-                    src={imageUrls[publicId]}
-                    alt={`이미지 ${index + 1}`}
-                    width={150}
-                    height={150}
+                {imageProps[publicId] ? (
+                  <Image 
+                    {...imageProps[publicId]}
                     style={{ objectFit: 'cover' }}
                   />
                 ) : (
@@ -194,7 +194,7 @@ const ImageSelectionGallery = () => {
         </div>
         
         {/* 이미지 확대 툴팁 */}
-        {tooltipImage && tooltipImageUrl && (
+        {tooltipImage && tooltipImageProps && (
           <div 
             className={styles.galleryImageTooltip}
             style={{
@@ -202,11 +202,8 @@ const ImageSelectionGallery = () => {
               top: `${tooltipPosition.y}px`
             }}
           >
-            <img
-              src={tooltipImageUrl}
-              alt="이미지 미리보기"
-              width={300}
-              height={200}
+            <Image
+              {...tooltipImageProps}
               style={{ objectFit: 'contain' }}
             />
           </div>
@@ -252,8 +249,8 @@ const ImageOrderEditorGallery = () => {
   const [renderKey, setRenderKey] = useState(0); // 강제 리렌더링을 위한 키
   const [localHasMainImage, setLocalHasMainImage] = useState(hasMainImage); // 로컬 hasMainImage 상태
   
-  // 이미지 URL 상태 추가
-  const [imageUrls, setImageUrls] = useState({});
+  // 이미지 props 상태 추가
+  const [imageProps, setImageProps] = useState({});
   
   // 이미지 컨테이너 ref
   const containerRef = useRef(null);
@@ -280,36 +277,36 @@ const ImageOrderEditorGallery = () => {
     setLocalHasMainImage(hasMainImage);
     setRenderKey(prev => prev + 1); // 초기화 시 렌더링 키 업데이트
     
-    // 이미지 URL 로드
-    loadImageUrls(newOrderedImages);
+    // 이미지 props 로드
+    loadImageProps(newOrderedImages);
     
     return () => {
       document.body.style.overflow = '';
     };
   }, [isOpen, storeOrderedImages, hasMainImage]);
   
-  // 이미지 URL 로드 함수
-  const loadImageUrls = async (images) => {
+  // 이미지 props 로드 함수
+  const loadImageProps = async (images) => {
     if (!images || !images.length) return;
     
-    // 이미지 URL 매핑 생성 - 'blank'는 제외
+    // 이미지 props 매핑 생성 - 'blank'는 제외
     const validImages = images.filter(img => img !== 'blank');
-    const urlPromises = validImages.map(async (publicId) => {
+    const propsPromises = validImages.map(async (publicId) => {
       try {
-        const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
+        const props = await createNextImageProps(publicId, IMAGE_TEMPLATES.NORMAL, {
           alt: '이미지',
           width: 100,
           height: 100
         });
-        return [publicId, props.src];
+        return [publicId, props];
       } catch (error) {
-        console.error('이미지 URL 생성 오류:', error);
-        return [publicId, ''];
+        console.error('이미지 props 생성 오류:', error);
+        return [publicId, null];
       }
     });
     
-    const urlEntries = await Promise.all(urlPromises);
-    setImageUrls(Object.fromEntries(urlEntries));
+    const propsEntries = await Promise.all(propsPromises);
+    setImageProps(Object.fromEntries(propsEntries));
   };
   
   // orderedImages 변경 시 DOM 갱신을 위한 useEffect
@@ -317,8 +314,8 @@ const ImageOrderEditorGallery = () => {
     if (orderedImages.length > 0) {
       console.log("orderedImages 변경됨:", orderedImages);
       
-      // 이미지 URL 업데이트
-      loadImageUrls(orderedImages);
+      // 이미지 props 업데이트
+      loadImageProps(orderedImages);
       
       // DOM 업데이트를 위한 강제 리렌더링 트리거
       const timer = setTimeout(() => {
@@ -583,12 +580,9 @@ const ImageOrderEditorGallery = () => {
               <div className={styles.imageContainerItem}>
                 {orderedImages.length > 0 && orderedImages[0] !== 'blank' ? (
                   <>
-                    {imageUrls[orderedImages[0]] ? (
-                      <img 
-                        src={imageUrls[orderedImages[0]]}
-                        alt='메인 이미지'
-                        width={100}
-                        height={100}
+                    {imageProps[orderedImages[0]] ? (
+                      <Image 
+                        {...imageProps[orderedImages[0]]}
                         style={{ objectFit: 'contain' }}
                       />
                     ) : (
@@ -652,12 +646,9 @@ const ImageOrderEditorGallery = () => {
                 onDrop={(e) => handleDrop(e, index)}
               >
                 <div className={styles.imageContainerItem}>
-                  {imageUrls[publicId] ? (
-                    <img 
-                      src={imageUrls[publicId]}
-                      alt={`이미지 ${displayIndex}`}
-                      width={100}
-                      height={100}
+                  {imageProps[publicId] ? (
+                    <Image 
+                      {...imageProps[publicId]}
                       style={{ objectFit: 'contain' }}
                     />
                   ) : (

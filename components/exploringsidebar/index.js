@@ -3,7 +3,12 @@ import Image from 'next/image';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from './styles.module.css';
 import { parseCoordinates } from '../../lib/models/editorModels';
-import { createTemplateImageProps, IMAGE_TEMPLATES } from '../../lib/utils/imageHelpers';
+import { 
+  createTemplateImageProps, 
+  IMAGE_TEMPLATES, 
+  createCrossOriginImageProps,
+  createNextImageProps 
+} from '../../lib/utils/imageHelpers';
 import { 
   itemSelectedThunk, 
   selectSelectedItemId 
@@ -30,41 +35,103 @@ const ExploringSidebar = ({
   const highlightedItemId = useSelector(selectHighlightedItemId);
   const isSidebarVisible = useSelector(selectIsSidebarVisible);
   
-  // 이미지 URL 관리를 위한 상태 추가
-  const [imageUrls, setImageUrls] = useState({});
+  // 이미지 props 관리를 위한 상태 추가
+  const [imageProps, setImageProps] = useState({});
+  // 이미지 로딩 상태 관리
+  const [imageLoadingStates, setImageLoadingStates] = useState({});
   
-  // 아이템 리스트가 변경될 때 이미지 URL 로드
+  // 아이템 리스트가 변경될 때 이미지 props 로드
   useEffect(() => {
     if (!curItemListInCurSection || !curItemListInCurSection.length) return;
     
-    // 각 아이템의 메인 이미지 URL 로드
-    const loadImageUrls = async () => {
-      const urlPromises = curItemListInCurSection.map(async (item) => {
+    // 각 아이템의 메인 이미지 props 로드
+    const loadImageProps = async () => {
+      console.log('[ExploringSidebar] 이미지 props 로드 시작');
+      
+      // 로딩 상태 초기화
+      const initialLoadingStates = {};
+      curItemListInCurSection.forEach(item => {
+        if (item.serverDataset?.mainImage) {
+          initialLoadingStates[item.serverDataset.mainImage] = 'loading';
+        }
+      });
+      setImageLoadingStates(initialLoadingStates);
+      
+      const propsPromises = curItemListInCurSection.map(async (item) => {
         if (!item.serverDataset || !item.serverDataset.mainImage) return null;
         
         const publicId = item.serverDataset.mainImage;
         if (!publicId || publicId.trim() === '') return null;
         
         try {
-          const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.BANNER_WIDE, {
-            alt: `${item.serverDataset.itemName || ''} 메인 이미지`,
+          console.log(`[ExploringSidebar] 이미지 props 생성: ${publicId}`);
+          
+          // createNextImageProps 함수 사용 (비동기)
+          const props = await createNextImageProps(publicId, IMAGE_TEMPLATES.BANNER_WIDE, {
             width: 280,
-            height: 120
+            height: 120,
+            alt: `${item.serverDataset.itemName || ''} 메인 이미지`,
+            objectFit: 'cover'
           });
-          return [publicId, props.src];
+          
+          return [publicId, props];
         } catch (error) {
-          console.error('이미지 URL 생성 오류:', error);
+          console.error('[ExploringSidebar] 이미지 props 생성 오류:', error);
+          // 로딩 상태 업데이트
+          setImageLoadingStates(prev => ({
+            ...prev,
+            [publicId]: 'error'
+          }));
           return null;
         }
       });
       
-      const urlEntries = (await Promise.all(urlPromises)).filter(Boolean);
-      setImageUrls(Object.fromEntries(urlEntries));
+      const propsEntries = (await Promise.all(propsPromises)).filter(Boolean);
+      console.log(`[ExploringSidebar] 로드된 이미지 props 수: ${propsEntries.length}`);
+      
+      if (propsEntries.length > 0) {
+        const newImageProps = Object.fromEntries(propsEntries);
+        console.log('[ExploringSidebar] 이미지 props 맵:', Object.keys(newImageProps));
+        setImageProps(newImageProps);
+        
+        // 로딩 상태 업데이트
+        const loadedStates = {};
+        propsEntries.forEach(([publicId]) => {
+          loadedStates[publicId] = 'loaded';
+        });
+        setImageLoadingStates(prev => ({
+          ...prev,
+          ...loadedStates
+        }));
+      }
     };
     
-    loadImageUrls();
+    loadImageProps();
   }, [curItemListInCurSection]);
   
+  // 이미지 로드 성공 핸들러
+  const handleImageLoad = (publicId, itemName) => {
+    console.log(`[ExploringSidebar] 이미지 로드 성공: ${itemName}`);
+    setImageLoadingStates(prev => ({
+      ...prev,
+      [publicId]: 'loaded'
+    }));
+  };
+  
+  // 이미지 로드 실패 핸들러
+  const handleImageError = (publicId, itemName, e) => {
+    console.error(`[ExploringSidebar] 이미지 로드 실패: ${itemName}`, e);
+    setImageLoadingStates(prev => ({
+      ...prev,
+      [publicId]: 'error'
+    }));
+    
+    // 로드 실패 시 기본 이미지로 대체 (선택적)
+    if (e.target) {
+      e.target.style.display = 'none';
+    }
+  };
+
   // 상점 선택 핸들러
   const handleItemSelect = (item, e) => {
     e.preventDefault();
@@ -143,18 +210,20 @@ const ExploringSidebar = ({
                   {/* 메인 이미지 */}
                   {item.serverDataset.mainImage && item.serverDataset.mainImage.trim() !== '' ? (
                     <div className={styles['explSidebar-mainImage']}>
-                      {imageUrls[item.serverDataset.mainImage] ? (
-                        <img
-                          src={imageUrls[item.serverDataset.mainImage]}
-                          alt={`${item.serverDataset.itemName || ''} 메인 이미지`}
-                          width={280}
-                          height={120}
-                          style={{ objectFit: 'cover' }}
+                      {imageProps[item.serverDataset.mainImage] ? (
+                        <Image
+                          {...imageProps[item.serverDataset.mainImage]}
                           onClick={(e) => handleImageClick(e, item.serverDataset.mainImage, item.serverDataset.itemName)}
+                          onLoad={() => handleImageLoad(item.serverDataset.mainImage, item.serverDataset.itemName)}
+                          onError={(e) => handleImageError(item.serverDataset.mainImage, item.serverDataset.itemName, e)}
                         />
                       ) : (
                         <div className={styles['explSidebar-emptyImagePlaceholder']} style={{ width: '100%', height: 120 }}>
-                          <span>로딩 중...</span>
+                          <span>
+                            {imageLoadingStates[item.serverDataset.mainImage] === 'error' 
+                              ? '이미지 로드 실패' 
+                              : '로딩 중...'}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -171,13 +240,8 @@ const ExploringSidebar = ({
             </li>
           ))
         ) : (
-          <li className={styles['explSidebar-item']}>
-            <a href="#">
-              <div className={styles['explSidebar-itemDetails']}>
-                <span className={styles['explSidebar-itemTitle']}>데이터 로딩 중...</span>
-                <p>지역 정보를 불러오는 중입니다.</p>
-              </div>
-            </a>
+          <li className={styles['explSidebar-emptyItem']}>
+            <span>항목이 없습니다.</span>
           </li>
         )}
       </ul>

@@ -95,9 +95,37 @@ export default async function handler(req, res) {
       }
     } catch (error) {
       console.error(`이미지 캐싱 실패:`, error);
+      
+      // Cloudinary API 오류 자세히 로깅
+      if (error.response) {
+        try {
+          const errorData = error.response.data || error.response;
+          console.error('Cloudinary API 오류 응답:', {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: errorData
+          });
+        } catch (e) {
+          console.error('Cloudinary 오류 응답 파싱 실패:', e);
+        }
+      }
+      
+      // API 제한 관련 오류 감지
+      const errorMessage = error.message || '이미지 캐싱 오류';
+      const isRateLimitError = 
+        errorMessage.includes('rate limit') || 
+        errorMessage.includes('too many requests') ||
+        errorMessage.includes('quota exceeded') || 
+        errorMessage.includes('disabled api_key');
+        
+      if (isRateLimitError) {
+        console.error('⚠️ Cloudinary API 제한 감지됨:', errorMessage);
+      }
+      
       failedImages.push({
         reference: imageInfo?.reference || 'unknown',
-        error: error.message || '이미지 캐싱 오류'
+        error: errorMessage,
+        isRateLimit: isRateLimitError
       });
     }
   }

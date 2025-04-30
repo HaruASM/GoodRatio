@@ -39,7 +39,10 @@ import {
   selectSelectedImages
 } from '../../lib/store/slices/imageGallerySlice';
 
-import { createTemplateImageProps, IMAGE_TEMPLATES } from '../../lib/utils/imageHelpers';
+import { 
+  IMAGE_TEMPLATES,
+  createNextImageProps
+} from '../../lib/utils/imageHelpers';
 
 /**
  * 이미지 관리 컴포넌트 - 이미지 배열을 출력하고 관리
@@ -57,53 +60,137 @@ const ImageSectionManager = forwardRef(({
   const dispatch = useDispatch();
   
   // 상태 추가
-  const [mainImageUrl, setMainImageUrl] = useState('');
-  const [subImageUrls, setSubImageUrls] = useState([]);
+  const [mainImageProps, setMainImageProps] = useState(null);
+  const [subImageProps, setSubImageProps] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // 유효한 메인 이미지와 서브 이미지 확인
-  const validMainImage = mainImage && typeof mainImage === 'string' && mainImage.trim() !== '';
-  const validSubImages = Array.isArray(subImages) 
-    ? subImages.filter(img => img && typeof img === 'string' && img.trim() !== '') 
-    : [];
-    
+  // 이미지 로딩 상태 관리
+  const [imageLoadingStates, setImageLoadingStates] = useState({});
+  
   // 모든 이미지를 하나의 배열로 병합
   const allImages = [
-    ...(validMainImage ? [mainImage] : []),
-    ...validSubImages
+    ...(mainImage && typeof mainImage === 'string' && mainImage.trim() !== '' ? [mainImage] : []),
+    ...Array.isArray(subImages) 
+      ? subImages.filter(img => img && typeof img === 'string' && img.trim() !== '')
+      : []
   ];
   
-  // 이미지 URL 로드
+  // 이미지 props 로드
   useEffect(() => {
-    const loadImageUrls = async () => {
+    // 이 useEffect에는 지역 변수나 파생된 값(validMainImage, validSubImages 등)을 의존성 배열에 추가하지 마세요.
+    // 해당 변수들을 의존성 배열에 추가할 경우 무한 업데이트 루프가 발생합니다! (Maximum update depth exceeded 에러)
+    // 이 부분은 이전에 문제가 되어 수정된 코드입니다.
+    
+    // 이미지 props 생성 함수
+    const loadImageProps = async () => {
       setIsLoading(true);
       
-      // 메인 이미지 URL 생성
+      // 현재 scope 내에서 validMainImage와 validSubImages 계산
+      // 의존성 배열에 추가하지 않고 useEffect 내부에서만 사용해야 함
+      const validMainImage = mainImage && typeof mainImage === 'string' && mainImage.trim() !== '';
+      const validSubImages = Array.isArray(subImages) 
+        ? subImages.filter(img => img && typeof img === 'string' && img.trim() !== '') 
+        : [];
+      
+      // 로딩 상태 초기화
+      const initialLoadingStates = {};
       if (validMainImage) {
-        const imageProps = await createTemplateImageProps(mainImage, IMAGE_TEMPLATES.THUMBNAIL);
-        setMainImageUrl(imageProps.src);
+        initialLoadingStates[mainImage] = 'loading';
+      }
+      validSubImages.forEach(img => {
+        initialLoadingStates[img] = 'loading';
+      });
+      setImageLoadingStates(initialLoadingStates);
+      
+      // 메인 이미지 props 생성
+      if (validMainImage) {
+        try {
+          // createNextImageProps 함수 사용 (비동기)
+          const props = await createNextImageProps(mainImage, IMAGE_TEMPLATES.THUMBNAIL, {
+            alt: '메인 이미지',
+            width: 300,
+            height: 200,
+            objectFit: 'contain'
+          });
+          setMainImageProps(props);
+          setImageLoadingStates(prev => ({
+            ...prev,
+            [mainImage]: 'loaded'
+          }));
+        } catch (error) {
+          console.error('메인 이미지 props 생성 오류:', error);
+          setMainImageProps(null);
+          setImageLoadingStates(prev => ({
+            ...prev,
+            [mainImage]: 'error'
+          }));
+        }
       } else {
-        setMainImageUrl('');
+        setMainImageProps(null);
       }
       
-      // 서브 이미지 URL 생성
+      // 서브 이미지 props 생성
       if (validSubImages.length > 0) {
-        const urls = await Promise.all(
-          validSubImages.map(async (publicId) => {
-            const imageProps = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL);
-            return imageProps.src;
-          })
-        );
-        setSubImageUrls(urls);
+        const propsPromises = validSubImages.map(async (publicId, index) => {
+          try {
+            // createNextImageProps 함수 사용 (비동기)
+            const props = await createNextImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
+              alt: `서브 이미지 ${index + 1}`,
+              width: 150,
+              height: 150,
+              objectFit: 'contain'
+            });
+            setImageLoadingStates(prev => ({
+              ...prev,
+              [publicId]: 'loaded'
+            }));
+            return props;
+          } catch (error) {
+            console.error(`서브 이미지 props 생성 오류 (${publicId}):`, error);
+            setImageLoadingStates(prev => ({
+              ...prev,
+              [publicId]: 'error'
+            }));
+            return null;
+          }
+        });
+        
+        const allProps = await Promise.all(propsPromises);
+        // null 값 필터링 (오류가 발생한 이미지)
+        const validProps = allProps.filter(Boolean);
+        setSubImageProps(validProps);
       } else {
-        setSubImageUrls([]);
+        setSubImageProps([]);
       }
       
       setIsLoading(false);
     };
     
-    loadImageUrls();
-  }, [mainImage, subImages, validMainImage, validSubImages]);
+    loadImageProps();
+  }, [mainImage, subImages]); // validMainImage, validSubImages 등의 파생 값을 여기에 추가하지 말것. 
+  
+  // 이미지 로드 핸들러
+  const handleImageLoad = (publicId) => {
+    console.log(`이미지 로드 성공: ${publicId}`);
+    setImageLoadingStates(prev => ({
+      ...prev,
+      [publicId]: 'loaded'
+    }));
+  };
+  
+  // 이미지 오류 핸들러
+  const handleImageError = (publicId, e) => {
+    console.error(`이미지 로드 실패: ${publicId}`, e);
+    setImageLoadingStates(prev => ({
+      ...prev,
+      [publicId]: 'error'
+    }));
+    
+    // 로드 실패 시 요소 숨기기
+    if (e.target) {
+      e.target.style.display = 'none';
+    }
+  };
   
   // ref를 통해 외부에서 접근 가능한 함수 노출
   useImperativeHandle(ref, () => ({
@@ -117,11 +204,16 @@ const ImageSectionManager = forwardRef(({
     }
   }));
   
+  // 렌더링 부분을 위한 유효한 서브 이미지 배열 필터링
+  const filteredSubImages = Array.isArray(subImages) 
+    ? subImages.filter(img => img && typeof img === 'string' && img.trim() !== '') 
+    : [];
+
   // 서브 이미지가 있는지 확인
-  const hasValidSubImages = validSubImages.length > 0;
+  const hasValidSubImages = filteredSubImages.length > 0;
   
   // 추가 이미지 개수 (4개 초과분)
-  const additionalImages = validSubImages.length > 4 ? validSubImages.length - 4 : 0;
+  const additionalImages = filteredSubImages.length > 4 ? filteredSubImages.length - 4 : 0;
 
   return (
     <div className={styles.imageSectionManager}>
@@ -129,16 +221,23 @@ const ImageSectionManager = forwardRef(({
         {/* 메인 이미지 */}
         <div className={styles.imageSection}>
           <div className={styles.mainImageContainer}>
-            {validMainImage && mainImageUrl ? (
-              <img 
-                src={mainImageUrl}
-                alt="메인 이미지" 
+            {mainImage && typeof mainImage === 'string' && mainImage.trim() !== '' && mainImageProps ? (
+              <Image 
+                {...mainImageProps}
                 className={styles.mainImagePreview}
                 style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                onLoad={() => handleImageLoad(mainImage)}
+                onError={(e) => handleImageError(mainImage, e)}
               />
             ) : (
               <div className={styles.emptyImagePlaceholder}>
-                <span>이미지 없음</span>
+                <span>
+                  {imageLoadingStates[mainImage] === 'error' 
+                    ? '이미지 로드 실패' 
+                    : imageLoadingStates[mainImage] === 'loading' 
+                      ? '로딩 중...' 
+                      : '이미지 없음'}
+                </span>
               </div>
             )}
           </div>
@@ -152,20 +251,21 @@ const ImageSectionManager = forwardRef(({
           >
             {hasValidSubImages ? (
               <>
-                {validSubImages.slice(0, 4).map((subImageRef, imgIndex) => {
-                    const imageUrl = subImageUrls[imgIndex] || '';
+                {filteredSubImages.slice(0, 4).map((subImageRef, imgIndex) => {
+                    const imageProps = subImageProps[imgIndex];
                     return (
                       <div 
                         key={`sub-${imgIndex}`}
                         className={styles.subImageItem}
                     >
-                      {subImageRef && typeof subImageRef === 'string' && subImageRef.trim() !== '' && imageUrl ? (
+                      {subImageRef && typeof subImageRef === 'string' && subImageRef.trim() !== '' && imageProps ? (
                             <div className={imgIndex === 3 && additionalImages > 0 ? styles.subImageWithOverlay : ''}>
-                              <img 
-                                src={imageUrl}
-                                alt={`서브 이미지 ${imgIndex + 1}`} 
+                              <Image 
+                                {...imageProps}
                                 className={styles.subImagePreview}
                                 style={{ height: "auto", width: "auto", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                                onLoad={() => handleImageLoad(subImageRef)}
+                                onError={(e) => handleImageError(subImageRef, e)}
                               />
                               {imgIndex === 3 && additionalImages > 0 && (
                                 <div className={styles.imageCountOverlay}>
@@ -174,7 +274,15 @@ const ImageSectionManager = forwardRef(({
                               )}
                             </div>
                         ) : (
-                          <div className={styles.emptyImagePlaceholder}></div>
+                          <div className={styles.emptyImagePlaceholder}>
+                            <span>
+                              {imageLoadingStates[subImageRef] === 'error' 
+                                ? '이미지 로드 실패' 
+                                : imageLoadingStates[subImageRef] === 'loading' 
+                                  ? '로딩 중...' 
+                                  : ''}
+                            </span>
+                          </div>
                         )}
                       </div>
                     );

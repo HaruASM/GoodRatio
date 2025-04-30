@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import Image from 'next/image';
-import { createTemplateImageProps, IMAGE_TEMPLATES } from '../../lib/utils/imageHelpers';
+import { 
+  IMAGE_TEMPLATES,
+  createNextImageProps
+} from '../../lib/utils/imageHelpers';
 import { 
   selectIsGalleryOpen, 
   selectGalleryImages, 
@@ -29,9 +32,9 @@ const ImageGallery = () => {
   // 브라우저 환경 체크
   const [isBrowserReady, setIsBrowserReady] = useState(false);
   
-  // 이미지 URL 상태 추가
-  const [mainImageUrl, setMainImageUrl] = useState('');
-  const [thumbnailUrls, setThumbnailUrls] = useState({});
+  // 이미지 props 상태 추가
+  const [mainImageProps, setMainImageProps] = useState(null);
+  const [thumbnailProps, setThumbnailProps] = useState({});
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -43,60 +46,63 @@ const ImageGallery = () => {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      // 이미지 URL 로드
-      loadImageUrls();
+      // 이미지 props 로드
+      loadImageProps();
     }
     return () => {
       document.body.style.overflow = '';
     };
   }, [isOpen, images]);
   
-  // 현재 이미지가 변경될 때 메인 이미지 URL 업데이트
+  // 현재 이미지가 변경될 때 메인 이미지 props 업데이트
   useEffect(() => {
     if (isOpen && images && images.length > 0 && currentIndex >= 0 && currentIndex < images.length) {
-      loadMainImageUrl(images[currentIndex]);
+      loadMainImageProps(images[currentIndex]);
     }
   }, [isOpen, currentIndex, images]);
   
-  // 이미지 URL 로드 함수
-  const loadImageUrls = async () => {
+  // 이미지 props 로드 함수
+  const loadImageProps = async () => {
     if (!images || !images.length) return;
     
-    // 메인 이미지 URL 로드
-    await loadMainImageUrl(images[currentIndex]);
+    // 메인 이미지 props 로드
+    await loadMainImageProps(images[currentIndex]);
     
-    // 썸네일 URL 로드
+    // 썸네일 props 로드
     const thumbnailPromises = images.map(async (publicId) => {
       try {
-        const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
+        const props = await createNextImageProps(publicId, IMAGE_TEMPLATES.THUMBNAIL, {
           alt: '썸네일',
           width: 100,
           height: 75
         });
-        return [publicId, props.src];
+        return [publicId, props];
       } catch (error) {
-        console.error('썸네일 URL 생성 오류:', error);
-        return [publicId, ''];
+        console.error('썸네일 props 생성 오류:', error);
+        return [publicId, null];
       }
     });
     
     const thumbnailEntries = await Promise.all(thumbnailPromises);
-    setThumbnailUrls(Object.fromEntries(thumbnailEntries));
+    setThumbnailProps(Object.fromEntries(thumbnailEntries));
   };
   
-  // 메인 이미지 URL 로드 함수
-  const loadMainImageUrl = async (publicId) => {
+  // 메인 이미지 props 로드 함수
+  const loadMainImageProps = async (publicId) => {
     if (!publicId) return;
     
     try {
-      const props = await createTemplateImageProps(publicId, IMAGE_TEMPLATES.ORIGINAL, {
+      const props = await createNextImageProps(publicId, IMAGE_TEMPLATES.ORIGINAL, {
         alt: '갤러리 이미지',
-        priority: true
+        priority: true,
+        objectFit: 'contain',
+        width: 800,
+        height: 600
       });
-      setMainImageUrl(props.src);
+      setMainImageProps(props);
     } catch (error) {
-      console.error('메인 이미지 URL 생성 오류:', error);
-      setMainImageUrl('');
+      console.error('메인 이미지 props 생성 오류:', error);
+      setMainImageProps(null);
     }
   };
   
@@ -143,10 +149,9 @@ const ImageGallery = () => {
         
         <div className={styles.galleryMainImageContainer}>
           <div className={styles.galleryImageContainer}>
-            {mainImageUrl ? (
-              <img 
-                src={mainImageUrl}
-                alt={`갤러리 이미지 ${currentIndex + 1}`}
+            {mainImageProps ? (
+              <Image 
+                {...mainImageProps}
                 className={styles.galleryImagePreview}
                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
               />
@@ -186,12 +191,9 @@ const ImageGallery = () => {
               className={`${styles.galleryThumbnailItem} ${index === currentIndex ? styles.isActiveThumbnail : ''}`}
               onClick={() => handleGoToImage(index)}
             >
-              {thumbnailUrls[publicId] ? (
-                <img 
-                  src={thumbnailUrls[publicId]}
-                  alt={`썸네일 ${index + 1}`}
-                  width={100}
-                  height={75}
+              {thumbnailProps[publicId] ? (
+                <Image 
+                  {...thumbnailProps[publicId]}
                   style={{ objectFit: 'cover' }}
                 />
               ) : (

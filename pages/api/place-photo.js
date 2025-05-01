@@ -1,4 +1,24 @@
 /**
+ * AI 개발 가이드: 이미지 로딩 및 관리 시스템
+ * -----------------------------------------------------
+ * 주요 설계 원칙:
+ * 1. 구글 이미지 정책 준수: 모든 이미지는 최대 30일 동안만 임시 캐싱되며 원 저작자 속성 정보 유지
+ * 2. 보안 모델: 모든 이미지는 직접 URL 대신 API 엔드포인트를 통해 제공
+ * 3. 효율성: Cloudinary 템플릿 활용해 다양한 크기와 형태로 이미지 최적화
+ * 4. 캐싱 메커니즘: 중복 요청 방지를 위한 이미지 캐싱 시스템 구현
+ * 
+ * 핵심 처리 흐름:
+ * 1. 이미지 식별: photo_reference 또는 public_id를 통해 이미지 식별
+ * 2. 이미지 존재 확인: Cloudinary에서 이미지 존재 여부 확인
+ * 3. 변환 처리: 템플릿에 따른 이미지 크기/형태 변환
+ * 4. URL 생성: 서명된 보안 URL 생성 및 반환
+ * 
+ * 중요: 물리 경로(map-Images/)와 논리 경로의 일치를 확인해야 함
+ * public_id와 실제 Cloudinary 저장 경로(getFullPublicId 활용)의 불일치가 버그 원인이 될 수 있음
+ * -----------------------------------------------------
+ */
+
+/**
  * Cloudinary를 이용한 구글 Place Photo API 프록시 핸들러
  * 
  * ----------------------------------------------------------------
@@ -144,7 +164,7 @@ export default async function handler(req, res) {
     
     // Cloudinary에서 이미지 확인 시 에셋 폴더 추가
     const cloudinaryPublicId = getFullPublicId(publicId);
-    console.log(`Cloudinary 이미지 확인: ${truncateForLogging(publicId)} → ${truncateForLogging(cloudinaryPublicId)}`);
+    
     
     // 2. Cloudinary에서 이미지 확인 (메타데이터 포함)
     const imageInfo = await checkImageExists(cloudinaryPublicId, true);
@@ -157,18 +177,73 @@ export default async function handler(req, res) {
         let parsedContext = {};
         
         try {
-          if (typeof contextData === 'string') {
-            parsedContext = JSON.parse(contextData);
-          } else if (typeof contextData === 'object') {
-            parsedContext = contextData;
+          
+          
+          // context 객체 처리 로직 개선
+          if (imageInfo.context && imageInfo.context.custom) {
+            const contextData = imageInfo.context.custom;
+            
+            // 문자열인 경우 파싱하고, 객체인 경우 그대로 사용
+            if (typeof contextData === 'string') {
+              try {
+                // 문자열 형태의 context는 key=value|key2=value2 형식
+                parsedContext = contextData.split('|').reduce((obj, item) => {
+                  if (!item) return obj;
+                  
+                  // = 기호로 분리하되, 이스케이프된 \= 는 분리하지 않음
+                  // 정규식을 사용하여 이스케이프되지 않은 = 기호만 찾음
+                  const equalPos = findUnescapedChar(item, '=');
+                  if (equalPos === -1) return obj;
+                  
+                  const key = item.substring(0, equalPos);
+                  let val = item.substring(equalPos + 1);
+                  
+                  // 이스케이프된 문자 복원
+                  val = val.replace(/\\=/g, '=').replace(/\\\|/g, '|');
+                  
+                  obj[key] = val;
+                  return obj;
+                }, {});
+                
+                console.log(`[디버깅] 문자열에서 파싱된 context 데이터:`, parsedContext);
+              } catch (e) {
+                console.error(`[디버깅] context 문자열 파싱 오류:`, e.message);
+              }
+            } else if (typeof contextData === 'object') {
+              // 이미 객체인 경우
+              parsedContext = contextData;
+              
+            }
           }
         } catch (e) {
-          console.warn('컨텍스트 데이터 파싱 오류:', e);
+          console.warn('[디버깅] 컨텍스트 데이터 파싱 오류:', e);
         }
         
         // 원본 레퍼런스 추출 (메타데이터에서 찾거나 제공된 값 사용)
         const foundReference = parsedContext.original_reference || originalReference || '';
         
+        // html_attributions 처리
+        let htmlAttributions = [];
+        if (parsedContext.html_attributions) {
+
+          try {
+            // JSON 문자열인 경우 파싱
+            const parsedAttributions = JSON.parse(parsedContext.html_attributions);
+            htmlAttributions = Array.isArray(parsedAttributions) ? parsedAttributions : [];
+            
+          } catch (e) {
+            
+            // 파싱 실패 시 문자열을 그대로 배열에 추가 (예외 처리)
+            htmlAttributions = [parsedContext.html_attributions];
+          }
+        } else {
+          console.error(`[디버깅] parsedContext에 html_attributions 없음`);
+          
+        }
+        
+
+        
+        // 응답에 메타데이터 추가
         return res.status(200).json({
           exists: true,
           url: getCloudinaryUrl(publicId),
@@ -177,7 +252,8 @@ export default async function handler(req, res) {
           height: imageInfo.height,
           format: imageInfo.format,
           original_reference: foundReference,
-          is_expired: isImageExpired(imageInfo)
+          is_expired: isImageExpired(imageInfo),
+          html_attributions: htmlAttributions
         });
       } else {
         return res.status(404).json({
@@ -302,4 +378,19 @@ export default async function handler(req, res) {
     console.error('Place Photo API 오류:', error);
     res.status(500).json({ error: '이미지 URL 생성 중 오류가 발생했습니다' });
   }
+}
+
+// 문자열에서 이스케이프되지 않은 특정 문자의 위치 찾기
+function findUnescapedChar(str, char) {
+  let inEscape = false;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '\\' && !inEscape) {
+      inEscape = true;
+    } else if (str[i] === char && !inEscape) {
+      return i;
+    } else {
+      inEscape = false;
+    }
+  }
+  return -1; // 찾지 못한 경우
 } 

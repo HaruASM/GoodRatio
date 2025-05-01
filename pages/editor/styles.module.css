@@ -1230,7 +1230,6 @@
 
 .galleryThumbnailsContainer {
   display: flex;
-  padding: 10px 0;
   overflow-x: auto;
   margin-top: 10px;
   scrollbar-width: thin;
@@ -1926,4 +1925,30 @@
 
 .imageDeleteButton:hover {
   background-color: rgba(255, 0, 0, 0.9);
+}
+
+/* 이미지 속성 정보(html_attributions) 스타일 */
+.imageAttributionsContainer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 8px 12px;
+  z-index: 10;
+}
+
+.imageAttributions {
+  color: white;
+  font-size: 12px;
+  text-align: right;
+}
+
+.imageAttributions a {
+  color: #90caf9;
+  text-decoration: none;
+}
+
+.imageAttributions a:hover {
+  text-decoration: underline;
 }

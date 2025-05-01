@@ -690,7 +690,6 @@ export default function Editor() { // 메인 페이지
   // 컴포넌트 마운트 시 IDLE 상태 설정
   useEffect(() => { // AT 우측 사이드바 초기화 지점 
     // 초기에 IDLE 상태로 설정
-    //FIXME 우측사이드바 idle설정은 자체적으로 초기화하는게 나을듯 함. 
     dispatch(setRightSidebarIdleState(true));
     
   }, [dispatch]);

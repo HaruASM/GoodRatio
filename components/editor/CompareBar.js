@@ -163,11 +163,21 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
     const publicId = convertGoogleImageReferenceToPublicId(compareData.mainImage, 'tempsection', compareData.googleDataId);
     allImagePublicIds.push(publicId);
     
+    // 이미지별 html_attributions 가져오기
+    let imageAttributions = [];
+    
+    // 이미지별 attributions 맵에서 저작권 정보 가져오기
+    if (compareData.imageAttributions && compareData.imageAttributions[compareData.mainImage]) {
+      imageAttributions = compareData.imageAttributions[compareData.mainImage];
+      console.log('메인 이미지 저작권 정보:', imageAttributions);
+    }
+    
     // 이미지 정보 배열에 추가
     imageInfoArray.push({
       publicId,
       reference: compareData.mainImage,
-      placeId: compareData.googleDataId
+      placeId: compareData.googleDataId,
+      html_attributions: imageAttributions
     });
   }
 
@@ -179,11 +189,21 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
         const publicId = convertGoogleImageReferenceToPublicId(imgRef, 'tempsection', compareData.googleDataId);
         allImagePublicIds.push(publicId);
         
+        // 이미지별 html_attributions 가져오기
+        let imageAttributions = [];
+        
+        // 이미지별 attributions 맵에서 저작권 정보 가져오기
+        if (compareData.imageAttributions && compareData.imageAttributions[imgRef]) {
+          imageAttributions = compareData.imageAttributions[imgRef];
+          console.log(`서브 이미지 #${index} 저작권 정보:`, imageAttributions);
+        }
+        
         // 이미지 정보 배열에 추가
         imageInfoArray.push({
           publicId,
           reference: imgRef,
-          placeId: compareData.googleDataId
+          placeId: compareData.googleDataId,
+          html_attributions: imageAttributions
         });
       }
     });

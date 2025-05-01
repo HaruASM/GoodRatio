@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   for (const imageInfo of imageInfoArray) {
     try {
       // 필수 정보 확인
-      const { reference, publicId } = imageInfo;
+      const { reference, publicId, html_attributions } = imageInfo;
       
       // 디버그 로그 추가
       console.log(`이미지 처리: reference=${reference?.substring(0, 10)}...`);
@@ -85,13 +85,42 @@ export default async function handler(req, res) {
       } else {
         // 이미지 업로드 - 기본 maxWidth 값으로 800 사용
         console.log(`이미지 업로드 시작: reference=${reference.substring(0, 10)}...`);
+        
+        // html_attributions 처리 개선
+        let attributionsArray = [];
+        
+        // html_attributions가 존재하는지 확인하고 적절히 처리
+        if (html_attributions) {
+          if (Array.isArray(html_attributions)) {
+            attributionsArray = html_attributions;
+          } else if (typeof html_attributions === 'string') {
+            try {
+              // 문자열이 JSON 형식인 경우 파싱 시도
+              attributionsArray = JSON.parse(html_attributions);
+            } catch (e) {
+              // 파싱 실패 시 단일 문자열로 처리
+              attributionsArray = [html_attributions];
+            }
+          }
+        }
+        
+        console.log(`Cloudinary에 저장할 html_attributions:`, attributionsArray);
+        
         // 구글 이미지는 항상 tempsection과 tempID 사용 (함수 내부에서 처리)
-        const result = await uploadGooglePlaceImage(reference, 800, apiKey);
+        // html_attributions 정보도 함께 전달
+        const result = await uploadGooglePlaceImage(
+          reference, 
+          800, 
+          apiKey, 
+          attributionsArray
+        );
         
         if (result && result.public_id) {
           // 에셋 폴더가 없는 논리적 경로만 클라이언트에 반환
           cachedImageIds.push(stripAssetFolder(result.public_id));
           console.log(`이미지 성공적으로 업로드됨 (${result.public_id})`);
+          
+          
         } else {
           throw new Error('업로드 결과에 public_id가 없음');
         }

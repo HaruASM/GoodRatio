@@ -99,6 +99,42 @@ const ImageGallery = () => {
         width: 800,
         height: 600
       });
+      
+      // 이미지 속성 정보(html_attributions) 가져오기 시도
+      try {
+        console.log(`[디버깅] 이미지 속성 정보 요청: public_id=${publicId}`);
+        const response = await fetch(`/api/place-photo?public_id=${publicId}&metadata=true`);
+        console.log(`[디버깅] 응답 상태코드:`, response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[디버깅] 응답 데이터:`, JSON.stringify(data, null, 2));
+          
+          if (data.html_attributions && data.html_attributions.length > 0) {
+            console.log(`[디버깅] html_attributions 찾음:`, data.html_attributions);
+            
+            // 원본 HTML 저작권 정보 저장 (링크 새 탭 열기 설정)
+            props.html_attributions = data.html_attributions.map(attribution => {
+              return attribution.replace(/<a\s+(?=[^>]*href)/gi, '<a target="_blank" rel="noopener noreferrer" ');
+            });
+            
+            // 저작권자 텍스트 추출 (HTML 태그 제거)
+            props.copyrightTexts = data.html_attributions.map(attribution => {
+              // 임시 DOM 요소를 사용하여 HTML에서 텍스트만 추출
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = attribution;
+              const text = tempDiv.textContent || tempDiv.innerText || '';
+              return text.trim();
+            });
+          } else {
+            console.log(`[디버깅] html_attributions 없거나 비어있음`);
+          }
+        }
+      } catch (error) {
+        console.error('[디버깅] 이미지 속성 정보 로드 오류:', error);
+      }
+      
+      console.log(`[디버깅] 최종 props:`, props);
       setMainImageProps(props);
     } catch (error) {
       console.error('메인 이미지 props 생성 오류:', error);
@@ -137,6 +173,39 @@ const ImageGallery = () => {
     dispatch(goToImage({ index }));
   };
   
+  // JSX 반환 전에 링크 스타일을 위한 스타일 태그 생성
+  const linkStyleId = 'copyright-link-style';
+  
+  // 컴포넌트가 마운트될 때 스타일 태그 추가
+  useEffect(() => {
+    // 이미 존재하는 스타일 태그가 있는지 확인
+    if (!document.getElementById(linkStyleId) && typeof window !== 'undefined') {
+      const styleTag = document.createElement('style');
+      styleTag.id = linkStyleId;
+      styleTag.innerHTML = `
+        .copyright-attribution-container a {
+          color: white !important;
+          text-decoration: none !important;
+        }
+        .copyright-attribution-container a:visited {
+          color: white !important;
+        }
+        .copyright-attribution-container a:hover {
+          color: #f0f0f0 !important;
+        }
+      `;
+      document.head.appendChild(styleTag);
+    }
+    
+    // 컴포넌트가 언마운트될 때 스타일 태그 제거
+    return () => {
+      const styleTag = document.getElementById(linkStyleId);
+      if (styleTag) {
+        styleTag.remove();
+      }
+    };
+  }, []);
+  
   // 갤러리가 열려있지 않거나 브라우저가 준비되지 않았으면 아무것도 렌더링하지 않음
   if (!isOpen || !isBrowserReady || !images || images.length === 0) {
     return null;
@@ -146,6 +215,28 @@ const ImageGallery = () => {
     <div className={styles.galleryOverlay}>
       <div className={styles.galleryContentContainer}>
         <button className={styles.galleryCloseButton} onClick={handleClose}>×</button>
+        
+        {/* 저작권 정보를 이미지 바깥, 상단에 배치 - 클릭 가능한 링크 포함 */}
+        {mainImageProps && mainImageProps.html_attributions && mainImageProps.html_attributions.length > 0 && (
+          <div 
+            className="copyright-attribution-container"
+            style={{
+              
+              borderRadius: '4px',
+              color: 'white',
+              fontSize: '11px',
+              textAlign: 'left',
+              alignSelf: 'flex-start'
+            }}
+          >
+            <span style={{ marginRight: '5px' }}>copyright(by Google) :</span>
+            <span 
+              dangerouslySetInnerHTML={{ 
+                __html: mainImageProps.html_attributions.join(' ') 
+              }}
+            />
+          </div>
+        )}
         
         <div className={styles.galleryMainImageContainer}>
           <div className={styles.galleryImageContainer}>
@@ -161,6 +252,15 @@ const ImageGallery = () => {
               </div>
             )}
           </div>
+          
+          {/* html_attributions가 없을 경우 디버깅 표시 (개발 중에만 사용) */}
+          {mainImageProps && (!mainImageProps.html_attributions || mainImageProps.html_attributions.length === 0) && (
+            <div className={styles.imageAttributionsContainer} style={{ backgroundColor: 'rgba(255, 0, 0, 0.5)' }}>
+              <div className={styles.imageAttributions}>
+                이미지 속성 정보가 없습니다 (html_attributions 누락)
+              </div>
+            </div>
+          )}
           
           <button 
             className={styles.galleryNavButton}

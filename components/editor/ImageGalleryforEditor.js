@@ -53,7 +53,14 @@ const ImageSelectionGallery = () => {
   
   // 툴팁 상태 (마우스 오버 시 이미지 확대 보기)
   const [tooltipImage, setTooltipImage] = useState(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  
+  // 생성 시간 툴팁 상태 추가
+  const [creationTooltipVisible, setCreationTooltipVisible] = useState(false);
+  const [activeTooltipId, setActiveTooltipId] = useState(null);
+  const [tooltipTimeout, setTooltipTimeout] = useState(null);
+  
+  // 툴팁 위치 참조 저장을 위한 refs
+  const tooltipRefs = useRef({});
   
   // 브라우저 환경 체크
   const [isBrowserReady, setIsBrowserReady] = useState(false);
@@ -91,6 +98,20 @@ const ImageSelectionGallery = () => {
           width: 150,
           height: 150
         });
+        
+        // 생성 시간 정보 로드 추가
+        try {
+          const response = await fetch(`/api/place-photo?public_id=${publicId}&metadata=true`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.created_at) {
+              props.created_at = data.created_at;
+            }
+          }
+        } catch (error) {
+          console.error('이미지 메타데이터 로드 오류:', error);
+        }
+        
         return [publicId, props];
       } catch (error) {
         console.error('이미지 props 생성 오류:', error);
@@ -114,35 +135,47 @@ const ImageSelectionGallery = () => {
     dispatch(toggleImageSelection({ imageId }));
   };
   
+  // 생성 시간 툴팁을 위한 핸들러 추가
+  const handleCreationTooltipEnter = (imageId) => {
+    // 이전 타임아웃 제거
+    if (tooltipTimeout) {
+      clearTimeout(tooltipTimeout);
+    }
+    
+    // 1초 후 툴팁 표시
+    const timeout = setTimeout(() => {
+      setActiveTooltipId(imageId);
+      setCreationTooltipVisible(true);
+    }, 1000);
+    
+    setTooltipTimeout(timeout);
+  };
+  
+  const handleCreationTooltipLeave = () => {
+    if (tooltipTimeout) {
+      clearTimeout(tooltipTimeout);
+      setTooltipTimeout(null);
+    }
+    setCreationTooltipVisible(false);
+  };
+  
   // 툴팁 관련 핸들러
   const handleMouseEnter = async (imageId, e) => {
     setTooltipImage(imageId);
-    updateTooltipPosition(e, setTooltipPosition);
     
-    // 툴팁 이미지 props 로드
-    try {
-      const props = await createNextImageProps(imageId, IMAGE_TEMPLATES.NORMAL, {
-        width: 300, 
-        height: 200, 
-        alt: "이미지 미리보기",
-        objectFit: "contain"
-      });
-      setTooltipImageProps(props);
-    } catch (error) {
-      console.error('툴팁 이미지 props 생성 오류:', error);
-      setTooltipImageProps(null);
+    // 생성 시간 툴팁 표시 시작
+    handleCreationTooltipEnter(imageId);
+    
+    // 기존 이미지 props를 그대로 사용하여 툴팁 이미지 보여주기
+    if (imageProps[imageId]) {
+      setTooltipImageProps(imageProps[imageId]);
     }
   };
   
   const handleMouseLeave = () => {
     setTooltipImage(null);
     setTooltipImageProps(null);
-  };
-  
-  const handleMouseMove = (e) => {
-    if (tooltipImage) {
-      updateTooltipPosition(e, setTooltipPosition);
-    }
+    handleCreationTooltipLeave();
   };
   
   // 확인 버튼 클릭
@@ -170,7 +203,7 @@ const ImageSelectionGallery = () => {
           <button className={styles.galleryCloseButton} onClick={handleCancel}>×</button>
         </div>
         
-        <div className={styles.imageSelectionGridContainer} onMouseMove={handleMouseMove}>
+        <div className={styles.imageSelectionGridContainer}>
           {galleryImages.map((publicId, index) => (
             <div 
               key={`select-image-${index}`}
@@ -178,6 +211,8 @@ const ImageSelectionGallery = () => {
               onClick={() => handleImageSelect(publicId)}
               onMouseEnter={(e) => handleMouseEnter(publicId, e)}
               onMouseLeave={handleMouseLeave}
+              style={{ position: 'relative' }}
+              ref={el => tooltipRefs.current[publicId] = el}
             >
               <div className={styles.imageContainerItem}>
                 {imageProps[publicId] ? (
@@ -189,23 +224,76 @@ const ImageSelectionGallery = () => {
                   <div className={styles.emptyImagePlaceholder}>...</div>
                 )}
               </div>
+              
+              {/* 생성 시간 툴팁 추가 */}
+              {creationTooltipVisible && activeTooltipId === publicId && imageProps[publicId]?.created_at && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-30px', // 이미지 위에 표시
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  color: 'white',
+                  padding: '5px 8px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  whiteSpace: 'nowrap',
+                  zIndex: 10
+                }}>
+                  {imageProps[publicId].created_at}
+                </div>
+              )}
             </div>
           ))}
         </div>
         
-        {/* 이미지 확대 툴팁 */}
-        {tooltipImage && tooltipImageProps && (
+        {/* 이미지 확대 툴팁 - 절대 위치가 아닌 이미지 주변에 표시 */}
+        {tooltipImage && tooltipImageProps && tooltipRefs.current[tooltipImage] && (
           <div 
             className={styles.imageTooltip}
             style={{
-              top: tooltipPosition.y,
-              left: tooltipPosition.x
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              maxWidth: '80%',
+              maxHeight: '70%',
+              width: 'auto',
+              height: 'auto',
+              backgroundColor: 'white',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+              borderRadius: '4px',
+              padding: '8px',
+              zIndex: 1000
             }}
           >
             <Image 
               {...tooltipImageProps}
-              style={{ objectFit: 'contain', width: 'auto', height: 'auto' }}
+              style={{ objectFit: 'contain', width: '100%', height: '100%' }}
+              width={400}
+              height={350}
             />
+            <button 
+              style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                background: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+              onClick={() => setTooltipImage(null)}
+            >
+              ×
+            </button>
           </div>
         )}
         
@@ -252,8 +340,16 @@ const ImageOrderEditorGallery = () => {
   // 이미지 props 상태 추가
   const [imageProps, setImageProps] = useState({});
   
+  // 생성 시간 툴팁 상태 추가
+  const [creationTooltipVisible, setCreationTooltipVisible] = useState(false);
+  const [activeTooltipIndex, setActiveTooltipIndex] = useState(null);
+  const [tooltipTimeout, setTooltipTimeout] = useState(null);
+  
   // 이미지 컨테이너 ref
   const containerRef = useRef(null);
+  
+  // 툴팁 refs 추가
+  const tooltipRefs = useRef({});
   
   // 갤러리가 열릴 때 이미지 초기화
   useEffect(() => {
@@ -298,6 +394,20 @@ const ImageOrderEditorGallery = () => {
           width: 100,
           height: 100
         });
+        
+        // 생성 시간 정보 로드 추가
+        try {
+          const response = await fetch(`/api/place-photo?public_id=${publicId}&metadata=true`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.created_at) {
+              props.created_at = data.created_at;
+            }
+          }
+        } catch (error) {
+          console.error('이미지 메타데이터 로드 오류:', error);
+        }
+        
         return [publicId, props];
       } catch (error) {
         console.error('이미지 props 생성 오류:', error);
@@ -496,6 +606,30 @@ const ImageOrderEditorGallery = () => {
     console.log(`이미지 이동 완료: ${dragIndex} -> ${dropIndex}`);
   };
   
+  // 생성 시간 툴팁을 위한 핸들러 추가
+  const handleCreationTooltipEnter = (index) => {
+    // 이전 타임아웃 제거
+    if (tooltipTimeout) {
+      clearTimeout(tooltipTimeout);
+    }
+    
+    // 1초 후 툴팁 표시
+    const timeout = setTimeout(() => {
+      setActiveTooltipIndex(index);
+      setCreationTooltipVisible(true);
+    }, 1000);
+    
+    setTooltipTimeout(timeout);
+  };
+  
+  const handleCreationTooltipLeave = () => {
+    if (tooltipTimeout) {
+      clearTimeout(tooltipTimeout);
+      setTooltipTimeout(null);
+    }
+    setCreationTooltipVisible(false);
+  };
+  
   // 메인 이미지와 서브 이미지로 포맷팅하는 함수
   const formatImagesForSubmission = (images) => {
     if (!images || images.length === 0) {
@@ -569,13 +703,15 @@ const ImageOrderEditorGallery = () => {
             <div 
               key={`main-image-${orderedImages[0] || 'empty'}-${renderKey}`}
               className={`${styles.imageOrderItem} ${styles.mainImageItem} ${draggedIndex === 0 ? styles.isDragging : ''}`}
-              style={{ gridRow: 1, gridColumn: 1 }}
+              style={{ gridRow: 1, gridColumn: 1, position: 'relative' }}
               draggable={orderedImages.length > 0 && orderedImages[0] !== 'blank'}
               onDragStart={(e) => handleDragStart(e, 0)}
               onDragEnd={handleDragEnd}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, 0)}
+              onMouseEnter={() => handleCreationTooltipEnter(0)}
+              onMouseLeave={handleCreationTooltipLeave}
             >
               <div className={styles.imageContainerItem}>
                 {orderedImages.length > 0 && orderedImages[0] !== 'blank' ? (
@@ -603,6 +739,27 @@ const ImageOrderEditorGallery = () => {
                 )}
                 <div className={styles.mainImageBadge}>메인</div>
               </div>
+              
+              {/* 생성 시간 툴팁 추가 */}
+              {creationTooltipVisible && activeTooltipIndex === 0 && 
+               orderedImages[0] !== 'blank' && 
+               imageProps[orderedImages[0]]?.created_at && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-30px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  color: 'white',
+                  padding: '5px 8px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  whiteSpace: 'nowrap',
+                  zIndex: 10
+                }}>
+                  {imageProps[orderedImages[0]].created_at}
+                </div>
+              )}
             </div>
           ) : (
             <div 
@@ -637,13 +794,15 @@ const ImageOrderEditorGallery = () => {
               <div 
                 key={`order-image-${publicId}-${index}-${renderKey}`}
                 className={`${styles.imageOrderItem} ${draggedIndex === index ? styles.isDragging : ''}`}
-                style={{ gridRow: 1, gridColumn: gridColumn }}
+                style={{ gridRow: 1, gridColumn: gridColumn, position: 'relative' }}
                 draggable={true}
                 onDragStart={(e) => handleDragStart(e, index)}
                 onDragEnd={handleDragEnd}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, index)}
+                onMouseEnter={() => handleCreationTooltipEnter(index)}
+                onMouseLeave={handleCreationTooltipLeave}
               >
                 <div className={styles.imageContainerItem}>
                   {imageProps[publicId] ? (
@@ -665,6 +824,25 @@ const ImageOrderEditorGallery = () => {
                     서브 {displayIndex}
                   </div>
                 </div>
+                
+                {/* 생성 시간 툴팁 추가 */}
+                {creationTooltipVisible && activeTooltipIndex === index && imageProps[publicId]?.created_at && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '-30px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    color: 'white',
+                    padding: '5px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    whiteSpace: 'nowrap',
+                    zIndex: 10
+                  }}>
+                    {imageProps[publicId].created_at}
+                  </div>
+                )}
               </div>
             );
           })}

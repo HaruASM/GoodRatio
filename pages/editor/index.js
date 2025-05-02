@@ -5,7 +5,7 @@ import Head from 'next/head';
 import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
-import { protoServerDataset, protoitemdataSet, OVERLAY_COLOR, OVERLAY_ICON } from '../../lib/models/editorModels';
+import { protoServerDataset, protoitemdataSet } from '../../lib/models/editorModels';
 import MapOverlayManager from '../../lib/components/map/MapOverlayManager';
 // 서버 유틸리티 함수 가져오기
 import { getSectionData, setupFirebaseListener } from '../../lib/services/serverUtils';
@@ -453,6 +453,21 @@ export default function Editor() { // 메인 페이지
       }
     });
 
+
+  /**
+ * 오버레이매니저에서 마커와 폴리곤 오버레이 생성시 사용되는 임시 오버레이용 디자인 
+ * TODO MapIcons.js로 아이콘 디자인을 통합할지 고민
+  */
+     const OVERLAY_COLOR = {
+      IDLE: '#FF0000', // 빨간색
+      MOUSEOVER: '#00FF00', // 초록색
+    };
+    
+     const OVERLAY_ICON = {
+      MARKER_MOUSEOVER: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png", // 파란색
+      MARKER: "http://maps.google.com/mapfiles/ms/icons/green-dot.png", // 초록색
+    };
+    
     _drawingManager.setOptions({
       drawingControl: true,
       markerOptions: {

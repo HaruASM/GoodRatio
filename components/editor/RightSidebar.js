@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../../pages/editor/styles.module.css';
-import { protoServerDataset, titlesofDataFoam } from '../../lib/models/editorModels';
+import { protoServerDataset, titlesofDataFoam, parseStreetViewUrl, createStreetViewEmbedUrl } from '../../lib/models/editorModels';
 import {  fetchPlaceDetailById } from '../../lib/utils/googlePlaceUtils';
 import store from '../../lib/store'; // 스토어 가져오기
 import {
@@ -53,6 +53,7 @@ import {
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
 import { selectSelectedItemId, selectSelectedSectionName } from '../../lib/store/slices/mapEventSlice';
 import { createLoadingOverlayforDIV, withLoadingOverlay } from '../../lib/utils/uiHelpers';
+import { getAllIconDesignsForIconSelector } from '../../lib/components/map/MapIcons';
 
 // 확인 모달 컴포넌트
 const ConfirmModal = ({ isOpen, itemName, onConfirm, onCancel }) => {
@@ -114,6 +115,22 @@ const isValueEmpty = (value, fieldName) => {
     }
   }
   
+  // streetView 필드에 대한 로직 추가
+  if (fieldName === 'streetView') {
+    // 값이 문자열인 경우 (이전 버전 호환성)
+    if (typeof value === 'string') {
+      return value === '';
+    }
+    
+    // 값이 객체인 경우
+    if (typeof value === 'object' && value !== null) {
+      // panoid가 없거나 빈 문자열이면 빈 값으로 간주
+      return !value.panoid || value.panoid === '';
+    }
+    
+    return true; // 다른 타입은 빈 값으로 간주
+  }
+  
   return false;
 };
 
@@ -151,6 +168,8 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   const [isComposing, setIsComposing] = useState(false); // IME 입력 중인지 여부
   const [showCategoryOptions, setShowCategoryOptions] = useState(false); // 카테고리 옵션 표시 상태
   const [showSectionOptions, setShowSectionOptions] = useState(false); // 섹션 옵션 표시 상태
+  const [showIconOptions, setShowIconOptions] = useState(false); // 아이콘 선택 모달 표시 상태
+  const [iconOptions, setIconOptions] = useState([]); // 아이콘 옵션 목록
   
   // 참조 객체 - 모든 useRef 호출을 여기로 이동
   const inputRefs = useRef({});
@@ -158,6 +177,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   const prevModalOpenRef = useRef(false);
   const sectionOptionsRef = useRef(null); // 섹션 옵션 참조 추가
   const categoryOptionsRef = useRef(null); // 카테고리 옵션 참조 추가
+  const iconOptionsRef = useRef(null); // 아이콘 옵션 참조 추가
   
   // 새로운 상태 추가
   const selectedItemId = useSelector(selectSelectedItemId);
@@ -180,6 +200,11 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
       if (showCategoryOptions && categoryOptionsRef.current && !categoryOptionsRef.current.contains(event.target)) {
         setShowCategoryOptions(false);
       }
+      
+      // 아이콘 옵션 외부 클릭 시 닫기
+      if (showIconOptions && iconOptionsRef.current && !iconOptionsRef.current.contains(event.target)) {
+        setShowIconOptions(false);
+      }
     }
     
     // 이벤트 리스너 등록
@@ -189,7 +214,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showSectionOptions, showCategoryOptions]);
+  }, [showSectionOptions, showCategoryOptions, showIconOptions]);
 
   // 패널이 보이지 않으면 null 반환
   if (!isPanelVisible) {
@@ -407,6 +432,237 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     // sectionName 필드 특별 처리 추가
     if (fieldName === 'sectionName') {
       return renderSectionNameField(readOnly);
+    }
+    
+    // streetView 필드 특별 처리 추가
+    if (fieldName === 'streetView') {
+      // 스트리트뷰 URL 입력 처리 함수
+      const handleStreetViewURLInput = (e) => {
+        e.preventDefault();
+        const url = e.target.value;
+        
+        if (!url || url.trim() === '') {
+          // URL이 비어있는 경우 기본 빈 객체로 설정
+          dispatch(updateField({
+            field: 'streetView',
+            value: { panoid: "", heading: 0, pitch: 0, fov: 90 }
+          }));
+          dispatch(trackField({ field: 'streetView' }));
+          return;
+        }
+        
+        // URL 파싱 시도
+        const parsedStreetView = parseStreetViewUrl(url);
+        
+        if (parsedStreetView) {
+          // 파싱 성공 - 파싱된 값으로 업데이트
+          dispatch(updateField({
+            field: 'streetView',
+            value: parsedStreetView
+          }));
+          dispatch(trackField({ field: 'streetView' }));
+          
+          // 성공 메시지 또는 시각적 피드백 제공
+          alert(`스트리트뷰 URL이 성공적으로 파싱되었습니다.\nPanoID: ${parsedStreetView.panoid}`);
+        } else {
+          // 파싱 실패 - 사용자에게 알림
+          alert('유효한 구글 스트리트뷰 URL이 아니거나 파싱할 수 없습니다.');
+        }
+      };
+      
+      // 현재 스트리트뷰 정보 표시 텍스트 설정
+      const streetViewDisplayText = formData.streetView && formData.streetView.panoid
+        ? `PanoID: ${formData.streetView.panoid.substring(0, 10)}...`
+        : '';
+      
+      return (
+        <div className={styles.rightSidebarFormRow} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+          <div className={styles.rightSidebarInputContainer}>
+            <input
+              type="text"
+              placeholder="구글 스트리트뷰 URL을 입력하세요"
+              className={getInputClassName('streetView')}
+              readOnly={readOnly}
+              defaultValue={streetViewDisplayText}
+              ref={el => inputRefs.current.streetView = el}
+            />
+            {isEditorOn && (
+              <button
+                type="button"
+                className={styles.inputOverlayButton}
+                onClick={() => {
+                  const urlInput = prompt("구글 스트리트뷰 URL을 입력하세요");
+                  if (urlInput) {
+                    handleStreetViewURLInput({ preventDefault: () => {}, target: { value: urlInput } });
+                  }
+                }}
+                style={{ display: 'block' }}
+                title="스트리트뷰 URL 입력"
+              >
+                🌐
+              </button>
+            )}
+          </div>
+          
+          {/* 프리뷰 영역 - 스트리트뷰가 있을 경우에만 표시 */}
+          {formData.streetView && formData.streetView.panoid && (
+            <div style={{ marginTop: '10px', width: '100%', height: '150px' }}>
+              <iframe
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                style={{ border: 0 }}
+                src={createStreetViewEmbedUrl(formData.streetView)}
+                allowFullScreen
+              ></iframe>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // iconDesign 필드 특별 처리 추가
+    if (fieldName === 'iconDesign') {
+      // 아이콘 옵션 로드 함수
+      const loadIconOptions = () => {
+        // 캐시된 옵션이 없다면 로드
+        if (iconOptions.length === 0) {
+          try {
+            const allIcons = getAllIconDesignsForIconSelector();
+            setIconOptions(allIcons);
+          } catch (error) {
+            console.error('아이콘 로드 중 오류:', error);
+          }
+        }
+      };
+
+      // 아이콘 선택 처리
+      const handleSelectIcon = (iconDesign) => {
+        // 현재 아이콘 분류 값 업데이트
+        dispatch(updateField({
+          field: 'iconDesign',
+          value: iconDesign
+        }));
+        dispatch(trackField({ field: 'iconDesign' }));
+        setShowIconOptions(false);
+      };
+
+      // 아이콘 편집 버튼 클릭 처리
+      const handleIconEditClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // 이벤트 버블링 방지
+        loadIconOptions();
+        setShowIconOptions(!showIconOptions);
+      };
+
+      // 아이콘 표시 텍스트 설정
+      const iconDisplayText = formData.iconDesign ? `아이콘 #${formData.iconDesign}` : '';
+
+      return (
+        <div className={styles.rightSidebarCategoryFieldContainer}>
+          <input
+            type="text"
+            name="iconDesign"
+            value={iconDisplayText}
+            readOnly={true}
+            className={getInputClassName('iconDesign')}
+            ref={el => inputRefs.current.iconDesign = el}
+            autoComplete="off"
+            onClick={(e) => {
+              // 읽기 전용이 아닐 때만 클릭 처리
+              if (isEditorOn) {
+                handleIconEditClick(e);
+              }
+            }}
+          />
+          {isEditorOn && (
+            <button
+              type="button"
+              className={styles.rightSidebarInputOverlayButton}
+              onClick={handleIconEditClick}
+              style={{ display: 'block' }}
+              title="아이콘 선택"
+            >
+              {iconDisplayText ? '✏️' : '📋'}
+            </button>
+          )}
+          {showIconOptions && isEditorOn && (
+            <div 
+              ref={iconOptionsRef}
+              className={styles.rightSidebarCategoryOptionsContainer}
+              style={{
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                maxHeight: '80vh',
+                width: '300px',
+                zIndex: 9999,
+                overflowY: 'auto',
+                background: 'white',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                padding: '15px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <h4 style={{ margin: '0' }}>아이콘 선택</h4>
+                <button 
+                  onClick={() => setShowIconOptions(false)} 
+                  style={{ 
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '16px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(4, 1fr)', 
+                gap: '10px' 
+              }}>
+                {iconOptions.map((icon) => (
+                  <div 
+                    key={icon.numberOfIconDesign} 
+                    className={styles.rightSidebarCategoryOption}
+                    onClick={() => handleSelectIcon(icon.numberOfIconDesign)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      padding: '5px',
+                      borderRadius: '4px',
+                      border: formData.iconDesign === icon.numberOfIconDesign
+                        ? '2px solid #0070f3'
+                        : '1px solid #ddd',
+                      backgroundColor: formData.iconDesign === icon.numberOfIconDesign
+                        ? '#e6f7ff'
+                        : 'white',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginBottom: '4px',
+                        width: '32px',
+                        height: '32px'
+                      }}
+                      dangerouslySetInnerHTML={{ __html: icon.iconDiv.outerHTML }}
+                    />
+                    <span style={{ fontSize: '12px' }}>{icon.numberOfIconDesign}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
     }
     
     const isActive = fieldName === activeField;

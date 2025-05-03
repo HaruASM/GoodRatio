@@ -111,7 +111,7 @@ const truncateForLogging = (str, maxLength = 40) => {
  * 직접 Cloudinary URL을 반환하는 방식으로 변경됨
  */
 export default async function handler(req, res) {
-  console.log('Place Photo API 호출됨');
+  
   const { 
     photo_reference, 
     public_id,
@@ -150,13 +150,13 @@ export default async function handler(req, res) {
     if (public_id) {
       // public_id가 제공된 경우, 직접 사용
       publicId = public_id;
-      console.log(`클라이언트가 제공한 public_id 사용: ${truncateForLogging(publicId)}`);
+      
     } else if (photo_reference) {
       // photo_reference가 제공된 경우, publicId 생성
       // 구글 이미지는 항상 tempsection과 tempID를 사용 (함수 내부에서 처리)
       publicId = getPublicIdFromGoogleReference(photo_reference);
       originalReference = photo_reference;
-      console.log(`photo_reference로 public_id 생성: ${truncateForLogging(publicId)}`);
+      
     } else {
       // 둘 다 없는 경우, 에러 반환
       return res.status(400).json({ error: 'photo_reference or public_id is required' });

@@ -93,9 +93,13 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '',
+        pathname: '/**',
+      },
     ],
-    // API 경로를 통해 반환되는 이미지 URL도 사용 가능하도록 설정
-    domains: ['localhost'],
     // 이미지 예외처리 경로 설정
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',

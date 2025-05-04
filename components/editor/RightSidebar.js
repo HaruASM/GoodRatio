@@ -321,11 +321,11 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
                     cursor: 'pointer'
                   }}
                 >
-                  -
+                  ←
                 </button>
                 <span style={{ width: '50px', textAlign: 'center' }}>{Math.round(heading)}°</span>
                 <button 
-                  onClick={() => adjustHeading(3)}
+                  onClick={() => adjustHeading(10)}
                   style={{ 
                     width: '30px', 
                     height: '30px', 
@@ -336,7 +336,7 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
                     cursor: 'pointer'
                   }}
                 >
-                  +
+                  →
                 </button>
               </div>
             </div>
@@ -346,7 +346,7 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
               <span style={{ width: '100px', fontSize: '14px' }}>Pitch(위아래):</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button 
-                  onClick={() => adjustPitch(-2)}
+                  onClick={() => adjustPitch(-5)}
                   style={{ 
                     width: '30px', 
                     height: '30px', 
@@ -361,7 +361,7 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
                 </button>
                 <span style={{ width: '50px', textAlign: 'center' }}>{Math.round(pitch)}°</span>
                 <button 
-                  onClick={() => adjustPitch(3)}
+                  onClick={() => adjustPitch(5)}
                   style={{ 
                     width: '30px', 
                     height: '30px', 
@@ -393,7 +393,7 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
                     cursor: 'pointer'
                   }}
                 >
-                  ←
+                  -
                 </button>
                 <span style={{ width: '50px', textAlign: 'center' }}>{Math.round(fov)}°</span>
                 <button 
@@ -408,7 +408,7 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
                     cursor: 'pointer'
                   }}
                 >
-                  →
+                  +
                 </button>
               </div>
             </div>

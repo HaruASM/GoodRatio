@@ -19,21 +19,18 @@ cloudinary.config({
 function parsePublicId(publicId) {
   if (!publicId) return null;
   
-  // 로그 추가
-  console.log(`parsePublicId 입력값: ${publicId}`);
   
   // 1. 먼저 asset 폴더(map-Images) 제거
   const assetFolder = process.env.CLOUDINARY_ASSET_FOLDER || 'map-Images';
   let parsablePath = publicId;
   if (parsablePath.startsWith(`${assetFolder}/`)) {
     parsablePath = parsablePath.substring(`${assetFolder}/`.length);
-    console.log(`asset 폴더(${assetFolder}/) 제거 후: ${parsablePath}`);
   }
   
   // 2. placeImages/ 접두사가 있는 경우 제거 (BASE_FOLDER 제거)
   if (parsablePath.startsWith('placeImages/')) {
     parsablePath = parsablePath.substring('placeImages/'.length);
-    console.log(`placeImages/ 접두사 제거 후: ${parsablePath}`);
+
   }
   
   // 3. 경로 분석 (section/filename 또는 section/subsection/filename)
@@ -46,7 +43,7 @@ function parsePublicId(publicId) {
       hasBasePath: publicId.includes('placeImages/'),
       originalPath: publicId
     };
-    console.log(`publicId 파싱 결과:`, result);
+    
     return result;
   }
   
@@ -66,15 +63,12 @@ function getSectionNameFromPublicId(publicId) {
     console.log('유효하지 않은 publicId:', publicId);
     return null;
   }
-
-  console.log(`publicId에서 섹션명 추출 시작: ${publicId}`);
   
   // 정규식을 사용하여 placeImages/ 다음 부분 추출
   const regex = /placeImages\/([^\/]+)/;
   const match = publicId.match(regex);
   
   if (match && match[1]) {
-    console.log(`섹션명 추출 성공: ${match[1]}`);
     return match[1];
   }
   
@@ -98,8 +92,7 @@ async function updateImageSection(publicId, newSection, itemId) {
   }
   
   try {
-    console.log(`이미지 섹션 업데이트 시작: ${publicId} -> ${newSection}/${itemId}`);
-    
+        
     const parsedId = parsePublicId(publicId);
     if (!parsedId) throw new Error(`유효하지 않은 publicId 형식: ${publicId}`);
     
@@ -119,7 +112,6 @@ async function updateImageSection(publicId, newSection, itemId) {
     // 새 publicId에 asset 폴더 추가 (Cloudinary에 저장될 전체 경로)
     const newFullPublicId = getFullPublicId(newLogicalPublicId);
       
-    console.log(`리네임 시도: ${originalFullPublicId} -> ${newFullPublicId}`);
     
     // 이미지 태그 및 메타데이터 업데이트와 함께 리네임
     const result = await cloudinary.uploader.rename(originalFullPublicId, newFullPublicId, {
@@ -129,7 +121,6 @@ async function updateImageSection(publicId, newSection, itemId) {
       tags: [newSection, `item_${itemId}`]
     });
     
-    console.log(`이미지 섹션 업데이트 성공: ${originalFullPublicId} -> ${newFullPublicId}`);
     return { 
       oldPublicId: publicId, 
       newPublicId: newLogicalPublicId,  // 논리적 경로만 반환 (에셋 폴더 미포함)
@@ -160,8 +151,6 @@ async function processImageSection(imagePublicId, targetSectionName, itemId, ima
     return { processedPublicId: '', updated: null };
   }
   
-  // 로그 출력
-  console.log(`${imageType} 이미지${index !== null ? `[${index}]` : ''} 처리 시작: ${imagePublicId}`);
   
   // 섹션명 추출
   const imgSectionName = getSectionNameFromPublicId(imagePublicId);
@@ -169,13 +158,12 @@ async function processImageSection(imagePublicId, targetSectionName, itemId, ima
   // tempsection인 경우 섹션 변경
   if (imgSectionName === 'tempsection') {
     try {
-      console.log(`${imageType} 이미지${index !== null ? `[${index}]` : ''}가 tempsection에 있습니다. 섹션 변경 시도: ${imagePublicId}, 새 섹션: ${targetSectionName}, 아이템ID: ${itemId}`);
       
       const updated = await updateImageSection(imagePublicId, targetSectionName, itemId);
       // 이미 updateImageSection에서 논리적 경로를 반환하므로 stripAssetFolder 불필요
       const processedPublicId = updated.newPublicId;
       
-      console.log(`${imageType} 이미지${index !== null ? `[${index}]` : ''} 섹션 변경 완료: ${processedPublicId}`);
+      
       return { processedPublicId, updated };
     } catch (error) {
       console.error(`${imageType} 이미지${index !== null ? `[${index}]` : ''} 처리 중 오류:`, error);
@@ -186,7 +174,7 @@ async function processImageSection(imagePublicId, targetSectionName, itemId, ima
   } else {
     // tempsection이 아니면 폴더명만 제거
     const processedPublicId = stripAssetFolder(imagePublicId);
-    console.log(`${imageType} 이미지${index !== null ? `[${index}]` : ''}는 tempsection이 아니거나 섹션명 추출 실패: ${imgSectionName}`);
+    
     return { processedPublicId, updated: null };
   }
 }

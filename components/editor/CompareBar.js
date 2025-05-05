@@ -35,49 +35,11 @@ import {
   confirmImageSelection,
   openGallery  
 } from '../../lib/store/slices/imageGallerySlice';
-import { titlesofDataFoam, protoServerDataset } from '../../lib/models/editorModels';
+import { titlesofDataFoam, protoServerDataset, isValueEmpty } from '../../lib/models/editorModels';
 import { batchPreCacheImagesForGoggleReferece } from '../../lib/utils/imageHelpers';
 import { createLoadingOverlayforDIV, withLoadingOverlay } from '../../lib/utils/uiHelpers';
 import Md5 from 'crypto-js/md5';
 
-/**
- * 값이 비어있는지 확인하는 공통 함수
- * compareBar 컴포넌트 외부로 이동하여 공유 가능하도록 함
- */
-const isValueEmpty = (value, fieldName) => {
-  if (value === null || value === undefined) return true;
-  if (value === '') return true;
-  if (Array.isArray(value) && (value.length === 0 || (value.length === 1 && value[0] === ''))) return true;
-  
-  // 특정 필드에 대한 추가 로직
-  if (fieldName === 'pinCoordinates') {
-    // 값이 없거나 빈 문자열이면 빈 값으로 간주
-    if (!value || value === '') return true;
-    
-    // 값이 객체이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
-    if (typeof value === 'object' && value !== null) {
-      return (value.lat === 0 && value.lng === 0) || 
-             (value.lat === protoServerDataset.pinCoordinates.lat && 
-              value.lng === protoServerDataset.pinCoordinates.lng);
-    }
-  }
-  
-  if (fieldName === 'path') {
-    // 값이 없거나 빈 문자열이면 빈 값으로 간주
-    if (!value || value === '') return true;
-    
-    // 값이 배열이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
-    if (Array.isArray(value)) {
-      if (value.length === 0) return true;
-      if (value.length === 1) {
-        const defaultPath = protoServerDataset.path[0];
-        return value[0].lat === defaultPath.lat && value[0].lng === defaultPath.lng;
-      }
-    }
-  }
-  
-  return false;
-};
 
 /**
  * 데이터 객체에서 유효한 필드가 하나라도 있는지 확인
@@ -146,7 +108,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   };
 
   // 데이터에 유효한 필드가 있는지 확인
-  const hasValidData = hasAnyValidField(compareData); //FIXME 이게 왜 필요하지
+  const hasValidData = hasAnyValidField(compareData); 
 
   // 리덕스 상태 사용
   const isImageSelectionMode = useSelector(selectIsImageSelectionMode);

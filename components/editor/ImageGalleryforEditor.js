@@ -22,14 +22,6 @@ import {
 } from '../../lib/store/slices/imageGallerySlice';
 import styles from '../../pages/editor/styles.module.css';
 
-// 공통 함수: 툴팁 위치 업데이트
-const updateTooltipPosition = (e, setTooltipPosition) => {
-  setTooltipPosition({
-    x: e.clientX,
-    y: e.clientY
-  });
-};
-
 /**
  * 이미지 선택 갤러리 컴포넌트
  * 이미지를 선택하고 확인할 수 있는 UI
@@ -54,10 +46,6 @@ const ImageSelectionGallery = () => {
   // 툴팁 상태 (마우스 오버 시 이미지 확대 보기)
   const [tooltipImage, setTooltipImage] = useState(null);
   
-  // 생성 시간 툴팁 상태 추가
-  const [creationTooltipVisible, setCreationTooltipVisible] = useState(false);
-  const [activeTooltipId, setActiveTooltipId] = useState(null);
-  const [tooltipTimeout, setTooltipTimeout] = useState(null);
   
   // 툴팁 위치 참조 저장을 위한 refs
   const tooltipRefs = useRef({});
@@ -99,19 +87,6 @@ const ImageSelectionGallery = () => {
           height: 150
         });
         
-        // 생성 시간 정보 로드 추가
-        try {
-          const response = await fetch(`/api/place-photo?public_id=${publicId}&metadata=true`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.created_at) {
-              props.created_at = data.created_at;
-            }
-          }
-        } catch (error) {
-          console.error('이미지 메타데이터 로드 오류:', error);
-        }
-        
         return [publicId, props];
       } catch (error) {
         console.error('이미지 props 생성 오류:', error);
@@ -135,36 +110,10 @@ const ImageSelectionGallery = () => {
     dispatch(toggleImageSelection({ imageId }));
   };
   
-  // 생성 시간 툴팁을 위한 핸들러 추가
-  const handleCreationTooltipEnter = (imageId) => {
-    // 이전 타임아웃 제거
-    if (tooltipTimeout) {
-      clearTimeout(tooltipTimeout);
-    }
-    
-    // 1초 후 툴팁 표시
-    const timeout = setTimeout(() => {
-      setActiveTooltipId(imageId);
-      setCreationTooltipVisible(true);
-    }, 1000);
-    
-    setTooltipTimeout(timeout);
-  };
-  
-  const handleCreationTooltipLeave = () => {
-    if (tooltipTimeout) {
-      clearTimeout(tooltipTimeout);
-      setTooltipTimeout(null);
-    }
-    setCreationTooltipVisible(false);
-  };
   
   // 툴팁 관련 핸들러
   const handleMouseEnter = async (imageId, e) => {
     setTooltipImage(imageId);
-    
-    // 생성 시간 툴팁 표시 시작
-    handleCreationTooltipEnter(imageId);
     
     // 기존 이미지 props를 그대로 사용하여 툴팁 이미지 보여주기
     if (imageProps[imageId]) {
@@ -175,7 +124,6 @@ const ImageSelectionGallery = () => {
   const handleMouseLeave = () => {
     setTooltipImage(null);
     setTooltipImageProps(null);
-    handleCreationTooltipLeave();
   };
   
   // 확인 버튼 클릭
@@ -224,25 +172,6 @@ const ImageSelectionGallery = () => {
                   <div className={styles.emptyImagePlaceholder}>...</div>
                 )}
               </div>
-              
-              {/* 생성 시간 툴팁 추가 */}
-              {creationTooltipVisible && activeTooltipId === publicId && imageProps[publicId]?.created_at && (
-                <div style={{
-                  position: 'absolute',
-                  top: '-30px', // 이미지 위에 표시
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                  color: 'white',
-                  padding: '5px 8px',
-                  borderRadius: '4px',
-                  fontSize: '11px',
-                  whiteSpace: 'nowrap',
-                  zIndex: 10
-                }}>
-                  {imageProps[publicId].created_at}
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -339,12 +268,7 @@ const ImageOrderEditorGallery = () => {
   
   // 이미지 props 상태 추가
   const [imageProps, setImageProps] = useState({});
-  
-  // 생성 시간 툴팁 상태 추가
-  const [creationTooltipVisible, setCreationTooltipVisible] = useState(false);
-  const [activeTooltipIndex, setActiveTooltipIndex] = useState(null);
-  const [tooltipTimeout, setTooltipTimeout] = useState(null);
-  
+
   // 이미지 컨테이너 ref
   const containerRef = useRef(null);
   
@@ -394,19 +318,6 @@ const ImageOrderEditorGallery = () => {
           width: 100,
           height: 100
         });
-        
-        // 생성 시간 정보 로드 추가
-        try {
-          const response = await fetch(`/api/place-photo?public_id=${publicId}&metadata=true`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.created_at) {
-              props.created_at = data.created_at;
-            }
-          }
-        } catch (error) {
-          console.error('이미지 메타데이터 로드 오류:', error);
-        }
         
         return [publicId, props];
       } catch (error) {
@@ -606,29 +517,6 @@ const ImageOrderEditorGallery = () => {
     console.log(`이미지 이동 완료: ${dragIndex} -> ${dropIndex}`);
   };
   
-  // 생성 시간 툴팁을 위한 핸들러 추가
-  const handleCreationTooltipEnter = (index) => {
-    // 이전 타임아웃 제거
-    if (tooltipTimeout) {
-      clearTimeout(tooltipTimeout);
-    }
-    
-    // 1초 후 툴팁 표시
-    const timeout = setTimeout(() => {
-      setActiveTooltipIndex(index);
-      setCreationTooltipVisible(true);
-    }, 1000);
-    
-    setTooltipTimeout(timeout);
-  };
-  
-  const handleCreationTooltipLeave = () => {
-    if (tooltipTimeout) {
-      clearTimeout(tooltipTimeout);
-      setTooltipTimeout(null);
-    }
-    setCreationTooltipVisible(false);
-  };
   
   // 메인 이미지와 서브 이미지로 포맷팅하는 함수
   const formatImagesForSubmission = (images) => {
@@ -710,8 +598,6 @@ const ImageOrderEditorGallery = () => {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, 0)}
-              onMouseEnter={() => handleCreationTooltipEnter(0)}
-              onMouseLeave={handleCreationTooltipLeave}
             >
               <div className={styles.imageContainerItem}>
                 {orderedImages.length > 0 && orderedImages[0] !== 'blank' ? (
@@ -739,27 +625,6 @@ const ImageOrderEditorGallery = () => {
                 )}
                 <div className={styles.mainImageBadge}>메인</div>
               </div>
-              
-              {/* 생성 시간 툴팁 추가 */}
-              {creationTooltipVisible && activeTooltipIndex === 0 && 
-               orderedImages[0] !== 'blank' && 
-               imageProps[orderedImages[0]]?.created_at && (
-                <div style={{
-                  position: 'absolute',
-                  top: '-30px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                  color: 'white',
-                  padding: '5px 8px',
-                  borderRadius: '4px',
-                  fontSize: '11px',
-                  whiteSpace: 'nowrap',
-                  zIndex: 10
-                }}>
-                  {imageProps[orderedImages[0]].created_at}
-                </div>
-              )}
             </div>
           ) : (
             <div 
@@ -801,8 +666,6 @@ const ImageOrderEditorGallery = () => {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, index)}
-                onMouseEnter={() => handleCreationTooltipEnter(index)}
-                onMouseLeave={handleCreationTooltipLeave}
               >
                 <div className={styles.imageContainerItem}>
                   {imageProps[publicId] ? (
@@ -824,25 +687,6 @@ const ImageOrderEditorGallery = () => {
                     서브 {displayIndex}
                   </div>
                 </div>
-                
-                {/* 생성 시간 툴팁 추가 */}
-                {creationTooltipVisible && activeTooltipIndex === index && imageProps[publicId]?.created_at && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '-30px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    color: 'white',
-                    padding: '5px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    whiteSpace: 'nowrap',
-                    zIndex: 10
-                  }}>
-                    {imageProps[publicId].created_at}
-                  </div>
-                )}
               </div>
             );
           })}

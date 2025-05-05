@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from '../../pages/editor/styles.module.css';
-import { protoServerDataset, titlesofDataFoam, parseStreetViewUrl, createStreetViewEmbedUrl } from '../../lib/models/editorModels';
+import { protoServerDataset, titlesofDataFoam, parseStreetViewUrl, createStreetViewEmbedUrl, isValueEmpty } from '../../lib/models/editorModels';
 import {  fetchPlaceDetailById } from '../../lib/utils/googlePlaceUtils';
 import store from '../../lib/store'; // 스토어 가져오기
 import {
@@ -435,8 +435,10 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
                 height="100%" 
                 frameBorder="0" 
                 style={{ border: 0 }} 
-                allowFullScreen
+                allow="accelerometer; autoplay; gyroscope; magnetometer" 
                 title="스트릿뷰 미리보기"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
               />
             ) : (
               <div style={{ textAlign: 'center', color: '#888' }}>
@@ -462,69 +464,6 @@ const StreetViewModal = ({ isOpen, onSubmit, onCancel, initialValue }) => {
       </div>
     </div>
   );
-};
-
-// 값이 비어있는지 확인하는 공통 함수
-const isValueEmpty = (value, fieldName) => {
-  // 값이 null 또는 undefined인 경우
-  if (value === null || value === undefined) return true;
-  
-  // 빈 문자열인 경우
-  if (value === '') return true;
-  
-  // 배열이고 비어있거나 첫 요소가 빈 문자열인 경우
-  if (Array.isArray(value) && (value.length === 0 || (value.length === 1 && value[0] === ''))) return true;
-  
-  // 특정 필드에 대한 추가 로직
-  if (fieldName === 'pinCoordinates') {
-    // 값이 없거나 빈 문자열이면 빈 값으로 간주
-    if (!value || value === '') return true;
-    
-    // 값이 객체이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
-    if (typeof value === 'object' && value !== null) {
-      return (value.lat === 0 && value.lng === 0) || 
-             (value.lat === protoServerDataset.pinCoordinates.lat && 
-              value.lng === protoServerDataset.pinCoordinates.lng);
-    }
-  }
-  
-  if (fieldName === 'path') {
-    // 값이 없거나 빈 문자열이면 빈 값으로 간주
-    if (!value || value === '') return true;
-    
-    // 값이 배열이고 protoServerDataset의 기본값과 같으면 빈 값으로 간주
-    if (Array.isArray(value)) {
-      if (value.length === 0) return true;
-      if (value.length === 1) {
-        const defaultPath = protoServerDataset.path[0];
-        return value[0].lat === defaultPath.lat && value[0].lng === defaultPath.lng;
-      }
-    }
-  }
-  
-  // iconDesign 필드에 대한 로직 추가
-  if (fieldName === 'iconDesign') {
-    // 값이 없거나 0이면 빈 값으로 간주 (숫자만 사용)
-    return !value || value === 0;
-  }
-  
-  // streetView 필드에 대한 로직 추가
-  if (fieldName === 'streetView') {
-    // 값이 문자열인 경우 (이전 버전 호환성)
-    if (typeof value === 'string') {
-      return value === '';
-    }
-    
-    // 값이 객체인 경우
-    if (typeof value === 'object' && value !== null) {
-      // panoid가 없거나 빈 문자열이면 빈 값으로 간주
-      return !value.panoid || value.panoid === '';
-    }
-    
-    return true; // 다른 타입은 빈 값으로 간주
-  }
-  
-  return false;
 };
 
 /**

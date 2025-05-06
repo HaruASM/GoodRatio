@@ -88,7 +88,7 @@ const SectionsDBManager = {
       const serverItems = await getSectionData(sectionName);
       
       // 3. 서버 형식(protoServerDataset)에서 클라이언트 형식(protoitemdataSet)으로 변환
-      const clientItems = this._transformToClientFormat(serverItems);
+      const clientItems = this._transformToClientFormat(serverItems, sectionName);
       
       // 4. 캐시에 저장
       this._cache.set(sectionName, clientItems);
@@ -120,18 +120,42 @@ const SectionsDBManager = {
       this._currentSectionName = null;
     }
     
-        // 새 리스너 설정 
+        // 새 리스너 설정, CB설정. 
     this._currentListener = setupFirebaseListener(sectionName, (updatedItems, changes) => {
-      // 서버 데이터를 클라이언트 형식으로 변환
-      const clientItems = this._transformToClientFormat(updatedItems);
+      console.log('[SectionsDBManager] 실시간 리스너 cb 동작', updatedItems, changes);
+
+      // 서버의 lastUpdated 타임스탬프 확인
+      const serverLastUpdated = updatedItems && updatedItems.length > 0 && 
+        updatedItems[0].lastUpdated ? updatedItems[0].lastUpdated : null;
       
-      // 캐시 업데이트
-      this._cache.set(sectionName, clientItems);
-  
-      //AT 여기서 setCurItemListInCurSection(clientItems); 동작이 불가능해서, 이벤트 방식으로 대체
-      document.dispatchEvent(new CustomEvent('section-items-updated', {
-        detail: { sectionName, items: clientItems }
-      }));
+      // 로컬 스토리지에서 이 섹션의 마지막 업데이트 타임스탬프 가져오기
+      const localStorageKey = `section_${sectionName}_lastUpdated`;
+      const localLastUpdated = localStorage.getItem(localStorageKey);
+      
+      // 변경 여부 확인 - 서버 타임스탬프가 로컬보다 최신이거나 로컬에 없는 경우에만 업데이트
+      const shouldUpdate = !localLastUpdated || 
+        !serverLastUpdated || 
+        new Date(serverLastUpdated).getTime() > new Date(localLastUpdated).getTime();
+      
+      if (shouldUpdate) {
+        // 서버 데이터를 클라이언트 형식으로 변환
+        const clientItems = this._transformToClientFormat(updatedItems, sectionName);
+        
+        // 캐시 업데이트
+        this._cache.set(sectionName, clientItems);
+    
+        // 로컬 스토리지에 마지막 업데이트 타임스탬프 저장
+        if (serverLastUpdated) {
+          localStorage.setItem(localStorageKey, serverLastUpdated);
+        }
+        
+        //AT 여기서 setCurItemListInCurSection(clientItems); 동작이 불가능해서, 이벤트 방식으로 대체
+        document.dispatchEvent(new CustomEvent('section-items-updated', {
+          detail: { sectionName, items: clientItems }
+        }));
+      } else {
+        console.log(`[SectionsDBManager] ${sectionName} 섹션에 실제 변경사항 없음, 업데이트 건너뜀`);
+      }
     });
     
     this._currentSectionName = sectionName;
@@ -177,11 +201,17 @@ const SectionsDBManager = {
   },
   
   /**
-   * 서버 형식에서 클라이언트 형식으로 데이터 변환
+   * 서버 형식에서 클라이언트 형식으로 데이터 변환 - 오버레이 생성(등록)도 포함
    * @param {Array} serverItems - 서버 형식 아이템 리스트 (protoServerDataset 형태)
    * @returns {Array} - 변환된 아이템 리스트 (protoitemdataSet 형태)
    */
-  _transformToClientFormat: function(serverItems, sectionName = "반월당") {
+  _transformToClientFormat: function(serverItems, sectionName ) {
+    // 오버레이 등록 처리
+
+    if (!sectionName) {
+      console.error('[SectionsDBManager] 섹션 이름이 제공되지 않았습니다.');
+      return [];
+    }
 
       // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
       MapOverlayManager.registerOverlaysByItemlist(
@@ -735,7 +765,7 @@ export default function Editor() { // 메인 페이지
     // 1회 읽어오고, 그 뒤 FB서버에 리스닝 구독
     
     if (!curSectionName) return;
-
+    //TODO sectionDBManager의 컴포넌트로 이식 + 리덕스 환경으로 전환 차후에 진행. 
     SectionsDBManager.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
       if (_sectionItemListfromDB.length > 0) {
         // 현재 아이템 리스트를 이전 값으로 저장 (useRef 사용)
@@ -762,20 +792,41 @@ export default function Editor() { // 메인 페이지
     const handleSectionUpdate = (event) => {
       const { sectionName, items } = event.detail;
       if (sectionName === curSectionName) { 
-        //동일한 sectionNAme이면, 이것은 현재 section에 대한 업데이트 이므로, 현재 아이템 리스트 업데이트 필요. 
-        // sectionName이 변경될때만 Itemlist가 교체되므로, 이에대한 처리가 필요함. 
-        // UI 업데이트 (마커, 폴리곤 포함된 완전한 객체)
-        setCurItemListInCurSection( (prev)=>{
-          prevItemListforRelieveOverlays.current = prev;
-          return items;
-        });
+        // lastUpdated 정보 확인
+        const serverLastUpdated = items && items.length > 0 && 
+          items[0].serverDataset?.lastUpdated ? items[0].serverDataset.lastUpdated : null;
+        
+        // 로컬 스토리지에서 이 섹션의 마지막 업데이트 타임스탬프 가져오기
+        const localStorageKey = `section_ui_${sectionName}_lastUpdated`;
+        const localLastUpdated = localStorage.getItem(localStorageKey);
+        
+        // 변경 여부 확인 - 서버 타임스탬프가 로컬보다 최신이거나 로컬에 없는 경우에만 업데이트
+        const shouldUpdate = !localLastUpdated || 
+          !serverLastUpdated || 
+          new Date(serverLastUpdated).getTime() > new Date(localLastUpdated).getTime();
+        
+        if (shouldUpdate) {
+          //동일한 sectionNAme이면, 이것은 현재 section에 대한 업데이트 이므로, 현재 아이템 리스트 업데이트 필요. 
+          // sectionName이 변경될때만 Itemlist가 교체되므로, 이에대한 처리가 필요함. 
+          // UI 업데이트 (마커, 폴리곤 포함된 완전한 객체)
+          setCurItemListInCurSection((prev) => {
+            prevItemListforRelieveOverlays.current = prev;
+            return items;
+          });
+          
+          // 로컬 스토리지에 마지막 업데이트 타임스탬프 저장
+          if (serverLastUpdated) {
+            localStorage.setItem(localStorageKey, serverLastUpdated);
+          }
+        } else {
+          console.log(`[Editor] ${sectionName} 섹션에 실제 변경사항 없음, UI 업데이트 건너뜀`);
+        }
       }
 
       //TODO 서버로부터 업데이트된 sectionName이 !== curSEction과 다르면? 
       //FIXME 서버로부터 업데이트된 sectionName이 다를경우가 있나? onSnap부분에서 구별해서 customEvent로 전달해야할지 미정이다. 
       // 서버에서 sectionName이 다른 snapshot이 업데이트 되었다면, setCurentItemlist는 호출하지 않고, sectionDB만 해당 sectionName으로 업데이트 시키면 됨. 
       //서버로부터 업데이트된 sectionName이 다를경우는 문제가 있음. 왜냐하면, 필요할때 sectionDB를 통해 서버로 호출을 하는 방식이기 때문
-
     };
     
     document.addEventListener('section-items-updated', handleSectionUpdate);

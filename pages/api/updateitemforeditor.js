@@ -1,5 +1,5 @@
 import { firebasedb } from '../../firebase';
-import { doc, getDoc, setDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, addDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
 import { v2 as cloudinary } from 'cloudinary';
 import { stripAssetFolder, getFullPublicId } from '../../lib/cloudinary'; // 유틸리티 함수 임포트
 
@@ -339,10 +339,16 @@ export default async function handler(req, res) {
       // 데이터 업데이트
       await updateDoc(itemRef, processedData);
       
-      // 섹션 문서 lastUpdated 필드 업데이트
+      // 섹션 문서 counterUpdated 필드 증가
       const sectionRef = doc(firebasedb, 'sections', sectionName);
+      
+      // counterCollections 업데이트 - Map 구조로 설정
+      // 참고: 'items'라는 키를 가진 객체에 counter 필드를 증가시킴
       await updateDoc(sectionRef, {
-        lastUpdated: serverTimestamp()
+        lastUpdated: serverTimestamp(),
+        counterUpdated: increment(1),
+        'counterCollections.items.counter': increment(1),
+        'counterCollections.items.nameCollection': 'items'
       });
       
       // 성공 응답
@@ -372,10 +378,11 @@ export default async function handler(req, res) {
       // ID 필드 업데이트
       await updateDoc(docRef, { id: docRef.id });
       
-      // 섹션 문서 lastUpdated 필드 업데이트
+      // 섹션 문서 counterUpdated 필드 증가
       const sectionRef = doc(firebasedb, 'sections', sectionName);
       await updateDoc(sectionRef, {
-        lastUpdated: serverTimestamp()
+        lastUpdated: serverTimestamp(),
+        counterUpdated: increment(1)
       });
       
       // 성공 응답

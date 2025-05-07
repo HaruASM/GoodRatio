@@ -8,7 +8,7 @@ import styles from './styles.module.css';
 import { protoServerDataset, protoitemdataSet } from '../../lib/models/editorModels';
 import MapOverlayManager from '../../lib/components/map/MapOverlayManager';
 // 서버 유틸리티 함수 가져오기
-import { getSectionData, setupFirebaseListener } from '../../lib/services/serverUtils';
+import { getSectionData, setupFirebaseListener, getSectionCollectionData } from '../../lib/services/serverUtils';
 // Place 유틸리티 함수 가져오기
 import { parseGooglePlaceData } from '../../lib/utils/googlePlaceUtils';
 // 오른쪽 사이드바 컴포넌트 가져오기
@@ -88,16 +88,25 @@ const SectionsDBManager = {
       const serverItems = await getSectionData(sectionName);
       
       // 3. 서버 형식(protoServerDataset)에서 클라이언트 형식(protoitemdataSet)으로 변환
-      const clientItems = this._transformToClientFormat(serverItems, sectionName);
+      // 서버 아이템이 있는 경우만 변환 및 캐시 저장
+      let clientItems = [];
+      if (serverItems && serverItems.length > 0) {
+        clientItems = this._transformToClientFormat(serverItems, sectionName);
+        
+        // 4. 캐시에 저장
+        this._cache.set(sectionName, clientItems);
+      }
       
-      // 4. 캐시에 저장
-      this._cache.set(sectionName, clientItems);
-      
-      // 5. 실시간 리스너 설정
+      // 5. 실시간 리스너 설정 (서버 아이템이 없는 경우에도 리스너는 설정해야 함)
       this._setupRealtimeListener(sectionName);
+      
       return clientItems;
     } catch (error) {
-       console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오  류`, error);
+       console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오류`, error);
+      
+      // 오류 발생해도 리스너 설정은 시도
+      this._setupRealtimeListener(sectionName);
+      
       return [];
     }
   },
@@ -120,41 +129,103 @@ const SectionsDBManager = {
       this._currentSectionName = null;
     }
     
-        // 새 리스너 설정, CB설정. 
+        // 새 리스너 설정, CB설정.  onSnapshot 이벤트 리스닝을 콜백함수
+        // sectionName의 필드에서 counterUpdated의 값을 로컬스토리지 counter와 비교
+        // 이후 counterCollections자료구조 값을 조회하여 특정 컬렉션 변경 여부 확인
     this._currentListener = setupFirebaseListener(sectionName, (updatedItems, changes) => {
       console.log('[SectionsDBManager] 실시간 리스너 cb 동작', updatedItems, changes);
 
-      // 서버의 lastUpdated 타임스탬프 확인
-      const serverLastUpdated = updatedItems && updatedItems.length > 0 && 
-        updatedItems[0].lastUpdated ? updatedItems[0].lastUpdated : null;
+      // 서버의 counterUpdated 값과 updatedCollections 배열 확인
+      const sectionDoc = updatedItems ? updatedItems.sectionDoc : null;
+      if (!sectionDoc) {
+        console.log('[SectionsDBManager] 섹션 문서 정보가 없습니다.');
+        return;
+      }
+
+      const serverCounter = sectionDoc.counterUpdated;
+      const serverCounterCollections = sectionDoc.counterCollections || {};
       
-      // 로컬 스토리지에서 이 섹션의 마지막 업데이트 타임스탬프 가져오기
-      const localStorageKey = `section_${sectionName}_lastUpdated`;
-      const localLastUpdated = localStorage.getItem(localStorageKey);
+      // 로컬 스토리지에서 카운터 값과 컬렉션 정보 가져오기
+      const localCounter = localStorage.getItem(`${sectionName}_counter`) || "0";
+      const localCounterValue = parseInt(localCounter);
       
-      // 변경 여부 확인 - 서버 타임스탬프가 로컬보다 최신이거나 로컬에 없는 경우에만 업데이트
-      const shouldUpdate = !localLastUpdated || 
-        !serverLastUpdated || 
-        new Date(serverLastUpdated).getTime() > new Date(localLastUpdated).getTime();
+      let localCollections = {};
+      try {
+        const savedCollections = localStorage.getItem(`${sectionName}_collections`);
+        if (savedCollections) {
+          localCollections = JSON.parse(savedCollections);
+        }
+      } catch (e) {
+        console.error('[SectionsDBManager] 로컬 컬렉션 정보 파싱 오류:', e);
+        localCollections = {};
+      }
+      
+      // 변경 여부 확인 - 서버 카운터가 로컬보다 큰 경우 업데이트 필요
+      const shouldUpdate = serverCounter > localCounterValue;
       
       if (shouldUpdate) {
-        // 서버 데이터를 클라이언트 형식으로 변환
-        const clientItems = this._transformToClientFormat(updatedItems, sectionName);
+        console.log(`[SectionsDBManager] ${sectionName} 섹션 업데이트 필요 (카운터: ${localCounterValue} -> ${serverCounter})`);
         
-        // 캐시 업데이트
-        this._cache.set(sectionName, clientItems);
-    
-        // 로컬 스토리지에 마지막 업데이트 타임스탬프 저장
-        if (serverLastUpdated) {
-          localStorage.setItem(localStorageKey, serverLastUpdated);
-        }
+        // 변경된 컬렉션 식별 및 데이터 가져오기
+        const updatedCollectionsPromises = [];
         
-        //AT 여기서 setCurItemListInCurSection(clientItems); 동작이 불가능해서, 이벤트 방식으로 대체
-        document.dispatchEvent(new CustomEvent('section-items-updated', {
-          detail: { sectionName, items: clientItems }
-        }));
+        // 서버의 컬렉션 정보 순회 (Map 구조 사용)
+        Object.entries(serverCounterCollections).forEach(([collectionName, collectionData]) => {
+          // 로컬에 해당 컬렉션 정보가 있는지 확인
+          const localCollectionData = localCollections[collectionName] || { counter: 0 };
+          
+          // 컬렉션이 없거나 서버 카운터가 더 큰 경우 업데이트 필요
+          if (!localCollectionData || collectionData.counter > localCollectionData.counter) {
+            console.log(`[SectionsDBManager] 컬렉션 업데이트 필요: ${collectionName} (${localCollectionData.counter || 0} -> ${collectionData.counter})`);
+            
+            // 해당 컬렉션의 데이터 가져오기 작업 추가
+            updatedCollectionsPromises.push(
+              getSectionCollectionData(sectionName, collectionName)
+                .then(collectionData => {
+                  return {
+                    nameCollection: collectionName,
+                    counter: collectionData.counter || (serverCounterCollections[collectionName]?.counter || 0),
+                    data: collectionData
+                  };
+                })
+            );
+          }
+        });
+        
+        // 모든 변경된 컬렉션 데이터 가져오기 완료 대기
+        Promise.all(updatedCollectionsPromises)
+          .then(collectionsData => {
+            // 각 컬렉션 데이터를 처리
+            collectionsData.forEach(collection => {
+              // 데이터가 items 컬렉션인 경우 특별 처리
+              if (collection.nameCollection === 'items' && collection.data.length > 0) {
+                // 서버 데이터를 클라이언트 형식으로 변환
+                const clientItems = this._transformToClientFormat(collection.data, sectionName);
+                
+                // 캐시 업데이트
+                this._cache.set(sectionName, clientItems);
+                
+                // 이벤트 발생
+                document.dispatchEvent(new CustomEvent('section-items-updated', {
+                  detail: { sectionName, items: clientItems }
+                }));
+              } else if (collection.data.length > 0) {
+                // 다른 컬렉션 데이터도 캐시에 저장
+                this._cache.set(sectionName, collection.data);
+              }
+            });
+            
+            // 로컬 스토리지에 카운터와 컬렉션 정보 업데이트
+            localStorage.setItem(`${sectionName}_counter`, serverCounter.toString());
+            localStorage.setItem(`${sectionName}_collections`, JSON.stringify(serverCounterCollections));
+            
+            console.log(`[SectionsDBManager] ${sectionName} 섹션 데이터 업데이트 완료 (카운터: ${serverCounter})`);
+          })
+          .catch(error => {
+            console.error(`[SectionsDBManager] 컬렉션 데이터 가져오기 오류:`, error);
+          });
       } else {
-        console.log(`[SectionsDBManager] ${sectionName} 섹션에 실제 변경사항 없음, 업데이트 건너뜀`);
+        console.log(`[SectionsDBManager] ${sectionName} 섹션에 실제 변경사항 없음, 업데이트 건너뜀 (로컬: ${localCounterValue}, 서버: ${serverCounter})`);
       }
     });
     
@@ -205,20 +276,24 @@ const SectionsDBManager = {
    * @param {Array} serverItems - 서버 형식 아이템 리스트 (protoServerDataset 형태)
    * @returns {Array} - 변환된 아이템 리스트 (protoitemdataSet 형태)
    */
-  _transformToClientFormat: function(serverItems, sectionName ) {
+  _transformToClientFormat: function(serverItems, sectionName) {
     // 오버레이 등록 처리
-
     if (!sectionName) {
       console.error('[SectionsDBManager] 섹션 이름이 제공되지 않았습니다.');
       return [];
     }
 
-      // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
-      MapOverlayManager.registerOverlaysByItemlist(
-        sectionName, 
-        serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
-      );
+    // serverItems가 없거나 빈 배열이면 빈 배열 반환
+    if (!serverItems || !Array.isArray(serverItems) || serverItems.length === 0) {
+      console.log(`[SectionsDBManager] ${sectionName} 섹션에 대한 서버 아이템이 없습니다.`);
+      return [];
+    }
 
+    // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
+    MapOverlayManager.registerOverlaysByItemlist(
+      sectionName, 
+      serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
+    );
 
     return serverItems.map(item => {
       const clientItems = {

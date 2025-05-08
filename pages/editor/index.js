@@ -1012,7 +1012,7 @@ export default function Editor() { // 메인 페이지
       
       {/* 구글 맵 스크립트 */}
       <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing,marker`}
+        src={`https://maps.googleapis.com/maps/api/js?key=${myAPIkeyforMap}&libraries=places,drawing,marker&loading=async`}
         strategy="afterInteractive"
       />
     </div>

@@ -38,7 +38,7 @@ const ExploringSidebar = ({
   // 각 아이템별 현재 표시중인 이미지 인덱스 관리
   const [currentImageIndexes, setCurrentImageIndexes] = useState({});
   // 카드 뷰 표시 상태
-  const [viewMode, setViewMode] = useState('list'); // 'list' 또는 'card'
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'card', 'tour' 중 하나
   // 카드 뷰의 현재 슬라이드 시작 인덱스
   const [cardViewStartIndex, setCardViewStartIndex] = useState(0);
   
@@ -477,6 +477,74 @@ const ExploringSidebar = ({
     );
   };
   
+  // 관광 뷰 렌더링
+  const renderTourView = () => {
+    if (!curItemListInCurSection || curItemListInCurSection.length === 0) {
+      return (
+        <div className={styles['explSidebar-emptyItem']}>
+          <span>항목이 없습니다.</span>
+        </div>
+      );
+    }
+    
+    return (
+      <div className={styles['explSidebar-tourView']}>
+        {curItemListInCurSection.map((item, index) => {
+          const isSelected = isItemSelected(item);
+          const itemId = item.serverDataset?.id;
+          
+          // 이미지 데이터 가져오기
+          const imagesProps = itemImagesProps[itemId];
+          const currentIndex = currentImageIndexes[itemId] || 0;
+          
+          // 이미지 요소 생성
+          let imageElement;
+          if (!imagesProps || imagesProps.length === 0) {
+            imageElement = (
+              <div className={styles['explSidebar-emptyImagePlaceholder']} style={{ width: '100%', height: '100%' }}>
+                <span>이미지 로딩 중...</span>
+              </div>
+            );
+          } else {
+            const imageData = imagesProps[currentIndex];
+            imageElement = (
+              <Image
+                {...imageData.props}
+                width={88}
+                height={88}
+                objectFit="cover"
+                onClick={(e) => handleImageClick(e, imageData.imageId, item.serverDataset.itemName)}
+                onLoad={() => handleImageLoad(imageData.imageId, item.serverDataset.itemName)}
+                onError={(e) => handleImageError(imageData.imageId, item.serverDataset.itemName, e)}
+              />
+            );
+          }
+          
+          return (
+            <div 
+              key={`tour-${index}-${itemId || index}`} 
+              className={isSelected ? styles['explSidebar-selectedTourCard'] : styles['explSidebar-tourCard']}
+            >
+              <a href="#" onClick={(e) => handleItemSelect(item, e)}>
+                <div className={styles['explSidebar-tourCardImage']}>
+                  {imageElement}
+                </div>
+                <div className={styles['explSidebar-tourCardContent']}>
+                  <div className={styles['explSidebar-tourCardTitle']}>
+                    {item.serverDataset?.itemName || ''}
+                  </div>
+                  <div className={styles['explSidebar-tourCardSubtitle']}>
+                    {item.serverDataset?.alias || ''}
+                  </div>
+                </div>
+              </a>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+  
   // 리스트 뷰 렌더링
   const renderListView = () => {
     if (!curItemListInCurSection || curItemListInCurSection.length === 0) {
@@ -576,15 +644,22 @@ const ExploringSidebar = ({
         >
           test
         </button>
-        <button className={styles['explSidebar-menuButton']}>관광</button>
+        <button 
+          className={styles['explSidebar-menuButton']}
+          onClick={() => handleChangeViewMode('tour')}
+        >
+          관광
+        </button>
       </div>
       <div className={styles['explSidebar-itemListContainer']}>
         {viewMode === 'list' ? (
           <ul className={styles['explSidebar-itemList']}>
             {renderListView()}
           </ul>
-        ) : (
+        ) : viewMode === 'card' ? (
           renderCardView()
+        ) : (
+          renderTourView()
         )}
       </div>
     </div>

@@ -37,6 +37,10 @@ const ExploringSidebar = ({
   const [imageLoadingStates, setImageLoadingStates] = useState({});
   // 각 아이템별 현재 표시중인 이미지 인덱스 관리
   const [currentImageIndexes, setCurrentImageIndexes] = useState({});
+  // 카드 뷰 표시 상태
+  const [viewMode, setViewMode] = useState('list'); // 'list' 또는 'card'
+  // 카드 뷰의 현재 슬라이드 시작 인덱스
+  const [cardViewStartIndex, setCardViewStartIndex] = useState(0);
   
   // 아이템 리스트가 변경될 때 이미지 props 로드
   useEffect(() => {
@@ -192,7 +196,7 @@ const ExploringSidebar = ({
     }
   };
   
-  // 다음 이미지로 이동
+  // next 이미지로 이동
   const handleNextImage = (e, itemId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -205,7 +209,7 @@ const ExploringSidebar = ({
     
     // 현재 인덱스
     const currentIndex = currentImageIndexes[itemId] || 0;
-    // 다음 인덱스 (마지막 이미지면 첫 이미지로)
+    // next 인덱스 (마지막 이미지면 첫 이미지로)
     const nextIndex = (currentIndex + 1) % itemImagePropsList.length;
     
     // 인덱스 업데이트
@@ -215,7 +219,7 @@ const ExploringSidebar = ({
     }));
   };
   
-  // 이전 이미지로 이동
+  // prev 이미지로 이동
   const handlePrevImage = (e, itemId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -228,7 +232,7 @@ const ExploringSidebar = ({
     
     // 현재 인덱스
     const currentIndex = currentImageIndexes[itemId] || 0;
-    // 이전 인덱스 (첫 이미지면 마지막 이미지로)
+    // prev 인덱스 (첫 이미지면 마지막 이미지로)
     const prevIndex = (currentIndex - 1 + itemImagePropsList.length) % itemImagePropsList.length;
     
     // 인덱스 업데이트
@@ -238,8 +242,8 @@ const ExploringSidebar = ({
     }));
   };
 
-  // 해당 아이템의 이미지 갤러리 렌더링
-  const renderItemImageGallery = (item) => {
+  // 해당 아이템의 이미지 네비게이팅 렌더링
+  const renderItemImageNavigatingItemsection = (item) => {
     if (!item.serverDataset?.id) return null;
     
     const itemId = item.serverDataset.id;
@@ -256,16 +260,16 @@ const ExploringSidebar = ({
     }
     
     return (
-      <div className={styles['explSidebar-imageGallery']}>
+      <div className={styles['explSidebar-imageNavigatingItemsection']}>
         {imagesProps.map((imageData, index) => (
           <div 
             key={`img-${itemId}-${index}`}
-            className={styles['explSidebar-galleryItem']}
+            className={styles['explSidebar-NavigatingItemsectionItem']}
             style={{ display: index === currentIndex ? 'block' : 'none' }}
           >
             <Image
               {...imageData.props}
-              className={styles['explSidebar-galleryImage']}
+              className={styles['explSidebar-NavigatingItemsectionImage']}
               onClick={(e) => handleImageClick(e, imageData.imageId, item.serverDataset.itemName)}
               onLoad={() => handleImageLoad(imageData.imageId, item.serverDataset.itemName)}
               onError={(e) => handleImageError(imageData.imageId, item.serverDataset.itemName, e)}
@@ -277,8 +281,8 @@ const ExploringSidebar = ({
     );
   };
 
-  // 이미지 갤러리 인디케이터 표시
-  const renderGalleryIndicator = (item) => {
+  // 이미지 네비게이팅 인디케이터 표시
+  const renderNavigatingItemsectionIndicator = (item) => {
     if (!item.serverDataset?.id) return null;
     
     const itemId = item.serverDataset.id;
@@ -290,7 +294,7 @@ const ExploringSidebar = ({
     const currentIndex = currentImageIndexes[itemId] || 0;
     
     return (
-      <div className={styles['explSidebar-galleryIndicator']}>
+      <div className={styles['explSidebar-NavigatingItemsectionIndicator']}>
         <span>{currentIndex + 1} / {imagesProps.length}</span>
       </div>
     );
@@ -317,6 +321,240 @@ const ExploringSidebar = ({
     if (!highlightedItemId || !item.serverDataset) return false;
     return highlightedItemId === item.serverDataset.id;
   };
+  
+  // 보기 모드 변경 핸들러
+  const handleChangeViewMode = (mode) => {
+    if (mode === viewMode) return;
+    setViewMode(mode);
+    // 카드 뷰로 전환 시 시작 인덱스 초기화
+    if (mode === 'card') {
+      setCardViewStartIndex(0);
+    }
+  };
+  
+  // 카드 뷰의 next 페이지로 이동 - 기존 네비게이션 로직과 동일하게 변경
+  const handleNextCardPage = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 아이템 리스트 길이
+    const itemCount = curItemListInCurSection.length;
+    // 한 페이지에 표시할 아이템 수
+    const itemsPerPage = 3;
+    // 최대 시작 인덱스 (페이지네이션의 마지막 페이지)
+    const maxStartIndex = Math.max(0, itemCount - itemsPerPage);
+    
+    // next 시작 인덱스 계산 (한 페이지씩 이동)
+    const nextStartIndex = Math.min(cardViewStartIndex + itemsPerPage, maxStartIndex);
+    
+    setCardViewStartIndex(nextStartIndex);
+  };
+  
+  // 카드 뷰의 prev 페이지로 이동 - 기존 네비게이션 로직과 동일하게 변경
+  const handlePrevCardPage = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 한 페이지에 표시할 아이템 수
+    const itemsPerPage = 3;
+    
+    // prev 시작 인덱스 계산 (한 페이지씩 이동)
+    const prevStartIndex = Math.max(0, cardViewStartIndex - itemsPerPage);
+    
+    setCardViewStartIndex(prevStartIndex);
+  };
+  
+  // 카드 뷰 네비게이션 버튼 표시 여부 확인
+  const shouldShowCardNavButtons = () => {
+    return curItemListInCurSection && curItemListInCurSection.length > 3;
+  };
+  
+  // 카드 아이템의 메인 이미지 가져오기
+  const getCardMainImage = (item) => {
+    if (!item.serverDataset?.id) return null;
+    
+    const itemId = item.serverDataset.id;
+    const imagesProps = itemImagesProps[itemId];
+    
+    if (!imagesProps || imagesProps.length === 0) {
+      return (
+        <div className={styles['explSidebar-emptyImagePlaceholder']} style={{ width: '100%', height: 100 }}>
+          <span>이미지 로딩 중...</span>
+        </div>
+      );
+    }
+    
+    const currentIndex = currentImageIndexes[itemId] || 0;
+    const imageData = imagesProps[currentIndex];
+    
+    return (
+      <Image
+        {...imageData.props}
+        className={styles['explSidebar-NavigatingItemsectionImage']}
+        onClick={(e) => handleImageClick(e, imageData.imageId, item.serverDataset.itemName)}
+        onLoad={() => handleImageLoad(imageData.imageId, item.serverDataset.itemName)}
+        onError={(e) => handleImageError(imageData.imageId, item.serverDataset.itemName, e)}
+      />
+    );
+  };
+  
+  // 카드 뷰 렌더링
+  const renderCardView = () => {
+    if (!curItemListInCurSection || curItemListInCurSection.length === 0) {
+      return (
+        <div className={styles['explSidebar-emptyItem']}>
+          <span>항목이 없습니다.</span>
+        </div>
+      );
+    }
+    
+    // 현재 보이는 아이템 (최대 3개)
+    const visibleItems = curItemListInCurSection.slice(cardViewStartIndex, cardViewStartIndex + 3);
+    
+    // 네비게이션 버튼 표시 여부
+    const showNavButtons = shouldShowCardNavButtons();
+    // prev 버튼 활성화 여부
+    const enablePrevButton = cardViewStartIndex > 0;
+    // next 버튼 활성화 여부 (시작 인덱스 + 표시 아이템 수 < 전체 아이템 수)
+    const enableNextButton = cardViewStartIndex + 3 < curItemListInCurSection.length;
+    
+    return (
+      <div className={styles['explSidebar-cardView']}>
+        {/* prev 버튼 - 기존 이미지 네비게이션 버튼 스타일 재사용 */}
+        {showNavButtons && enablePrevButton && (
+          <button 
+            className={`${styles['explSidebar-imageNavBtn']} ${styles['explSidebar-prevNavBtn']}`}
+            onClick={handlePrevCardPage}
+            aria-label="prev 페이지"
+            style={{ zIndex: 20 }}
+          >
+            ◀
+          </button>
+        )}
+        
+        {/* 카드 아이템 컨테이너 추가 */}
+        <div className={styles['explSidebar-cardItemsContainer']}>
+          {/* next 버튼 - 기존 이미지 네비게이션 버튼 스타일 재사용 */}
+          {showNavButtons && enableNextButton && (
+            <button 
+              className={`${styles['explSidebar-imageNavBtn']} ${styles['explSidebar-nextNavBtn']}`}
+              onClick={handleNextCardPage}
+              aria-label="next 페이지"
+              style={{ zIndex: 20 }}
+            >
+              ▶
+            </button>
+          )}
+          {/* 카드 아이템 */}
+          {visibleItems.map((item, index) => {
+            const isSelected = isItemSelected(item);
+            
+            return (
+              <div 
+                key={`card-${index}-${item.serverDataset?.id || index}`} 
+                className={isSelected ? styles['explSidebar-selectedCardItem'] : styles['explSidebar-cardItem']}
+              >
+                <a href="#" onClick={(e) => handleItemSelect(item, e)}>
+                  <div className={styles['explSidebar-cardImageContainer']}>
+                    {getCardMainImage(item)}
+                  </div>
+                  <div className={styles['explSidebar-cardDetails']}>
+                    <span className={styles['explSidebar-cardTitle']}>
+                      {item.serverDataset?.itemName || ''} 
+                      {item.serverDataset?.alias && <span> ({item.serverDataset.alias})</span>}
+                    </span>
+                    <p className={styles['explSidebar-cardComment']}>
+                      {item.serverDataset?.comment || ''}
+                    </p>
+                  </div>
+                </a>
+              </div>
+            );
+          })}
+        </div>
+        
+      </div>
+    );
+  };
+  
+  // 리스트 뷰 렌더링
+  const renderListView = () => {
+    if (!curItemListInCurSection || curItemListInCurSection.length === 0) {
+      return (
+        <li className={styles['explSidebar-emptyItem']}>
+          <span>항목이 없습니다.</span>
+        </li>
+      );
+    }
+    
+    return curItemListInCurSection.map((item, index) => {
+      return (
+        <li 
+          key={`shop-${index}-${item.serverDataset.itemName}`} 
+          className={isItemSelected(item) ? styles['explSidebar-selectedItem'] : styles['explSidebar-item']}
+        >
+          <a href="#" onClick={(e) => handleItemSelect(item, e)}>
+           
+            <div className={styles['explSidebar-imageContainer']}>
+              {/* 메인 이미지 */}
+              <div className={styles['explSidebar-mainImage']}>
+                {/* 이미지 네비게이팅 prev 버튼 - 이미지가 2개 이상일 때만 표시 */}
+                {shouldShowNavButtons(item) && (
+                  <button 
+                    className={styles['explSidebar-imageNavBtn']} 
+                    onClick={(e) => {
+                      // 이벤트 전파 중지
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handlePrevImage(e, item.serverDataset.id);
+                      return false;
+                    }}
+                    aria-label="prev 이미지"
+                    type="button"
+                  >
+                    ◀
+                  </button>
+                )}
+                
+                {/* 이미지 네비게이팅 렌더링 */}
+                {renderItemImageNavigatingItemsection(item)}
+                
+                {/* 이미지 네비게이팅 next 버튼 - 이미지가 2개 이상일 때만 표시 */}
+                {shouldShowNavButtons(item) && (
+                  <button 
+                    className={styles['explSidebar-imageNavBtn']} 
+                    onClick={(e) => {
+                      // 이벤트 전파 중지
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleNextImage(e, item.serverDataset.id);
+                      return false;
+                    }}
+                    aria-label="next 이미지"
+                    type="button"
+                  >
+                    ▶
+                  </button>
+                )}
+                
+                {/* 네비게이팅 인디케이터 */}
+                {renderNavigatingItemsectionIndicator(item)}
+              </div>
+            </div>
+            <div className={styles['explSidebar-itemDetails']}>
+              <span className={styles['explSidebar-itemTitle']}>
+                {item.serverDataset.itemName || ''} 
+                <span className={styles['explSidebar-storeStyle']}>{item.serverDataset.alias || ''}</span>
+              </span>
+            </div>
+            <p className={styles['explSidebar-itemComment']}>
+              {item.serverDataset.comment || ''}
+            </p>
+          </a>
+        </li>
+      );
+    });
+  };
 
   return (
     <div className={`${styles['explSidebar-sidebar']} ${isSidebarVisible ? '' : styles['explSidebar-hidden']}`}>
@@ -326,86 +564,29 @@ const ExploringSidebar = ({
         <button className={styles['explSidebar-iconButton']}>⚙️</button>
       </div>
       <div className={styles['explSidebar-menu']}>
-        <button className={styles['explSidebar-menuButton']}>숙소</button>
-        <button className={styles['explSidebar-menuButton']}>맛집</button>
+        <button 
+          className={styles['explSidebar-menuButton']}
+          onClick={() => handleChangeViewMode('list')}
+        >
+          맛집
+        </button>
+        <button 
+          className={styles['explSidebar-menuButton']}
+          onClick={() => handleChangeViewMode('card')}
+        >
+          test
+        </button>
         <button className={styles['explSidebar-menuButton']}>관광</button>
-        <button className={styles['explSidebar-menuButton']}>환전</button>
       </div>
-      <ul className={styles['explSidebar-itemList']}>
-        {curItemListInCurSection.length > 0 ? (
-          curItemListInCurSection.map((item, index) => {
-            return (
-              <li 
-                key={`shop-${index}-${item.serverDataset.itemName}`} 
-                className={isItemSelected(item) ? styles['explSidebar-selectedItem'] : styles['explSidebar-item']}
-              >
-                <a href="#" onClick={(e) => handleItemSelect(item, e)}>
-                 
-                  <div className={styles['explSidebar-imageContainer']}>
-                    {/* 메인 이미지 */}
-                    <div className={styles['explSidebar-mainImage']}>
-                      {/* 이미지 갤러리 이전 버튼 - 이미지가 2개 이상일 때만 표시 */}
-                      {shouldShowNavButtons(item) && (
-                        <button 
-                          className={styles['explSidebar-imageNavBtn']} 
-                          onClick={(e) => {
-                            // 이벤트 전파 중지
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handlePrevImage(e, item.serverDataset.id);
-                            return false;
-                          }}
-                          aria-label="이전 이미지"
-                          type="button"
-                        >
-                          ◀
-                        </button>
-                      )}
-                      
-                      {/* 이미지 갤러리 렌더링 */}
-                      {renderItemImageGallery(item)}
-                      
-                      {/* 이미지 갤러리 다음 버튼 - 이미지가 2개 이상일 때만 표시 */}
-                      {shouldShowNavButtons(item) && (
-                        <button 
-                          className={styles['explSidebar-imageNavBtn']} 
-                          onClick={(e) => {
-                            // 이벤트 전파 중지
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleNextImage(e, item.serverDataset.id);
-                            return false;
-                          }}
-                          aria-label="다음 이미지"
-                          type="button"
-                        >
-                          ▶
-                        </button>
-                      )}
-                      
-                      {/* 갤러리 인디케이터 */}
-                      {renderGalleryIndicator(item)}
-                    </div>
-                  </div>
-                  <div className={styles['explSidebar-itemDetails']}>
-                    <span className={styles['explSidebar-itemTitle']}>
-                      {item.serverDataset.itemName || ''} 
-                      <span className={styles['explSidebar-storeStyle']}>{item.serverDataset.alias || ''}</span>
-                    </span>
-                  </div>
-                  <p className={styles['explSidebar-itemComment']}>
-                    {item.serverDataset.comment || ''}
-                  </p>
-                </a>
-              </li>
-            );
-          })
+      <div className={styles['explSidebar-itemListContainer']}>
+        {viewMode === 'list' ? (
+          <ul className={styles['explSidebar-itemList']}>
+            {renderListView()}
+          </ul>
         ) : (
-          <li className={styles['explSidebar-emptyItem']}>
-            <span>항목이 없습니다.</span>
-          </li>
+          renderCardView()
         )}
-      </ul>
+      </div>
     </div>
   );
 };

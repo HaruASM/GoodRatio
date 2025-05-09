@@ -136,20 +136,20 @@
   display: block;
 }
 
-/* 이미지 갤러리 스타일 */
-.explSidebar-imageGallery {
+/* 이미지 네비게이팅 스타일 */
+.explSidebar-imageNavigatingItemsection {
   width: 100%;
   height: 100px;
   position: relative;
 }
 
-.explSidebar-galleryItem {
+.explSidebar-NavigatingItemsectionItem {
   width: 100%;
   height: 100%;
   position: relative;
 }
 
-.explSidebar-galleryImage {
+.explSidebar-NavigatingItemsectionImage {
   width: 100%;
   height: 100px;
   object-fit: cover;
@@ -163,7 +163,7 @@
   to { opacity: 1; }
 }
 
-.explSidebar-galleryItem {
+.explSidebar-NavigatingItemsectionItem {
   animation: fadeIn 0.3s ease;
 }
 
@@ -203,16 +203,26 @@
   transform: translateY(-50%) scale(0.95);
 }
 
-.explSidebar-imageNavBtn:first-of-type {
+/* prev/next 네비게이션 클래스 추가 */
+.explSidebar-prevNavBtn {
   left: 8px;
 }
 
-.explSidebar-imageNavBtn:last-of-type {
+.explSidebar-nextNavBtn {
   right: 8px;
 }
 
-/* 갤러리 인디케이터 */
-.explSidebar-galleryIndicator {
+/* 기존 선택자는 리스트 뷰에서만 사용되도록 수정 */
+.explSidebar-mainImage .explSidebar-imageNavBtn:first-of-type {
+  left: 8px;
+}
+
+.explSidebar-mainImage .explSidebar-imageNavBtn:last-of-type {
+  right: 8px;
+}
+
+/* 네비게이팅 인디케이터 */
+.explSidebar-NavigatingItemsectionIndicator {
   position: absolute;
   bottom: 8px;
   left: 50%;
@@ -286,4 +296,122 @@
   justify-content: center;
   color: #aaa;
   font-size: 12px;
+}
+
+/* 아이템 리스트 컨테이너 */
+.explSidebar-itemListContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 카드 뷰 스타일 */
+.explSidebar-cardView {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: hidden;
+  position: relative;
+  padding: 10px;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 카드 아이템 컨테이너 추가 */
+.explSidebar-cardItemsContainer {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+  
+  position: relative;
+  justify-content: space-between;
+  min-height: 140px;
+}
+
+.explSidebar-cardItem {
+  flex: 0 0 calc(33.333% - 10px);
+  height: 180px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.3s, box-shadow 0.3s;
+  background-color: #fff;
+  margin-bottom: 10px;
+}
+
+.explSidebar-cardItem:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+
+.explSidebar-cardItem a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.explSidebar-cardImageContainer {
+  height: 100px;
+  position: relative;
+  overflow: hidden;
+}
+
+.explSidebar-cardDetails {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.explSidebar-cardTitle {
+  font-weight: bold;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #007bff;
+}
+
+.explSidebar-cardComment {
+  font-size: 12px;
+  color: #666;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+/* 선택된 카드 아이템 */
+.explSidebar-selectedCardItem {
+  flex: 0 0 calc(33.333% - 10px);
+  height: 180px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,120,255,0.3);
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.3s, box-shadow 0.3s;
+  background-color: #e7f0fd;
+  margin-bottom: 10px;
+  border: 2px solid #007bff;
+}
+
+.explSidebar-selectedCardItem:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 12px rgba(0,120,255,0.4);
+  cursor: pointer;
+}
+
+.explSidebar-selectedCardItem a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
 } 

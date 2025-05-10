@@ -1,0 +1,140 @@
+.browser-container {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  position: relative;
+}
+
+/* 왼쪽 사이드바 */
+.browser-sidebar {
+  min-width: 200px;
+  max-width: 500px;
+  height: 100%;
+  background-color: #ffffff;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+  z-index: 1000;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+/* 오른쪽 사이드바 */
+.browser-rightSidebar {
+  width: 320px;
+  height: 100%;
+  background-color: #ffffff;
+  transition: transform 0.3s ease;
+  z-index: 1000;
+  flex-shrink: 0;
+  border-left: 1px solid var(--theme-border-strong);
+}
+
+.browser-sidebarVisible {
+  transform: translateX(0);
+}
+
+.browser-sidebarHidden {
+  transform: translateX(-100%);
+}
+
+.browser-rightSidebarHidden {
+  transform: translateX(100%);
+}
+
+.browser-mainContent {
+  flex: 1;
+  position: relative;
+  height: 100%;
+}
+
+/* 토글 버튼 공통 스타일 */
+.browser-toggleButton {
+  position: absolute;
+  z-index: 1001;
+  background-color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+}
+
+.browser-toggleButton:hover {
+  background-color: #f0f0f0;
+}
+
+/* 왼쪽 토글 버튼 */
+.browser-leftToggleButton {
+  top: 20px;
+  left: 20px;
+}
+
+/* 오른쪽 토글 버튼 */
+.browser-rightToggleButton {
+  top: 20px;
+  right: 20px;
+}
+
+.browser-mapView {
+  width: 100%;
+  height: 100%;
+}
+
+/* 맵 컨테이너에 적용될 레이아웃 옵션 - 이 클래스들은 MapViewMarking 컴포넌트로 전달됨 */
+.browser-fullWidth {
+  width: 100%;
+  margin-left: 0;
+}
+
+.browser-withSidebar {
+  margin-left: 0;
+}
+
+/* 응답형 설계 */
+@media (max-width: 1200px) {
+  .browser-rightSidebar {
+    width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .browser-container {
+    flex-direction: column;
+  }
+  
+  .browser-sidebar {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 300px;
+  }
+  
+  .browser-rightSidebar {
+    width: 100%;
+    height: 300px;
+  }
+  
+  .browser-sidebarHidden {
+    transform: translateY(-100%);
+  }
+  
+  .browser-rightSidebarHidden {
+    transform: translateY(100%);
+  }
+  
+  .browser-toggleButton {
+    top: 10px;
+    left: 10px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  
+  .browser-rightToggleButton {
+    top: auto;
+    bottom: 10px;
+    right: 10px;
+    left: auto;
+  }
+} 

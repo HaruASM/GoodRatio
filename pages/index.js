@@ -2,6 +2,8 @@ import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { firebasedb } from '../firebase';
+import Link from 'next/link';
+import styles from './index.module.css';
 
 // 내부 컴포넌트 정의
 function HomeComponent() {
@@ -22,13 +24,33 @@ function HomeComponent() {
   }, []);
 
   return (
-    <div>
-      <h1>Welcome to the Home Page</h1>
-      <ul>
-        {data.map(item => (
-          <li key={item.id}>{JSON.stringify(item.vehicle)}</li>
-        ))}
-      </ul>
+    <div className={styles.container}>
+      <h1 className={styles.title}>GoodRatio</h1>
+      
+      <div className={styles.navigation}>
+        <Link href="/editor">
+          <div className={styles.navCard}>
+            <h2>에디터 페이지</h2>
+            <p>상점 데이터 관리 및 편집</p>
+          </div>
+        </Link>
+        
+        <Link href="/browser">
+          <div className={styles.navCard}>
+            <h2>투어링 페이지</h2>
+            <p>맵 뷰 탐색 및 조회</p>
+          </div>
+        </Link>
+      </div>
+      
+      <div className={styles.dataSection}>
+        <h3>데이터 목록</h3>
+        <ul>
+          {data.map(item => (
+            <li key={item.id}>{JSON.stringify(item.vehicle)}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

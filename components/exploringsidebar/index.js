@@ -403,7 +403,7 @@ const ExploringSidebar = ({
     if (!curItemListInCurSection || curItemListInCurSection.length === 0) {
       return (
         <div className={styles['explSidebar-emptyItem']}>
-          <span>항목이 없습니다.</span>
+          <span>....</span>
         </div>
       );
     }
@@ -482,7 +482,7 @@ const ExploringSidebar = ({
     if (!curItemListInCurSection || curItemListInCurSection.length === 0) {
       return (
         <div className={styles['explSidebar-emptyItem']}>
-          <span>항목이 없습니다.</span>
+          <span>...</span>
         </div>
       );
     }
@@ -550,7 +550,7 @@ const ExploringSidebar = ({
     if (!curItemListInCurSection || curItemListInCurSection.length === 0) {
       return (
         <li className={styles['explSidebar-emptyItem']}>
-          <span>항목이 없습니다.</span>
+          <span>....</span>
         </li>
       );
     }

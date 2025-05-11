@@ -2,7 +2,7 @@ import { Provider } from 'react-redux';
 import { wrapper } from '../lib/store';
 import '../styles/globals.css'; // 전역 스타일시트 임포트
 import dynamic from 'next/dynamic';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import ModuleManager from '../lib/moduleManager';
 
@@ -175,17 +175,27 @@ const ModuleRouteManager = () => {
  * Next.js 커스텀 App 컴포넌트
  */
 function MyApp({ Component, pageProps }) {
+  // 클라이언트 사이드 렌더링 확인용 상태
+  const [isClient, setIsClient] = useState(false);
   
+  // 클라이언트 사이드에서만 실행되는 useEffect
+  // isClient 상태업데이트로 SSR 랜더링을 회피하고 클라이언트 사이트 랜더링으로 조절하기 위한 상태변수 업데이트용 
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   // next-redux-wrapper의 최신 API 사용
   const { store, props } = wrapper.useWrappedStore(pageProps);
   
   return (
     <Provider store={store}>
-      {/* 모듈 초기화 컴포넌트 */}
-      <ModuleInitializer />
-      {/* 모듈 라우팅 관리 컴포넌트 */}
-      <ModuleRouteManager />
+      {/* 모듈 초기화와 라우팅 관리는 클라이언트 사이드에서만 렌더링 */}
+      {isClient && (
+        <>
+          <ModuleInitializer />
+          <ModuleRouteManager />
+        </>
+      )}
       <LoggingFilter />
       <Component {...props.pageProps} />
       <ImageGallery />

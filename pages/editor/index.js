@@ -6,7 +6,10 @@ import Script from 'next/script';
 import Image from 'next/image';
 import styles from './styles.module.css';
 import { protoServerDataset, protoitemdataSet } from '../../lib/models/editorModels';
-import MapOverlayManager from '../../lib/components/map/MapOverlayManager';
+// MapOverlayManager 직접 임포트 제거하고 ModuleManager 사용으로 대체
+import ModuleManager from '../../lib/moduleManager';
+
+
 // 서버 유틸리티 함수 가져오기
 import { getSectionData, setupFirebaseListener, getSectionCollectionData } from '../../lib/services/serverUtils';
 // Place 유틸리티 함수 가져오기
@@ -289,11 +292,17 @@ const SectionsDBManager = {
       return [];
     }
 
-    // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
-    MapOverlayManager.registerOverlaysByItemlist(
-      sectionName, 
-      serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
-    );
+    // ModuleManager를 통해 MapOverlayManager 모듈 접근
+    const mapOverlayManager = ModuleManager.loadGlobalModule('mapOverlayManager');
+    if (mapOverlayManager) {
+      // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
+      mapOverlayManager.registerOverlaysByItemlist(
+        sectionName, 
+        serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
+      );
+    } else {
+      console.warn('[SectionsDBManager] MapOverlayManager 모듈이 아직 초기화되지 않았습니다.');
+    }
 
     return serverItems.map(item => {
       const clientItems = {
@@ -451,9 +460,14 @@ export default function Editor() { // 메인 페이지
 
   // 마커와 폴리곤 옵션 초기화 함수
   const initMarker = (_mapInstance) => { 
-     // MapOverlayManager 초기화
-     MapOverlayManager.initialize(_mapInstance);
-     console.log('[DEBUG] MapOverlayManager 초기화 성공');
+     // 전역 MapOverlayManager 모듈 로드
+     const mapOverlayManager = ModuleManager.loadGlobalModule('mapOverlayManager');
+     
+     if (mapOverlayManager) {
+       mapOverlayManager.initialize(_mapInstance);
+     } else {
+       console.warn('[DEBUG] MapOverlayManager 모듈이 아직 로드되지 않았습니다.');
+     }
   }
   
   // 검색창 초기화 함수
@@ -802,8 +816,7 @@ export default function Editor() { // 메인 페이지
 
     // 프로그램 언마운트시 필요한 코드
     return () => {
-      // MapOverlayManager에서 모든 오버레이를 내부적으로 정리하도록 호출
-      MapOverlayManager.cleanup();
+      clearInterval(_intervalId);
     }; // return
   }, []);
 
@@ -1018,6 +1031,9 @@ export default function Editor() { // 메인 페이지
     </div>
   );
 }
+
+// Editor 컴포넌트에 페이지 범위 정보 추가
+Editor.pageScope = 'editor';
 
 // 서버 사이드 프롭스 추가
 export const getServerSideProps = wrapper.getServerSideProps(

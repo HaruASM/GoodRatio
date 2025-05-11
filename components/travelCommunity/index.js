@@ -178,7 +178,7 @@ const TravelCommunity = () => {
             onClick={handleSendMessage}
             style={{ cursor: 'pointer' }}
           >
-            <span>➤</span>
+            <span>😊</span>
           </div>
         </div>
       </div>

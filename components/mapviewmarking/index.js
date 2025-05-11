@@ -44,10 +44,12 @@ const MapViewMarking = ({ className }) => {
       },
       mapId: "2ab3209702dae9cb"
     });
+    
 
     // 맵 로드 완료시 동작
     window.google.maps.event.addListenerOnce(_mapInstance, 'idle', () => {
       // initSearchInput(_mapInstance);
+      console.log('idle 맵생성완료');
     });
 
     instMap.current = _mapInstance;
@@ -128,7 +130,7 @@ const MapViewMarking = ({ className }) => {
   return (
     <div className={`${styles['mapviewmarking-mapContainer']} ${className || ''}`}>
       <div id="map" className={styles['mapviewmarking-map']}></div>
-      <div ref={searchformRef} className={styles['mapviewmarking-searchForm']}>
+      {/* <div ref={searchformRef} className={styles['mapviewmarking-searchForm']}>
         <div className={styles['mapviewmarking-searchInputContainer']}>
           <input
             ref={searchInputDomRef}
@@ -140,7 +142,8 @@ const MapViewMarking = ({ className }) => {
             <span className={styles['mapviewmarking-searchIcon']}>🔍</span>
           </button>
         </div>
-      </div>
+      </div> */}
+      
     </div>
   );
 };

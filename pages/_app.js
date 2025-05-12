@@ -31,7 +31,7 @@ const ROUTE_MODULE_MAP = {
   '^/$': [],
   
   // 클라이언트용 맵탐색 화면
-  '^/browser': ['mapOverlayManager'],
+  '^/browser': ['mapOverlayManager', 'sectionDBManager'],
   
   '^/editor': ['mapOverlayManager'],
   

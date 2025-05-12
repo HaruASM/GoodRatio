@@ -99,7 +99,7 @@
 .travelCommunity-inputArea {
   display: flex;
   align-items: center;
-  padding: 12px;
+  padding: 6px;
   background-color: var(--theme-bg-primary);
   border-top: 1px solid var(--theme-border);
 }

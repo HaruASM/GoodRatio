@@ -16,7 +16,7 @@ const TravelCommunity = () => {
     public: [
       { id: 1, username: 'Dobswe100', userType: 'ETH/USDT.P 24D', isBold: true, message: '다들 고베인좀 어떻게여?' },
       { id: 2, username: 'Maxwait', userType: '참여', message: '내려가주세요' },
-      { id: 3, username: 'Junideepal-5008', userType: 'BTC/DOLUSDT.P 5', isBold: true, message: '아님사람은 관바티는거고 그게 몰리고 시작한편...배매가 꼬이는거자뉴' },
+      { id: 3, username: 'Junideepal-5008', userType: 'BTC/DOLUSDT.P 5', isBold: true, message: '아님사람은 관바티는거고 그게 몰리고 시작한편... 꼬이는거자뉴' },
       { id: 4, username: 'Dobswe100', userType: 'ETH/USDT.P 24D', isBold: true, message: '고베인데 지금 쭉들어가는 사람은 왕초롱' },
       { id: 5, username: 'Dobswe100', userType: 'ETH/USDT.P 24D', isBold: true, message: '고베면 아까 롱락줍을때 사지... 물론 고베 재배 기준은 사람마다 다를 짓만 에헤' }
     ],
@@ -167,7 +167,7 @@ const TravelCommunity = () => {
         <div className={styles['travelCommunity-inputArea']}>
           <input 
             type="text" 
-            placeholder="할 말이 있으신가요?" 
+            placeholder="..." 
             className={styles['travelCommunity-input']}
             value={inputMessage}
             onChange={handleInputChange}

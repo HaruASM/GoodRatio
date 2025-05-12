@@ -71,11 +71,14 @@ function MyApp({ Component, pageProps }) {
   // next-redux-wrapper의 최신 API 사용
   const { store, props } = wrapper.useWrappedStore(pageProps);
   
+  // props가 undefined이거나 router가 없는 경우 기본값 제공
+  const defaultRouter = { pathname: '/', events: { on: () => {} } };
+  
   return (
     <Provider store={store}>
-      <ModuleManagerClient router={props.__N_SSG ? { pathname: '/', events: { on: () => {} } } : props.router} />
+      <ModuleManagerClient router={props?.__N_SSG ? defaultRouter : (props?.router || defaultRouter)} />
       <LoggingFilter />
-      <Component {...props.pageProps} />
+      <Component {...(props?.pageProps || pageProps)} />
       <ImageGallery />
       <ImageSelectionGallery />
       <ImageOrderEditorGallery />

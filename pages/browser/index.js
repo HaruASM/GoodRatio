@@ -3,97 +3,114 @@ import MapViewMarking from '../../components/mapviewmarking';
 import ExploringSidebar from '../../components/exploringsidebar';
 import TravelCommunity from '../../components/travelCommunity';
 import styles from './styles.module.css';
+import ModuleManager from '../../lib/moduleManager';
 
 
 const BrowserPage = () => {
+  // 맵 인스턴스 참조
+  const mapInstanceRef = useRef(null);
   const [isLeftSidebarVisible, setIsLeftSidebarVisible] = useState(true);
   const [isRightSidebarVisible, setIsRightSidebarVisible] = useState(true);
   
   // 현재 섹션 이름과 해당 섹션의 아이템 리스트를 상태로 관리
-  const [curSectionName, setCurSectionName] = useState(null);
+  const [curSectionName, setCurSectionName] = useState('');
   const [curItemListInCurSection, setCurItemListInCurSection] = useState([]);
   
   // 이전 아이템 리스트를 참조로 관리 (오버레이 제거 용도)
   const prevItemListforRelieveOverlays = useRef([]);
+  
+  // 구독 해제 함수 참조 관리
+  const unsubscribeRef = useRef(null);
 
-  // 섹션 변경, 초기 설정 및 업데이트 이벤트 핸들러 통합
+  // 맵 초기화 완료 후 추가 설정을 위한 효과
   useEffect(() => {
-    // 섹션 업데이트 이벤트 핸들러 정의
-    const handleSectionUpdate = (event) => {
-      const { sectionName, items, serverLastUpdated } = event.detail;
+    // 맵 초기화 완료 시 이벤트 리스너
+    const handleMapReady = (event) => {
+      const mapInstance = event.detail.mapInstance;
+      console.log('[BrowserPage] 맵 초기화 완료 이벤트 수신');
       
-      // 현재 선택된 섹션에 대한 업데이트인 경우만 처리
-      if (sectionName === curSectionName) {
-        console.log(`[BrowserPage] ${sectionName} 섹션 업데이트 감지`);
-        
-        // 로컬 스토리지 키
-        const localStorageKey = `${sectionName}_lastUpdated`;
-        
-        // 로컬 스토리지에서 마지막 업데이트 타임스탬프 가져오기
-        const localLastUpdated = localStorage.getItem(localStorageKey);
-        
-        // 업데이트 여부 확인 (타임스탬프가 없거나 서버 타임스탬프가 더 최신)
-        const shouldUpdate = !localLastUpdated || (serverLastUpdated && serverLastUpdated > parseInt(localLastUpdated));
-        
-        if (shouldUpdate) {
-          // UI 업데이트
-          setCurItemListInCurSection((prev) => {
-            prevItemListforRelieveOverlays.current = prev;
-            return items;
-          });
-          
-          // 로컬 스토리지에 마지막 업데이트 타임스탬프 저장
-          if (serverLastUpdated) {
-            localStorage.setItem(localStorageKey, serverLastUpdated);
-          }
-        } else {
-          console.log(`[BrowserPage] ${sectionName} 섹션에 실제 변경사항 없음, UI 업데이트 건너뜀`);
-        }
+      // MapOverlayManager 초기화
+      const mapOverlayManager = ModuleManager.loadGlobalModule('mapOverlayManager');
+      if (mapOverlayManager) {
+        console.log('[BrowserPage] MapOverlayManager 초기화');
+        mapOverlayManager.initialize(mapInstance);
       }
+      
+      // 데이터 구독 설정
+      setupDataSubscription();
     };
     
-    // 섹션 업데이트 이벤트 리스너 등록
-    document.addEventListener('section-items-updated', handleSectionUpdate);
+    // 이벤트 리스너 등록
+    window.addEventListener('map:ready', handleMapReady);
     
-    // 초기 섹션 설정 - 컴포넌트 마운트 시 한 번만 실행
+    // 이미 맵이 초기화되어 있는 경우 처리
+    if (mapInstanceRef.current) {
+      console.log('[BrowserPage] 맵이 이미 초기화됨');
+      const mapReadyEvent = new CustomEvent('map:ready', { 
+        detail: { mapInstance: mapInstanceRef.current } 
+      });
+      window.dispatchEvent(mapReadyEvent);
+    }
+    
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      window.removeEventListener('map:ready', handleMapReady);
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, []);
+  
+  // 데이터 구독 설정 함수 - 맵 초기화 후 호출됨
+  const setupDataSubscription = () => {
+    console.log('[BrowserPage] 데이터 구독 설정 시작');
+    
+    // ModuleManager에서 sectionDBManager 모듈 가져오기
+    const sectionDBManager = ModuleManager.loadGlobalModule('sectionDBManager');
+    
+    if (!sectionDBManager) {
+      console.error('[BrowserPage] sectionDBManager 모듈을 찾을 수 없음');
+      return;
+    }
+    
+    // 초기 섹션명 설정
     if (!curSectionName) {
       setCurSectionName('반월당');
-      return () => {
-        document.removeEventListener('section-items-updated', handleSectionUpdate);
-      };
+      return; // 섹션명 변경 시 useEffect에서 다시 데이터 로드함
     }
     
-    // curSectionName이 변경되었을 때 실행되는 로직
-    // ModuleManager에서 sectionDBManager 모듈 가져오기
-    if (typeof window !== 'undefined' && window.ModuleManager) {
-      const sectionDBManager = window.ModuleManager.loadGlobalModule('sectionDBManager');
-      
-      if (sectionDBManager) {
-        console.log(`[BrowserPage] ${curSectionName} 섹션 데이터 로드 시작`);
-        
-        // 섹션 데이터 가져오기
-        sectionDBManager.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
-          if (_sectionItemListfromDB.length > 0) {
-            // 새 아이템 리스트로 업데이트
-            setCurItemListInCurSection((prev) => {
-              prevItemListforRelieveOverlays.current = prev;
-              return _sectionItemListfromDB;
-            });
-            
-            console.log(`[BrowserPage] ${curSectionName} 섹션 데이터 로드 완료 (${_sectionItemListfromDB.length}개 항목)`);
-          } else {
-            console.error(`[BrowserPage] ${curSectionName} 섹션 데이터를 가져오지 못함`);
-          }
+    // 섹션 데이터 변경 구독 - sectionName과 items를 함께 받는 콜백
+    unsubscribeRef.current = sectionDBManager.subscribe((sectionName, items) => {
+      // 현재 선택된 섹션에 대한 업데이트만 처리
+      if (sectionName === curSectionName) {
+        console.log(`[BrowserPage] ${sectionName} 섹션 데이터 업데이트 수신 (${items.length}개 항목)`);
+        setCurItemListInCurSection((prev) => {
+          prevItemListforRelieveOverlays.current = prev;
+          return items;
         });
-      } else {
-        console.error('[BrowserPage] sectionDBManager 모듈을 찾을 수 없음');
       }
-    }
+    });
     
-    // 클린업 함수
-    return () => {
-      document.removeEventListener('section-items-updated', handleSectionUpdate);
-    };
+    // 초기 데이터 로드
+    sectionDBManager.getSectionItems(curSectionName).catch(error => {
+      console.error(`[BrowserPage] ${curSectionName} 섹션 데이터 로드 오류:`, error);
+    });
+  };
+  
+  // curSectionName 변경 시 실행되는 효과
+  useEffect(() => {
+    if (!curSectionName) return;
+    
+    const sectionDBManager = ModuleManager.loadGlobalModule('sectionDBManager');
+    if (!sectionDBManager) return;
+    
+    console.log(`[BrowserPage] ${curSectionName} 섹션 데이터 로드 요청`);
+    
+    // 섹션 변경 시 새 섹션 데이터 로드
+    sectionDBManager.getSectionItems(curSectionName).catch(error => {
+      console.error(`[BrowserPage] ${curSectionName} 섹션 데이터 로드 오류:`, error);
+    });
   }, [curSectionName]);
 
   const toggleLeftSidebar = () => {
@@ -119,7 +136,8 @@ const BrowserPage = () => {
       <div className={styles['browser-mainContent']}>
         {/* 맵 뷰 */}
         <MapViewMarking 
-          className={styles['browser-mapView']} 
+          className={styles['browser-mapView']}
+          mapInstanceRef={mapInstanceRef}
         />
       </div>
 

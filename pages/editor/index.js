@@ -63,7 +63,7 @@ const myAPIkeyforMap = process.env.NEXT_PUBLIC_MAPS_API_KEY;
  * 로컬,서버관리하는 모듈의 getSectionData 인터페이스 이용 -> sectionDB용 서버데이터셋 로드 -> 클라이언트데이터셋 변환 
  * cache에서 반환시 마커,오버레이 포함 
  */
-const SectionsDBManager = {
+const sectionsDBManagerOfEditor = {
   // 섹션 데이터 캐시 (Map 객체)
   _cache: new Map(),
   
@@ -105,7 +105,7 @@ const SectionsDBManager = {
       
       return clientItems;
     } catch (error) {
-       console.error(`SectionsDBManager: ${sectionName} 데이터 로드 오류`, error);
+       console.error(`sectionsDBManagerOfEditor: ${sectionName} 데이터 로드 오류`, error);
       
       // 오류 발생해도 리스너 설정은 시도
       this._setupRealtimeListener(sectionName);
@@ -136,12 +136,12 @@ const SectionsDBManager = {
         // sectionName의 필드에서 counterUpdated의 값을 로컬스토리지 counter와 비교
         // 이후 counterCollections자료구조 값을 조회하여 특정 컬렉션 변경 여부 확인
     this._currentListener = setupFirebaseListener(sectionName, (updatedItems, changes) => {
-      console.log('[SectionsDBManager] 실시간 리스너 cb 동작', updatedItems, changes);
+      console.log('[sectionsDBManagerOfEditor] 실시간 리스너 cb 동작', updatedItems, changes);
 
       // 서버의 counterUpdated 값과 updatedCollections 배열 확인
       const sectionDoc = updatedItems ? updatedItems.sectionDoc : null;
       if (!sectionDoc) {
-        console.log('[SectionsDBManager] 섹션 문서 정보가 없습니다.');
+        console.log('[sectionsDBManagerOfEditor] 섹션 문서 정보가 없습니다.');
         return;
       }
 
@@ -159,7 +159,7 @@ const SectionsDBManager = {
           localCollections = JSON.parse(savedCollections);
         }
       } catch (e) {
-        console.error('[SectionsDBManager] 로컬 컬렉션 정보 파싱 오류:', e);
+        console.error('[sectionsDBManagerOfEditor] 로컬 컬렉션 정보 파싱 오류:', e);
         localCollections = {};
       }
       
@@ -167,7 +167,7 @@ const SectionsDBManager = {
       const shouldUpdate = serverCounter > localCounterValue;
       
       if (shouldUpdate) {
-        console.log(`[SectionsDBManager] ${sectionName} 섹션 업데이트 필요 (카운터: ${localCounterValue} -> ${serverCounter})`);
+        console.log(`[sectionsDBManagerOfEditor] ${sectionName} 섹션 업데이트 필요 (카운터: ${localCounterValue} -> ${serverCounter})`);
         
         // 변경된 컬렉션 식별 및 데이터 가져오기
         const updatedCollectionsPromises = [];
@@ -179,7 +179,7 @@ const SectionsDBManager = {
           
           // 컬렉션이 없거나 서버 카운터가 더 큰 경우 업데이트 필요
           if (!localCollectionData || collectionData.counter > localCollectionData.counter) {
-            console.log(`[SectionsDBManager] 컬렉션 업데이트 필요: ${collectionName} (${localCollectionData.counter || 0} -> ${collectionData.counter})`);
+            console.log(`[sectionsDBManagerOfEditor] 컬렉션 업데이트 필요: ${collectionName} (${localCollectionData.counter || 0} -> ${collectionData.counter})`);
             
             // 해당 컬렉션의 데이터 가져오기 작업 추가
             updatedCollectionsPromises.push(
@@ -222,13 +222,13 @@ const SectionsDBManager = {
             localStorage.setItem(`${sectionName}_counter`, serverCounter.toString());
             localStorage.setItem(`${sectionName}_collections`, JSON.stringify(serverCounterCollections));
             
-            console.log(`[SectionsDBManager] ${sectionName} 섹션 데이터 업데이트 완료 (카운터: ${serverCounter})`);
+            console.log(`[sectionsDBManagerOfEditor] ${sectionName} 섹션 데이터 업데이트 완료 (카운터: ${serverCounter})`);
           })
           .catch(error => {
-            console.error(`[SectionsDBManager] 컬렉션 데이터 가져오기 오류:`, error);
+            console.error(`[sectionsDBManagerOfEditor] 컬렉션 데이터 가져오기 오류:`, error);
           });
       } else {
-        console.log(`[SectionsDBManager] ${sectionName} 섹션에 실제 변경사항 없음, 업데이트 건너뜀 (로컬: ${localCounterValue}, 서버: ${serverCounter})`);
+        console.log(`[sectionsDBManagerOfEditor] ${sectionName} 섹션에 실제 변경사항 없음, 업데이트 건너뜀 (로컬: ${localCounterValue}, 서버: ${serverCounter})`);
       }
     });
     
@@ -256,7 +256,7 @@ const SectionsDBManager = {
     
     // 아이템 목록이 없으면 null 반환
     if (!items || items.length === 0) {
-      console.log(`[SectionsDBManager] ${sectionName} 섹션에 아이템이 없습니다`);
+      console.log(`[sectionsDBManagerOfEditor] ${sectionName} 섹션에 아이템이 없습니다`);
       return null;
     }
     
@@ -268,7 +268,7 @@ const SectionsDBManager = {
     });
     
     if (!item) {
-      console.log(`[SectionsDBManager] ${sectionName} 섹션에서 ID가 ${id}인 아이템을 찾을 수 없습니다`);
+      console.log(`[sectionsDBManagerOfEditor] ${sectionName} 섹션에서 ID가 ${id}인 아이템을 찾을 수 없습니다`);
     }
     
     return item || null;
@@ -282,13 +282,13 @@ const SectionsDBManager = {
   _transformToClientFormat: function(serverItems, sectionName) {
     // 오버레이 등록 처리
     if (!sectionName) {
-      console.error('[SectionsDBManager] 섹션 이름이 제공되지 않았습니다.');
+      console.error('[sectionsDBManagerOfEditor] 섹션 이름이 제공되지 않았습니다.');
       return [];
     }
 
     // serverItems가 없거나 빈 배열이면 빈 배열 반환
     if (!serverItems || !Array.isArray(serverItems) || serverItems.length === 0) {
-      console.log(`[SectionsDBManager] ${sectionName} 섹션에 대한 서버 아이템이 없습니다.`);
+      console.log(`[sectionsDBManagerOfEditor] ${sectionName} 섹션에 대한 서버 아이템이 없습니다.`);
       return [];
     }
 
@@ -301,7 +301,7 @@ const SectionsDBManager = {
         serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
       );
     } else {
-      console.warn('[SectionsDBManager] MapOverlayManager 모듈이 아직 초기화되지 않았습니다.');
+      console.warn('[sectionsDBManagerOfEditor] MapOverlayManager 모듈이 아직 초기화되지 않았습니다.');
     }
 
     return serverItems.map(item => {
@@ -363,7 +363,7 @@ export default function Editor() { // 메인 페이지
   // 임시 오버레이(마커, 다각형) 관리 - 하나의 상태로 통합
   const [tempOverlays, setTempOverlays] = useState({ marker: null, polygon: null });
   
-  // sectionsDB 참조 제거 (SectionsDBManager로 완전히 대체)
+  // sectionsDB 참조 제거 (sectionsDBManagerOfEditor로 완전히 대체)
   
   const [curItemListInCurSection, setCurItemListInCurSection] = useState([]);
   // 이전 아이템 리스트를 useRef로 변경
@@ -854,7 +854,7 @@ export default function Editor() { // 메인 페이지
     
     if (!curSectionName) return;
     //TODO sectionDBManager의 컴포넌트로 이식 + 리덕스 환경으로 전환 차후에 진행. 
-    SectionsDBManager.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
+    sectionsDBManagerOfEditor.getSectionItems(curSectionName).then(_sectionItemListfromDB => {
       if (_sectionItemListfromDB.length > 0) {
         // 현재 아이템 리스트를 이전 값으로 저장 (useRef 사용)
         
@@ -977,9 +977,9 @@ export default function Editor() { // 메인 페이지
   }, [mapCenter, mapZoom]);
 
  
-  // 마지막에 추가 - SectionsDBManager를 전역 객체로 등록
+  // 마지막에 추가 - sectionsDBManagerOfEditor를 전역 객체로 등록
   if (typeof window !== 'undefined') {
-    window.SectionsDBManager = SectionsDBManager;
+    window.sectionsDBManagerOfEditor = sectionsDBManagerOfEditor;
   }
 
   return (

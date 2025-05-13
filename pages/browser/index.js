@@ -4,6 +4,7 @@ import ExploringSidebar from '../../components/exploringsidebar';
 import TravelCommunity from '../../components/travelCommunity';
 import styles from './styles.module.css';
 
+
 const BrowserPage = () => {
   const [isLeftSidebarVisible, setIsLeftSidebarVisible] = useState(true);
   const [isRightSidebarVisible, setIsRightSidebarVisible] = useState(true);

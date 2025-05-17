@@ -51,7 +51,7 @@ import {
 } from '../../lib/store/slices/imageGallerySlice';
 
 import { openGallery } from '../../lib/store/slices/imageGallerySlice';
-import { selectSelectedItemId, selectSelectedSectionName } from '../../lib/store/slices/mapEventSlice';
+import { selectSelectedItemId, selectcurrentSectionName } from '../../lib/store/slices/mapEventSlice';
 import { createLoadingOverlayforDIV, withLoadingOverlay } from '../../lib/utils/uiHelpers';
 import { getAllIconDesignsForIconSelector } from '../../lib/components/map/MapIcons';
 
@@ -516,7 +516,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
   
   // 새로운 상태 추가
   const selectedItemId = useSelector(selectSelectedItemId);
-  const selectedSectionName = useSelector(selectSelectedSectionName);
+  const currentSectionName = useSelector(selectcurrentSectionName);
   
   // 로딩 오버레이를 표시할 DOM 요소 참조를 위한 useRef
   const galleryContainerRef = useRef(null); // 갤러리 보기 버튼에 로딩 오버레이 표시용
@@ -825,7 +825,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
     
     // 새로운 상태 추가
     const selectedItemId = useSelector(selectSelectedItemId);
-    const selectedSectionName = useSelector(selectSelectedSectionName);
+    const currentSectionName = useSelector(selectcurrentSectionName);
     
     // Command 패턴: 상태에 따른 명령 객체 정의
     const buttonCommands = {
@@ -833,10 +833,10 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
         text: '수정',
         action: () => {
           // CompareBar와 같은 방식으로 구현
-          if (selectedItemId && selectedSectionName && window.SectionsDBManager) {
-            const selectedItem = window.SectionsDBManager.getItemByIDandSectionName(
+          if (selectedItemId && currentSectionName && window.sectionsDBManagerOfEditor) {
+            const selectedItem = window.sectionsDBManagerOfEditor.getItemByIDandSectionName(
               selectedItemId, 
-              selectedSectionName
+              currentSectionName
             );
             
             if (selectedItem && selectedItem.serverDataset) {
@@ -845,7 +845,7 @@ const SidebarContent = ({ googlePlaceSearchBarButtonHandler, mapOverlayHandlers 
               dispatch(startEdit({ itemdata: protoServerDataset }));
             }
           } else {
-            console.error('selectedItemId 또는 selectedSectionName이 없거나 SectionsDBManager가 없습니다.');
+            console.error('selectedItemId 또는 currentSectionName이 없거나 SectionsDBManager가 없습니다.');
           }
         }
       },

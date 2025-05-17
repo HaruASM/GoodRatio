@@ -1,0 +1,518 @@
+.explSidebar-sidebar {
+  flex: 0 0 320px;
+  width: 320px;
+  background-color: #fff;
+  overflow-y: auto;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  position: relative;
+}
+
+.explSidebar-hidden {
+  display: none;
+}
+
+.explSidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
+  border-bottom: 1px solid #ddd;
+  background-color: #fff;
+}
+
+.explSidebar-header h1 {
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+}
+
+.explSidebar-backButton, .explSidebar-iconButton {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.explSidebar-menu {
+  display: flex;
+  justify-content: flex-start;
+  padding: 10px 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.explSidebar-menuButton {
+  flex: 1;
+  margin: 0 5px;
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background-color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.explSidebar-itemList {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.explSidebar-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 7px;
+  border-bottom: 1px solid #eee;
+  align-items: flex-start;
+  transition: background-color 0.3s;
+}
+
+.explSidebar-item:hover {
+  background-color: #f0f0f0;
+  cursor: pointer;
+}
+
+.explSidebar-item a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+}
+
+.explSidebar-itemDetails {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.explSidebar-itemTitle {
+  font-weight: bold;
+  color: #007bff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.explSidebar-storeStyle {
+  color: #444;
+  font-size: 0.85em;
+  font-weight: normal;
+}
+
+.explSidebar-itemComment {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.4;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.explSidebar-imageContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.explSidebar-mainImage {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.explSidebar-mainImage img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+/* 이미지 네비게이팅 스타일 */
+.explSidebar-imageNavigatingItemsection {
+  width: 100%;
+  height: 100px;
+  position: relative;
+}
+
+.explSidebar-NavigatingItemsectionItem {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.explSidebar-NavigatingItemsectionImage {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+  transition: opacity 0.3s ease;
+}
+
+/* 이미지 전환 애니메이션 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.explSidebar-NavigatingItemsectionItem {
+  animation: fadeIn 0.3s ease;
+}
+
+/* 이미지 네비게이션 버튼 */
+.explSidebar-imageNavBtn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s, transform 0.2s;
+  opacity: 0.8;
+  color: #333;
+  outline: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  padding: 0;
+  margin: 0;
+}
+
+.explSidebar-imageNavBtn:hover {
+  background-color: rgba(255, 255, 255, 0.95);
+  opacity: 1;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.explSidebar-imageNavBtn:active {
+  background-color: rgba(255, 255, 255, 1);
+  transform: translateY(-50%) scale(0.95);
+}
+
+/* prev/next 네비게이션 클래스 추가 */
+.explSidebar-prevNavBtn {
+  left: 8px;
+}
+
+.explSidebar-nextNavBtn {
+  right: 8px;
+}
+
+/* 기존 선택자는 리스트 뷰에서만 사용되도록 수정 */
+.explSidebar-mainImage .explSidebar-imageNavBtn:first-of-type {
+  left: 8px;
+}
+
+.explSidebar-mainImage .explSidebar-imageNavBtn:last-of-type {
+  right: 8px;
+}
+
+/* 네비게이팅 인디케이터 */
+.explSidebar-NavigatingItemsectionIndicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.explSidebar-subImages {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.explSidebar-subImage {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.explSidebar-subImage img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+/* 선택된 아이템 스타일 */
+.explSidebar-selectedItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+  align-items: flex-start;
+  background-color: #e7f0fd;
+  position: relative;
+}
+
+.explSidebar-selectedItem:hover {
+  background-color: #d0e5ff;
+  cursor: pointer;
+}
+
+.explSidebar-selectedItem a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+}
+
+.explSidebar-selectedItem::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: #007bff;
+}
+
+.explSidebar-emptyImagePlaceholder {
+  background-color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: 12px;
+}
+
+/* 아이템 리스트 컨테이너 */
+.explSidebar-itemListContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 카드 뷰 스타일 */
+.explSidebar-cardView {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: hidden;
+  position: relative;
+  padding: 10px;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 카드 아이템 컨테이너 추가 */
+.explSidebar-cardItemsContainer {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+  
+  position: relative;
+  justify-content: space-between;
+  min-height: 140px;
+}
+
+.explSidebar-cardItem {
+  flex: 0 0 calc(33.333% - 10px);
+  height: 180px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.3s, box-shadow 0.3s;
+  background-color: #fff;
+  margin-bottom: 10px;
+}
+
+.explSidebar-cardItem:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+
+.explSidebar-cardItem a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.explSidebar-cardImageContainer {
+  height: 100px;
+  position: relative;
+  overflow: hidden;
+}
+
+.explSidebar-cardDetails {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.explSidebar-cardTitle {
+  font-weight: bold;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #007bff;
+}
+
+.explSidebar-cardComment {
+  font-size: 12px;
+  color: #666;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+/* 선택된 카드 아이템 */
+.explSidebar-selectedCardItem {
+  flex: 0 0 calc(33.333% - 10px);
+  height: 180px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,120,255,0.3);
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.3s, box-shadow 0.3s;
+  background-color: #e7f0fd;
+  margin-bottom: 10px;
+  border: 2px solid #007bff;
+}
+
+.explSidebar-selectedCardItem:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 12px rgba(0,120,255,0.4);
+  cursor: pointer;
+}
+
+.explSidebar-selectedCardItem a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+/* 관광 모드 카드 스타일 */
+.explSidebar-tourView {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 10px;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.explSidebar-tourCard {
+  flex: 0 0 calc(100% - 16px);
+  height: 88px;
+  border-radius: 8px;
+  background-color: white;
+  margin-bottom: 8px;
+  display: flex;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.explSidebar-tourCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+
+.explSidebar-tourCard a {
+  display: flex;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.explSidebar-tourCardImage {
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  position: relative;
+  overflow: hidden;
+}
+
+.explSidebar-tourCardImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.explSidebar-tourCardContent {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.explSidebar-tourCardTitle {
+  font-size: 14px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.explSidebar-tourCardSubtitle {
+  font-size: 12px;
+  color: #777;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explSidebar-selectedTourCard {
+  flex: 0 0 calc(100% - 16px);
+  height: 88px;
+  border-radius: 8px;
+  background-color: #e7f0fd;
+  margin-bottom: 8px;
+  display: flex;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,120,255,0.2);
+  border-left: 4px solid #007bff;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.explSidebar-selectedTourCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 6px rgba(0,120,255,0.25);
+  cursor: pointer;
+}
+
+.explSidebar-selectedTourCard a {
+  display: flex;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
+} 

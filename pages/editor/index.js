@@ -48,7 +48,7 @@ import { wrapper } from '../../lib/store';
 import { 
   curSectionChanged,
   selectSelectedItemId,
-  selectSelectedSectionName,
+  selectcurrentSectionName,
   itemSelectedThunk,
   selectMapCenter,
   selectMapZoom,
@@ -403,7 +403,7 @@ export default function Editor() { // 메인 페이지
 
   // mapEventSlice 상태 선택자 추가
   const selectedItemId = useSelector(selectSelectedItemId);
-  const selectedSectionName = useSelector(selectSelectedSectionName);
+  const currentSectionName = useSelector(selectcurrentSectionName);
   const mapCenter = useSelector(selectMapCenter);
   const mapZoom = useSelector(selectMapZoom);
   

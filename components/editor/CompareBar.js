@@ -24,7 +24,7 @@ import {
 } from '../../lib/store/slices/rightSidebarSlice';
 import {
   selectSelectedItemId,
-  selectSelectedSectionName
+  selectcurrentSectionName
 } from '../../lib/store/slices/mapEventSlice';
 
 import { 
@@ -87,7 +87,7 @@ const CompareSidebarContent = ({ onClose, onInsertToRightSidebar, onStopInsertMo
   const isInserting = useSelector(selectIsInserting);
   const dispatch = useDispatch();
   //const selectedItemId = useSelector(selectSelectedItemId);
-  //const selectedSectionName = useSelector(selectSelectedSectionName);
+  //const currentSectionName = useSelector(selectcurrentSectionName);
   
   
   // 입력 필드 스타일 결정 함수
@@ -425,7 +425,7 @@ const CompareBar = () => {
   const isIdle = useSelector(selectIsIdle);
   const compareData = useSelector(selectCompareBarData);
   const selectedItemId = useSelector(selectSelectedItemId);
-  const selectedSectionName = useSelector(selectSelectedSectionName);
+  const currentSectionName = useSelector(selectcurrentSectionName);
   const dispatch = useDispatch();
 
   // CompareBar 활성화 상태가 변경될 때 body 클래스 토글
@@ -480,10 +480,11 @@ const CompareBar = () => {
       // isEditing이 false일 때만 startEdit 호출
       if (!isEditing) {
         // 현재 선택된 아이템이 있는 경우 해당 아이템의 데이터를 가져와 startEdit 액션 디스패치
-        if (selectedItemId && selectedSectionName && window.SectionsDBManager) {
-          const selectedItem = window.SectionsDBManager.getItemByIDandSectionName(
+        if (selectedItemId && currentSectionName && window.sectionsDBManagerOfEditor) {
+          //FIXME 이부분 사용되는지 불분명
+          const selectedItem = window.sectionsDBManagerOfEditor.getItemByIDandSectionName(
             selectedItemId, 
-            selectedSectionName
+            currentSectionName
           );
           
           if (selectedItem && selectedItem.serverDataset) {

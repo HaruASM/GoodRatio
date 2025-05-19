@@ -28,7 +28,7 @@ const ImageOrderEditorGallery = dynamic(() => import('../components/editor/Image
  */
 const ROUTE_MODULE_MAP = {
   // 메인 페이지
-  '^/$': [],
+  '^/$': ['sectionDBManager'],
   
   // 클라이언트용 맵탐색 화면
   '^/browser': ['mapOverlayManager', 'sectionDBManager', 'mapViewMarking'],

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { useSelector, useDispatch } from 'react-redux';
 import styles from './stylesExploringItemsidebar.module.css';
@@ -44,25 +44,56 @@ const ExploringItemSidebar = () => {
   // 카드 뷰의 현재 슬라이드 시작 인덱스
   const [cardViewStartIndex, setCardViewStartIndex] = useState(0);
   
-  // 섹션 데이터 업데이트 이벤트 리스너
+  // SectionDBManager 구독 해제 함수 참조 저장
+  const unsubscribeRef = useRef(null);
+
+  // SectionDBManager 구독을 통한 데이터 업데이트
   useEffect(() => {
-    // 섹션 데이터 업데이트 이벤트 핸들러
-    const handleSectionDataUpdate = (event) => {
-      const { sectionName, items } = event.detail;
-      
-      // 현재 선택된 섹션에 대한 업데이트만 처리
-      if (sectionName === curSectionName) {
-        console.log(`[ExploringItemSidebar] ${sectionName} 섹션 데이터 업데이트 수신 (${items.length}개 항목)`);
-        setCurItemListInCurSection(items);
+    const setupSubscription = async () => {
+      try {
+        // ModuleManager를 통해 SectionDBManager 모듈 가져오기
+        const SectionDBManager = await ModuleManager.loadGlobalModuleAsync('sectionDBManager');
+        if (!SectionDBManager) {
+          console.error('[ExploringItemSidebar] SectionDBManager 모듈을 찾을 수 없습니다.');
+          return;
+        }
+        
+        console.log('[ExploringItemSidebar] SectionDBManager 구독 설정');
+        
+        // 기존 구독 해제
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
+        
+        // 새로운 구독 설정 - 현재 Redux 상태의 섹션명 전달
+        unsubscribeRef.current = SectionDBManager.subscribe(
+          // 구독 콜백 함수
+          (sectionName, items) => {
+            console.log(`[ExploringItemSidebar] 구독 콜백: ${sectionName} 섹션 데이터 수신 (${items?.length || 0}개 항목)`);
+            
+            // 현재 선택된 섹션에 대한 업데이트만 처리
+            if (sectionName === curSectionName) {
+              setCurItemListInCurSection(items || []);
+            }
+          },
+          // 초기 섹션명 전달 - 현재 Redux 상태의 섹션명 사용
+          curSectionName
+        );
+      } catch (error) {
+        console.error('[ExploringItemSidebar] SectionDBManager 구독 설정 중 오류:', error);
       }
     };
     
-    // 이벤트 리스너 등록
-    window.addEventListener('section-data-updated', handleSectionDataUpdate);
+    setupSubscription();
     
-    // 컴포넌트 언마운트 시 이벤트 리스너 제거
+    // 컴포넌트 언마운트 시 구독 해제
     return () => {
-      window.removeEventListener('section-data-updated', handleSectionDataUpdate);
+      if (unsubscribeRef.current) {
+        console.log('[ExploringItemSidebar] SectionDBManager 구독 해제');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
     };
   }, [curSectionName]);
   

@@ -84,6 +84,7 @@ const BrowserPage = () => {
     window.addEventListener('map:ready', handleMapReady);
   
     return () => {
+      console.log('[BrowserPage] 맵 이벤트 리스너 제거');
       window.removeEventListener('map:ready', handleMapReady);
       // 구독 해제
       if (unsubscribeRef.current) {
@@ -93,55 +94,16 @@ const BrowserPage = () => {
     };
   }, []);
   
-  // 모든 구독 설정 함수 - 맵 초기화 후 호출 (비동기 함수로 변경)
+  // 섹션 설정 - 맵 인스턴스 초기화 후 호출
   const setupAllSubscriptionsForModules = async (mapInstance) => {
-    console.log('[BrowserPage] 모든 구독 설정 시작');
-    
+    console.log('[BrowserPage] 섹션 설정 시작');
     try {
-      // SectionDBManager 구독 설정 (비동기 로드)
+      // SectionDBManager 로드 (비동기)
       const sectionDBManager = await ModuleManager.loadGlobalModule('sectionDBManager');
       if (sectionDBManager) {
-        // 이전 구독 해제
-        if (unsubscribeRef.current) {
-          unsubscribeRef.current();
-        }
-        
-        // 새 구독 설정
-        unsubscribeRef.current = sectionDBManager.subscribe(async (sectionName, items) => {
-          console.log(`[BrowserPage] 섹션 데이터 업데이트: ${sectionName}, 아이템 ${items.length}개`);
-          
-          // 이전 아이템 리스트 저장 (오버레이 제거용)
-          prevItemListforRelieveOverlays.current = items;
-          
-          try {
-            // 현재 시점의 맵 인스턴스 가져오기 (비동기 처리)
-            const GoogleMapManager = await ModuleManager.loadGlobalModule('googleMapManager');
-            if (!GoogleMapManager) {
-              console.warn('[BrowserPage] GoogleMapManager 모듈을 로드할 수 없습니다.');
-              return;
-            }
-            
-            const currentMapInstance = GoogleMapManager.getMapInstance();
-            
-            // MapOverlayManager에 아이템 등록 (맵 인스턴스가 있는 경우에만)
-            const mapOverlayManager = await ModuleManager.loadGlobalModule('mapOverlayManager');
-            if (mapOverlayManager && currentMapInstance) {
-              // 맵 인스턴스가 있는지 확인하고 필요시 초기화
-              if (!mapOverlayManager._mapInstance) {
-                console.log('[BrowserPage] MapOverlayManager에 맵 인스턴스 설정');
-                mapOverlayManager.initialize(currentMapInstance);
-              }
-              console.log(`[BrowserPage] MapOverlayManager에 오버레이 등록: ${sectionName}`);
-              mapOverlayManager.registerOverlaysByItemlist(sectionName, items);
-            } else if (!currentMapInstance) {
-              console.warn('[BrowserPage] 맵 인스턴스가 없어 오버레이 등록을 건너뜁니다.');
-            }
-          } catch (error) {
-            console.error('[BrowserPage] 섹션 데이터 처리 중 오류:', error);
-          }
-        });
-        
-        // 섹션 변경 디스패치
+        // 섹션 변경 디스패치만 처리
+        // SectionDBManager가 데이터 관리와 오버레이 등록을 담당
+        // ExploringItemSidebar가 UI 업데이트를 담당
         if (currentSectionName) {
           dispatch(curSectionChangedThunk(currentSectionName));
         } else {
@@ -150,9 +112,9 @@ const BrowserPage = () => {
         }
       }
       
-      console.log('[BrowserPage] 모든 구독 설정 완료');
+      console.log('[BrowserPage] 섹션 설정 완료');
     } catch (error) {
-      console.error('[BrowserPage] 구독 설정 중 오류:', error);
+      console.error('[BrowserPage] 섹션 설정 중 오류:', error);
     }
   };
 

@@ -164,16 +164,22 @@ const ExploringSidebar = ({
 
   // 상점 선택 핸들러
   const handleItemSelect = (item, e) => {
+    // 이벤트 기본 동작 방지
     e.preventDefault();
     
-    // 선택된 상점 설정 - 리덕스 액션으로 변경
-    const itemId = item.serverDataset?.id;
-    if (itemId) {
-      dispatch(itemSelectedThunk({
-        id: itemId,
-        sectionName: curSectionName
-      }));
+    if (!item || !item.serverDataset || !item.serverDataset.id) {
+      console.error('[ExploringSidebar] 선택된 아이템에 ID가 없습니다.');
+      return;
     }
+    
+    // 아이템 선택 액션 디스패치
+    console.log(`[ExploringSidebar] 아이템 선택: ${item.serverDataset.itemName} (ID: ${item.serverDataset.id})`);
+    
+    // itemSelectedThunk 액션 디스패치 - 아이템 ID와 현재 섹션명 전달
+    dispatch(itemSelectedThunk({
+      id: item.serverDataset.id,
+      sectionName: curSectionName
+    }));
   };
 
   // 이미지 클릭 핸들러

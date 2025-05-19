@@ -94,7 +94,8 @@ const sectionsDBManagerOfEditor = {
       // 서버 아이템이 있는 경우만 변환 및 캐시 저장
       let clientItems = [];
       if (serverItems && serverItems.length > 0) {
-        clientItems = this._transformToClientFormat(serverItems, sectionName);
+        // _transformToClientFormat 함수가 이제 비동기 함수이므로 await 사용
+        clientItems = await this._transformToClientFormat(serverItems, sectionName);
         
         // 4. 캐시에 저장
         this._cache.set(sectionName, clientItems);
@@ -107,9 +108,7 @@ const sectionsDBManagerOfEditor = {
     } catch (error) {
        console.error(`sectionsDBManagerOfEditor: ${sectionName} 데이터 로드 오류`, error);
       
-      // 오류 발생해도 리스너 설정은 시도
-      this._setupRealtimeListener(sectionName);
-      
+      // 오류 발생 시 빈 배열 반환
       return [];
     }
   },
@@ -277,9 +276,9 @@ const sectionsDBManagerOfEditor = {
   /**
    * 서버 형식에서 클라이언트 형식으로 데이터 변환 - 오버레이 생성(등록)도 포함
    * @param {Array} serverItems - 서버 형식 아이템 리스트 (protoServerDataset 형태)
-   * @returns {Array} - 변환된 아이템 리스트 (protoitemdataSet 형태)
+   * @returns {Promise<Array>} - 변환된 아이템 리스트 (protoitemdataSet 형태)
    */
-  _transformToClientFormat: function(serverItems, sectionName) {
+  _transformToClientFormat: async function(serverItems, sectionName) {
     // 오버레이 등록 처리
     if (!sectionName) {
       console.error('[sectionsDBManagerOfEditor] 섹션 이름이 제공되지 않았습니다.');
@@ -292,16 +291,28 @@ const sectionsDBManagerOfEditor = {
       return [];
     }
 
-    // ModuleManager를 통해 MapOverlayManager 모듈 접근
-    const mapOverlayManager = ModuleManager.loadGlobalModule('mapOverlayManager');
-    if (mapOverlayManager) {
-      // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
-      mapOverlayManager.registerOverlaysByItemlist(
-        sectionName, 
-        serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
-      );
-    } else {
-      console.warn('[sectionsDBManagerOfEditor] MapOverlayManager 모듈이 아직 초기화되지 않았습니다.');
+    try {
+      // ModuleManager를 통해 MapOverlayManager 모듈 비동기 접근
+      const mapOverlayManager = await ModuleManager.loadGlobalModuleAsync('mapOverlayManager');
+      
+      if (mapOverlayManager) {
+        console.log(`[DEBUG] MapOverlayManager 모듈 로드 완료, ${sectionName} 섹션 데이터 등록 시작`);
+        // registerOverlaysByItemlist 메서드 존재 여부 확인
+        if (typeof mapOverlayManager.registerOverlaysByItemlist === 'function') {
+          // MapOverlayManager에 전체 아이템 리스트 등록 (일괄 처리)
+          await mapOverlayManager.registerOverlaysByItemlist(
+            sectionName, 
+            serverItems  // protoServerDataset데이터 배열 (각 항목에는 id, pinCoordinates, path 등 포함)
+          );
+          console.log(`[DEBUG] ${sectionName} 섹션 데이터 등록 완료 (${serverItems.length}개 항목)`);
+        } else {
+          console.error('[ERROR] MapOverlayManager.registerOverlaysByItemlist가 함수가 아닙니다:', mapOverlayManager);
+        }
+      } else {
+        console.warn('[sectionsDBManagerOfEditor] MapOverlayManager 모듈이 로드되지 않았습니다.');
+      }
+    } catch (error) {
+      console.error(`[ERROR] MapOverlayManager 모듈 로드 또는 오버레이 등록 중 오류:`, error);
     }
 
     return serverItems.map(item => {
@@ -459,15 +470,25 @@ export default function Editor() { // 메인 페이지
   }, [tempOverlays]);
 
   // 마커와 폴리곤 옵션 초기화 함수
-  const initMarker = (_mapInstance) => { 
-     // 전역 MapOverlayManager 모듈 로드
-     const mapOverlayManager = ModuleManager.loadGlobalModule('mapOverlayManager');
-     
-     if (mapOverlayManager) {
-       mapOverlayManager.initialize(_mapInstance);
-     } else {
-       console.warn('[DEBUG] MapOverlayManager 모듈이 아직 로드되지 않았습니다.');
-     }
+  const initMarker = async (_mapInstance) => { 
+    try {
+      // 전역 MapOverlayManager 모듈 비동기 로드 (Promise 반환 방식으로 변경)
+      const mapOverlayManager = await ModuleManager.loadGlobalModuleAsync('mapOverlayManager');
+      
+      if (mapOverlayManager) {
+        console.log('[DEBUG] MapOverlayManager 모듈 로드 완료, initialize 호출');
+        // initialize 메서드 존재 여부 확인
+        if (typeof mapOverlayManager.initialize === 'function') {
+          mapOverlayManager.initialize(_mapInstance);
+        } else {
+          console.error('[ERROR] MapOverlayManager.initialize가 함수가 아닙니다:', mapOverlayManager);
+        }
+      } else {
+        console.warn('[DEBUG] MapOverlayManager 모듈이 로드되지 않았습니다.');
+      }
+    } catch (error) {
+      console.error('[ERROR] MapOverlayManager 모듈 로드 중 오류 발생:', error);
+    }
   }
   
   // 검색창 초기화 함수

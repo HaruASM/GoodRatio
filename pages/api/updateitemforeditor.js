@@ -1,5 +1,5 @@
-import { firebasedb } from '../../firebase';
-import { doc, getDoc, setDoc, updateDoc, addDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
+import { adminDb, serverTimestamp, increment } from '../../lib/firebaseAdminServer';
+import { doc, getDoc, setDoc, updateDoc, addDoc, collection } from 'firebase-admin/firestore';
 import { v2 as cloudinary } from 'cloudinary';
 import { stripAssetFolder, getFullPublicId } from '../../lib/cloudinary'; // 유틸리티 함수 임포트
 
@@ -325,7 +325,7 @@ export default async function handler(req, res) {
     if (processedData.id) {
       // 업데이트 로직
       const itemId = processedData.id;
-      const itemRef = doc(firebasedb, 'sections', sectionName, 'items', itemId);
+      const itemRef = doc(adminDb, 'sections', sectionName, 'items', itemId);
       
       // 문서 존재 확인
       const docSnap = await getDoc(itemRef);
@@ -340,7 +340,7 @@ export default async function handler(req, res) {
       await updateDoc(itemRef, processedData);
       
       // 섹션 문서 counterUpdated 필드 증가
-      const sectionRef = doc(firebasedb, 'sections', sectionName);
+      const sectionRef = doc(adminDb, 'sections', sectionName);
       
       // counterCollections 업데이트 - Map 구조로 설정
       // 참고: 'items'라는 키를 가진 객체에 counter 필드를 증가시킴
@@ -364,7 +364,7 @@ export default async function handler(req, res) {
       });
     } else {
       // 생성 로직
-      const itemsCollectionRef = collection(firebasedb, 'sections', sectionName, 'items');
+      const itemsCollectionRef = collection(adminDb, 'sections', sectionName, 'items');
       
       // 문서 추가
       const docRef = await addDoc(itemsCollectionRef, processedData);
@@ -379,7 +379,7 @@ export default async function handler(req, res) {
       await updateDoc(docRef, { id: docRef.id });
       
       // 섹션 문서 counterUpdated 필드 증가
-      const sectionRef = doc(firebasedb, 'sections', sectionName);
+      const sectionRef = doc(adminDb, 'sections', sectionName);
       await updateDoc(sectionRef, {
         lastUpdated: serverTimestamp(),
         counterUpdated: increment(1)

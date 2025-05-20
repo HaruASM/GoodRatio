@@ -1,3 +1,7 @@
+// travelCommunity컴포넌트 UI - CommunityDBManager 커뮤니티의 채널/채팅/메세지 데이터 관리 - realtimeChatUtilsFB는 유틸리티 컴포넌트. fireBase서버 기능담당
+// travelCommunity 컴포넌트가 메인 로직에서 사용되고, travelCommunity 내부에서 CommunityDBManager와 realtimeChatUtilsFB를 사용한다. 
+// travelCommunity컴포넌트 <-> communityDBManager.js <-> realtimeChatUtilsFB.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './styles.module.css';
 import ModuleManager from '../../lib/moduleManager';

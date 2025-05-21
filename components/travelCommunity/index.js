@@ -20,6 +20,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './styles.module.css';
 import ModuleManager from '../../lib/moduleManager';
+import { createMessage, createChatRoom } from '../../lib/models/communityModels.js';
 
 const TravelCommunity = () => {
   // 통합된 채팅 상태 관리
@@ -106,23 +107,12 @@ const TravelCommunity = () => {
           // 구독 패턴 설정 - 모든 이벤트 수신
           unsubscribeFromManager = manager.subscribe((eventType, data) => {
             // 메시지 이벤트 처리
-            if (eventType === 'messages' && data.roomId === currentRoomId) {
+            if (eventType === 'messages' && data.roomId === chatState.currentRoomId) { // chatState.currentRoomId 사용
               const roomType = data.roomId.startsWith('public-') ? 'public' : 'private';
               
-              setMessages(prevMessages => ({
-                ...prevMessages,
-                [roomType]: data.messages.map(msg => ({
-                  id: msg.id,
-                  username: msg.username || '익명',
-                  userType: msg.userType || '',
-                  isBold: msg.isBold || false,
-                  message: msg.message,
-                  timestamp: msg.timestamp,
-                  isRead: msg.isRead || false,
-                  fileUrl: msg.fileUrl || null,
-                  fileName: msg.fileName || null,
-                  senderId: msg.senderId || ''
-                }))
+              updateChatState(prev => ({ // updateChatState 사용 및 data.messages 직접 할당
+                ...prev,
+                messages: { ...prev.messages, [roomType]: data.messages }, 
               }));
               
               // 스크롤 맨 아래로 이동
@@ -163,18 +153,13 @@ const TravelCommunity = () => {
               });
             }
             // 메시지 수정 이벤트 처리
-            else if (eventType === 'messageEdited' && data.roomId === chatState.currentRoomId) {
+            else if (eventType === 'messages' && data.roomId === chatState.currentRoomId) {
               const roomType = data.roomId.startsWith('public-') ? 'public' : 'private';
-              
-              updateChatState(prevState => {
-                const updatedMessages = { ...prevState.messages };
-                updatedMessages[roomType] = prevState.messages[roomType].map(msg => 
-                  msg.id === data.messageId 
-                    ? { ...msg, message: data.newMessage, isEdited: true }
-                    : msg
-                );
-                return { messages: updatedMessages };
-              });
+              updateChatState(prev => ({
+                ...prev,
+                messages: { ...prev.messages, [roomType]: data.messages }, // CommunityDBManager가 이미 UI-ready 데이터 제공
+              }));
+              setTimeout(scrollToBottom, 100);
             }
           });
           
@@ -300,29 +285,12 @@ const TravelCommunity = () => {
 
       // 메시지 로드
       const roomMessages = await manager.getChatMessages(roomId, { useCache: true });
-      console.log(`[TravelCommunity] 채팅방 메시지 로드 성공: ${roomId}, 개수: ${roomMessages.length}`);
-
-      // 메시지 업데이트
-      const formattedMessages = roomMessages.map(msg => ({
-        id: msg.id,
-        username: msg.username || '익명',
-        userType: msg.userType || '',
-        isBold: msg.isBold || false,
-        message: msg.message,
-        timestamp: msg.timestamp,
-        isRead: msg.isRead || false,
-        fileUrl: msg.fileUrl || null,
-        fileName: msg.fileName || null,
-        senderId: msg.senderId || '',
-        isEdited: msg.isEdited || false
-      }));
+      console.log(`[TravelCommunity] 메시지 로드 완료 (${roomId}):`, roomMessages);
       
-      // 상태 업데이트
-      updateChatState(prevState => {
-        const updatedMessages = { ...prevState.messages };
-        updatedMessages[roomType] = formattedMessages;
-        return { messages: updatedMessages };
-      });
+      updateChatState(prev => ({
+        ...prev,
+        messages: { ...prev.messages, [roomType]: roomMessages },
+      }));
 
       setTimeout(scrollToBottom, 100);
 
@@ -356,18 +324,20 @@ const TravelCommunity = () => {
         }
       }
     } catch (error) {
-      console.error('[TravelCommunity] 채팅 메시지 로드 오류:', error);
-      // 오류 메시지 표시
+      console.error('[TravelCommunity] 메시지 로드 오류:', error);
+      // 메시지 로드 실패해도 채팅방 선택 상태는 유지
+      const roomType = roomId.startsWith('public-') ? 'public' : 'private';
       updateChatState(prevState => {
         const updatedMessages = { ...prevState.messages };
-        updatedMessages[roomType] = [{
+        updatedMessages[roomType] = [createMessage({
           id: 'error-message',
           username: '시스템',
-          message: '메시지를 로드하는 중 오류가 발생했습니다.',
-          timestamp: new Date().getTime(),
+          userType: 'system',
+          message: error.message || '메시지를 불러오는데 실패했습니다.',
+          timestamp: new Date().toISOString(), // createMessage가 ISO 문자열로 처리
           isRead: true,
-          senderId: 'system'
-        }];
+          senderId: 'system',
+        })];
         return { messages: updatedMessages };
       });
     } finally {
@@ -435,7 +405,7 @@ const TravelCommunity = () => {
             updatedMessages[roomType] = [{
               id: 'error-message',
               username: '시스템',
-              message: '메시지를 로드하는 중 오류가 발생했습니다.',
+              message: msgError.message || '메시지를 불러오는데 실패했습니다.',
               timestamp: new Date().getTime(),
               isRead: true,
               senderId: 'system'
@@ -569,15 +539,15 @@ const TravelCommunity = () => {
       }
       
       // 메시지 데이터 생성
-      const messageData = {
+      const messageData = createMessage({
         senderId: userInfo.userId,
         username: userInfo.username,
         userType: userInfo.userType,
         message: chatState.inputMessage.trim(),
         isBold: userInfo.isBold,
-        timestamp: new Date().toISOString(),
-        isRead: false
-      };
+        // timestamp: new Date().toISOString(), // createMessage에서 자동 생성 또는 data.timestamp 사용
+        isRead: false, // createMessage에서 기본값 처리
+      });
       
       // 임시 로컬 메시지 추가 (사용자 경험 개선)
       const currentMessages = [...chatState.messages[chatState.chatType]];
@@ -745,40 +715,48 @@ const TravelCommunity = () => {
     try {
       console.log('[TravelCommunity] 채팅방 생성 시작:', newRoomName, newRoomType);
       
-      // 새로운 채팅방 데이터 생성
-      const newRoomData = {
+      // Firestore에 저장할 채팅방 데이터
+      const roomDataForDB = {
         name: newRoomName.trim(),
         description: `${userInfo.username}님이 생성한 채팅방`,
         isPublic: newRoomType === 'public',
         createdBy: userInfo.userId,
-        createdAt: new Date().toISOString(),
-        members: [userInfo.userId], // 채팅방 생성자를 멤버로 추가
-        admins: [userInfo.userId]   // 채팅방 생성자를 관리자로 추가
+        // createdAt은 CommunityDBManager 또는 Firestore에서 처리될 수 있으므로 여기서는 제외하거나, 
+        // 명시적으로 전달해야 한다면 new Date().toISOString()을 사용합니다.
+        // 여기서는 CommunityDBManager가 Firestore에 저장 시 처리한다고 가정합니다.
+        members: [userInfo.userId],
+        admins: [userInfo.userId]
       };
-      
-      console.log('[TravelCommunity] 생성할 채팅방 데이터:', newRoomData);
-      
+
+      console.log('[TravelCommunity] Firestore에 전달할 채팅방 데이터:', roomDataForDB);
+
       // 새로운 채팅방 생성 (캐싱 사용)
-      const newRoomId = await communityDBManager.createChatRoom(newRoomData, { useCache: true });
-      
+      const newRoomId = await communityDBManager.createChatRoom(roomDataForDB, { useCache: true });
+
       if (!newRoomId) {
         throw new Error('채팅방 ID가 생성되지 않았습니다.');
       }
-      
+
       console.log('[TravelCommunity] 채팅방 생성 완료, ID:', newRoomId);
-      
-      // 새로운 채팅방 목록에 추가
-      const newRoom = {
+
+      // 로컬 UI 상태 업데이트를 위한 채팅방 객체 생성 (ChatRoom 모델 사용)
+      const newRoomForUI = createChatRoom({
         id: newRoomId,
-        name: newRoomData.name,
-        badge: '0',
-        isSelected: false,
-        notification: false,
-        isPublic: newRoomData.isPublic
-      };
-      
-      console.log('[TravelCommunity] 채팅방 목록에 추가:', newRoom);
-      const updatedRooms = [...chatRooms, newRoom];
+        name: roomDataForDB.name,
+        description: roomDataForDB.description,
+        isPublic: roomDataForDB.isPublic,
+        createdBy: roomDataForDB.createdBy,
+        members: roomDataForDB.members,
+        admins: roomDataForDB.admins,
+        createdAt: new Date().toISOString(), // UI에서는 즉시 보여주기 위해 현재 시간 사용
+        // badge, lastMessage 등은 createChatRoom 모델의 기본값을 따름
+      });
+      // UI에 필요한 추가/재정의 속성
+      newRoomForUI.isSelected = false; // 새로 만든 방은 처음엔 선택되지 않음
+      newRoomForUI.notification = false; // 기본 알림 상태
+
+      console.log('[TravelCommunity] 채팅방 목록에 추가:', newRoomForUI);
+      const updatedRooms = [...chatRooms, newRoomForUI];
       setChatRooms(updatedRooms);
       
       // 모달 닫기
@@ -971,7 +949,7 @@ const TravelCommunity = () => {
                           onClick={() => {
                             const newMessage = prompt('수정할 메시지를 입력하세요:', message.message);
                             if (newMessage && newMessage.trim() !== '' && newMessage !== message.message) {
-                              communityDBManager.editMessage(currentRoomId, message.id, newMessage, userInfo.userId);
+                              communityDBManager.editMessage(chatState.currentRoomId, message.id, newMessage, userInfo.userId);
                             }
                           }}
                           title="메시지 수정"
@@ -982,7 +960,7 @@ const TravelCommunity = () => {
                           className={styles['travelCommunity-actionButton']}
                           onClick={() => {
                             if (window.confirm('정말 이 메시지를 삭제하시겠습니까?')) {
-                              communityDBManager.deleteMessage(currentRoomId, message.id, userInfo.userId);
+                              communityDBManager.deleteMessage(chatState.currentRoomId, message.id, userInfo.userId);
                             }
                           }}
                           title="메시지 삭제"

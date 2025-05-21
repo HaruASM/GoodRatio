@@ -167,9 +167,64 @@
   justify-content: center;
 }
 
+.travelCommunity-createRoomButton {
+  display: flex;
+  align-items: center;
+  background-color: var(--theme-accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.travelCommunity-createRoomButton:hover {
+  background-color: var(--theme-accent-hover, #0056b3);
+  transform: translateY(-1px);
+}
+
+.travelCommunity-createRoomButton:active {
+  transform: translateY(0);
+}
+
+.travelCommunity-plusIcon {
+  font-size: 16px;
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.travelCommunity-createRoomText {
+  white-space: nowrap;
+}
+
 .travelCommunity-roomsList {
   flex: 1;
   overflow-y: auto;
+  position: relative;
+  min-height: 100px;
+}
+
+.travelCommunity-roomsLoading,
+.travelCommunity-noRooms {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 20px;
+  text-align: center;
+  color: var(--theme-text-muted);
+  font-size: 14px;
+}
+
+.travelCommunity-roomsLoading p,
+.travelCommunity-noRooms p {
+  margin: 0;
+  padding: 10px;
+  background-color: var(--theme-bg-secondary);
+  border-radius: 4px;
 }
 
 .travelCommunity-roomItem {
@@ -243,9 +298,173 @@
   background-color: var(--theme-scrollbar-thumb-hover);
 }
 
+/* 채팅방 생성 모달 */
+.travelCommunity-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.travelCommunity-modal {
+  background-color: var(--theme-bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 400px;
+  overflow: hidden;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.travelCommunity-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.travelCommunity-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--theme-text-primary);
+}
+
+.travelCommunity-modal-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--theme-text-muted);
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  transition: background-color 0.2s;
+}
+
+.travelCommunity-modal-close:hover {
+  background-color: var(--theme-hover);
+  color: var(--theme-text-primary);
+}
+
+.travelCommunity-modal-body {
+  padding: 20px;
+}
+
+.travelCommunity-form-group {
+  margin-bottom: 15px;
+}
+
+.travelCommunity-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--theme-text-secondary);
+}
+
+.travelCommunity-room-type-selector {
+  display: flex;
+  gap: 10px;
+}
+
+.travelCommunity-room-type-button {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 4px;
+  background-color: var(--theme-bg-secondary);
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.travelCommunity-room-type-button:hover {
+  background-color: var(--theme-hover);
+}
+
+.travelCommunity-room-type-button.travelCommunity-active {
+  background-color: var(--theme-accent);
+  color: white;
+  border-color: var(--theme-accent);
+}
+
+.travelCommunity-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid var(--theme-border);
+  background-color: var(--theme-bg-secondary);
+}
+
+.travelCommunity-button-secondary,
+.travelCommunity-button-primary {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.travelCommunity-button-secondary {
+  background-color: var(--theme-bg-primary);
+  color: var(--theme-text-primary);
+  border: 1px solid var(--theme-border-strong);
+}
+
+.travelCommunity-button-secondary:hover {
+  background-color: var(--theme-hover);
+}
+
+.travelCommunity-button-primary {
+  background-color: var(--theme-accent);
+  color: white;
+  border: none;
+}
+
+.travelCommunity-button-primary:hover {
+  background-color: var(--theme-accent-hover, #0056b3);
+}
+
+.travelCommunity-button-primary:disabled,
+.travelCommunity-button-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* 반응형 스타일 */
 @media (max-width: 768px) {
   .travelCommunity-roomsSection {
     height: 50%;
+  }
+  
+  .travelCommunity-modal {
+    width: 95%;
+    max-width: 350px;
+  }
+  
+  .travelCommunity-createRoomText {
+    display: none;
+  }
+  
+  .travelCommunity-plusIcon {
+    margin-right: 0;
   }
 } 

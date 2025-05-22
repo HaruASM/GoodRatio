@@ -17,7 +17,7 @@
 
 
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './styles.module.css';
 import ModuleManager from '../../lib/moduleManager';
 import { createMessage, createChatRoom, CommunityEventTypes } from '../../lib/models/communityModels.js';
@@ -51,28 +51,41 @@ const TravelCommunity = () => {
     isUploading: false
   });
   
-  // 상태 업데이트 헬퍼 함수
-  const updateChatState = (updates) => {
-    setChatState(prev => ({ ...prev, ...updates }));
-  };
-  
+  // chatState 업데이트 헬퍼 함수
+  const updateChatState = useCallback((updater) => {
+    setChatState(prevState => {
+      const newState = typeof updater === 'function' ? updater(prevState) : updater;
+      return { ...prevState, ...newState };
+    });
+  }, []); // setChatState는 안정적이므로 빈 배열
+
   // 사용자 정보 (실제 애플리케이션에서는 로그인 시스템에서 가져옴)
   const [userInfo, setUserInfo] = useState({
     userId: 'user-1', // 사용자 ID 추가
-    username: '김상배',
-    userType: '참여',
-    isBold: false
+    username: '사용자1',
+    profileImage: 'https://via.placeholder.com/40'
   });
+
+  // Helper function to validate the event target
+  const validateEventTarget = (target, functionName) => {
+    if (!target || !(target instanceof EventTarget)) {
+      console.error(`[TravelCommunity/${functionName}] Invalid or missing event target. Operation aborted.`);
+      return false;
+    }
+    return true;
+  };
   
   // communityDBManager 참조
   const [communityDBManager, setCommunityDBManager] = useState(null);
-  
+
   // 메시지 영역 스크롤 참조
   const messagesEndRef = useRef(null);
   
   // 타이밍 관련 참조
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageListenerUnsubscribeRef = useRef(null);
+  const typingListenerUnsubscribeRef = useRef(null);
   
   // 테마 전환 함수
   const toggleTheme = () => {
@@ -81,163 +94,266 @@ const TravelCommunity = () => {
     document.documentElement.setAttribute('data-theme', newTheme);
   };
   
-  // DOM 루트 요소 참조
-  const containerRef = useRef(null);
-
   // 메시지 추가 시 스크롤 맨 아래로 이동
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   
-  // 컴포넌트 마운트 시 단일 useEffect로 구독 설정 및 이벤트 처리
-  useEffect(() => {
-    // 이벤트 핸들러 함수 - 모든 이벤트 통합 처리
-    const handleEvent = (data) => {
-      if (data.roomId && data.roomId !== chatState.currentRoomId) return;
+  // --- 이벤트 핸들러 정의 (useCallback 적용) ---
+  const handleChatRoomsLoaded = useCallback((event) => {
+    const { rooms, roomId, messages } = event.detail;
+    const roomType = roomId && roomId.startsWith('public-') ? 'public' : 'private';
+    
+    updateChatState(prevState => ({
+      chatRooms: rooms,
+      currentRoomId: roomId,
+      messages: {
+        ...prevState.messages,
+        [roomType]: messages
+      },
+      isLoadingRoomList: false,
+      isLoadingRoom: false
+    }));
+  }, [updateChatState]);
+
+  const handleMessagesUpdated = useCallback((event) => {
+    const { roomId, messages } = event.detail;
+    const roomType = roomId && roomId.startsWith('public-') ? 'public' : 'private';
+    
+    updateChatState(prevState => ({
+      messages: {
+        ...prevState.messages,
+        [roomType]: messages
+      },
+      isLoadingRoom: roomId === prevState.currentRoomId ? false : prevState.isLoadingRoom
+    }));
+  }, [updateChatState]);
+
+  const handleTypingStatusChanged = useCallback((event) => {
+    const { roomId, typingUsers } = event.detail;
+    setChatState(prevState => {
+        if (roomId === prevState.currentRoomId) {
+            return { ...prevState, typingUsers };
+        }
+        return prevState;
+    });
+  }, [setChatState]);
+
+  const handleErrorEvent = useCallback((event) => {
+    const { error, functionName, details, roomId: targetRoomIdFromEvent } = event.detail; // Renamed for clarity
+    console.error(`[TravelCommunity] 오류 이벤트 수신:`, { error, functionName, details, targetRoomIdFromEvent });
+    Sentry.captureException(error, { extra: { functionName, details, targetRoomIdFromEvent, component: 'TravelCommunity' } });
+    
+    updateChatState(prevState => {
+      let errorDisplayRoomType = prevState.chatType; // Default to current active tab's type
+      let errorDisplayRoomId = prevState.currentRoomId; // Default to current active room ID
+
+      // If the error event specifies a room, use that for displaying the error message
+      if (targetRoomIdFromEvent) {
+        errorDisplayRoomType = targetRoomIdFromEvent.startsWith('public-') ? 'public' : 'private';
+        errorDisplayRoomId = targetRoomIdFromEvent;
+      }
       
-      switch (data.eventType) {
-        case 'community:chatRoomsLoaded':
-          updateChatState({
-            chatRooms: data.rooms,
-            currentRoomId: data.roomId,
-            messages: { ...chatState.messages, [chatState.chatType]: data.messages },
-            isLoadingRoomList: false,
-            isLoadingRoom: false
-          });
-          setTimeout(scrollToBottom, 100);
-          break;
-          
-        case CommunityEventTypes.MESSAGES_UPDATED:
-          updateChatState({
-            messages: { ...chatState.messages, [chatState.chatType]: data.messages },
-            isLoadingRoom: false
-          });
-          setTimeout(scrollToBottom, 100);
-          
-          // 읽지 않은 메시지 읽음 처리
-          if (communityDBManager && data.messages) {
-            const unreadMessages = data.messages
-              .filter(msg => !msg.isRead && msg.senderId && msg.senderId !== userInfo.userId)
-              .map(msg => msg.id);
-            if (unreadMessages.length > 0) { 
-              communityDBManager.markMessagesAsRead(data.roomId, unreadMessages, userInfo.userId)
-                .catch(err => console.warn(`[읽음 처리 오류] ${data.roomId}:`, err));
-            }
+      // Get the existing messages for the determined room type, or an empty array if none
+      const messagesForRoomType = prevState.messages[errorDisplayRoomType] || [];
+
+      return {
+        // Note: updateChatState merges, so no need for ...prevState here if only these fields change
+        messages: {
+          ...prevState.messages, // Preserve other room types' messages
+          [errorDisplayRoomType]: [ // Add error message to the specific room type's message array
+            createMessage({
+              id: `error-event-${Date.now()}`,
+              roomId: errorDisplayRoomId, // Associate message with the specific room ID
+              username: '시스템',
+              userType: 'system',
+              message: `오류: ${error.message || '알 수 없는 오류'}${error.code ? ` (코드: ${error.code})` : ''}. 출처: ${functionName || 'N/A'}. ${details ? `세부사항: ${JSON.stringify(details)}. ` : ''}${error.stack ? `스택: ${error.stack}` : ''}`,
+              timestamp: new Date().toISOString(),
+              isRead: true, // System messages are typically considered read
+              senderId: 'system'
+            }),
+            ...messagesForRoomType // Prepend error to existing messages for that room type
+          ]
+        },
+        // If the error is related to the current room, stop its loading indicator
+        isLoadingRoom: targetRoomIdFromEvent && targetRoomIdFromEvent === prevState.currentRoomId ? false : prevState.isLoadingRoom,
+        // Assume list loading should also stop or be marked as not loading on error
+        isLoadingRoomList: false 
+      };
+    });
+  }, [updateChatState]);
+  
+  // 초기화 useEffect: communityDBManager 로드 및 초기화
+  useEffect(() => {
+    let isMounted = true;
+    const initManager = async () => {
+      try {
+        document.documentElement.setAttribute('data-theme', chatState.theme);
+        if (!communityDBManager) {
+          throw new Error('CommunityDBManager 모듈 로드 실패');
+        }
+        if (isMounted) {
+          console.log('[TravelCommunity] CommunityDBManager 모듈 로드 성공');
+          const target = eventTargetRef.current;
+          if (!validateEventTarget(target, 'initManager')) {
+            console.error('[TravelCommunity/initManager] 유효하지 않은 eventTargetRef.current로 초기화 중단.');
+            // 필요시 사용자에게 오류 메시지를 표시하는 로직 추가
+            updateChatState(prevState => ({
+              messages: {
+                ...prevState.messages,
+                [prevState.chatType]: [
+                  createMessage({
+                    id: `error-init-target-${Date.now()}`,
+                    username: '시스템',
+                    userType: 'system',
+                    message: '컴포넌트 초기화 중 오류 발생: 이벤트 대상을 찾을 수 없습니다.',
+                    timestamp: new Date().toISOString(),
+                    isRead: true,
+                    senderId: 'system'
+                  }),
+                  ...(prevState.messages[prevState.chatType] || [])
+                ]
+              }
+            }));
+            return; // 초기화 중단
           }
-          break;
-          
-        case CommunityEventTypes.TYPING_STATUS:
-          const filteredTypingUsers = {};
-          const typingUsers = data.typingUsers || {};
-          Object.keys(typingUsers).forEach(userId => {
-            if (userId !== userInfo.userId && typingUsers[userId]) {
-              filteredTypingUsers[userId] = typingUsers[userId];
-            }
-          });
-          updateChatState({ typingUsers: filteredTypingUsers });
-          break;
-          
-        case CommunityEventTypes.ERROR:
-          // roomId가 없는 경우 처리 추가
-          if (!data.roomId) {
-            alert(`시스템 오류 발생: ${data.error || '알 수 없는 오류'}`);
-            updateChatState({ isLoadingRoom: false });
-            break;
-          }
-          
-          const roomType = data.roomId.startsWith('public-') ? 'public' : 'private';
+          // initializeWithEvents는 CHAT_ROOMS_LOADED 이벤트를 발생시킴
+          await communityDBManager.initializeWithEvents(userInfo, target);
+        }
+      } catch (error) {
+        console.error('[TravelCommunity] 초기화 오류:', error);
+        if (isMounted) {
           updateChatState({
             messages: {
               ...chatState.messages,
-              [roomType]: [
+              [chatState.chatType]: [
                 createMessage({
-                  id: `error-${Date.now()}`,
+                  id: `error-init-${Date.now()}`,
                   username: '시스템',
                   userType: 'system',
-                  message: data.error || '오류가 발생했습니다.',
+                  message: '초기화 중 오류 발생: ' + error.message,
                   timestamp: new Date().toISOString(),
                   isRead: true,
-                  senderId: 'system',
+                  senderId: 'system'
                 }),
-                ...(chatState.messages[roomType] || []), 
-              ],
-            },
-            isLoadingRoom: false
+                ...(chatState.messages[chatState.chatType] || [])
+              ]
+            }
           });
-          break;
-      }
-    };
-
-    // 초기화 함수
-    const init = async () => {
-      try {
-        // 초기 테마 설정
-        document.documentElement.setAttribute('data-theme', chatState.theme);
-        
-        // CommunityDBManager 모듈 로드
-        const manager = await ModuleManager.loadGlobalModuleAsync('communityDBManager');
-        if (!manager) {
-          throw new Error('CommunityDBManager 모듈 로드 실패');
         }
-        
-        console.log('[TravelCommunity] CommunityDBManager 모듈 로드 성공');
-        setCommunityDBManager(manager);
-        
-        // 이벤트 기반 초기화 설정
-        // initializeWithEvents에서 채팅방 목록을 로드하도록 변경
-        await manager.initializeWithEvents(userInfo, containerRef.current);
-        
-        // 채팅방 목록은 이벤트로 처리되므로 loadChatRooms 호출 삭제
-      } catch (error) {
-        console.error('[TravelCommunity] 초기화 오류:', error);
-        updateChatState({
-          messages: {
-            ...chatState.messages,
-            [chatState.chatType]: [
-              createMessage({
-                id: `error-${Date.now()}`,
-                username: '시스템',
-                userType: 'system',
-                message: '초기화 중 오류 발생: ' + error.message,
-                timestamp: new Date().toISOString(),
-                isRead: true,
-                senderId: 'system'
-              }),
-              ...chatState.messages[chatState.chatType]
-            ]
-          }
-        });
       }
     };
-    
-    // 초기화 실행
-    init();
 
-    // 이벤트 구독 설정
-    const unsubscribe = communityDBManager?.subscribe(handleEvent, containerRef.current);
-    
-    // 정리 함수
+    initManager();
+
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-      
+      isMounted = false;
       if (communityDBManager) {
         if (chatState.currentRoomId && userInfo.userId) {
           try {
-            communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, false);
+            communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, false, { target: eventTargetRef.current });
           } catch (error) {
-            console.warn('[TravelCommunity] 타이핑 상태 초기화 오류:', error);
+            console.warn('[TravelCommunity] 타이핑 상태 초기화 오류 (언마운트):', error);
           }
         }
+        if (chatListenerUnsubscribeRef.current) {
+          chatListenerUnsubscribeRef.current();
+          chatListenerUnsubscribeRef.current = null;
+        }
         communityDBManager.cleanup();
-        ModuleManager.unloadGlobalModule('communityDBManager');
       }
     };
-  // 의존성 배열 최적화: chatState.messages와 chatState.theme은 이벤트 기반으로 처리되므로 제외
-  }, [communityDBManager, chatState.chatType, chatState.currentRoomId, userInfo.userId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [communityDBManager, eventTargetRef, userInfo]); // 초기 마운트 시 한 번만 실행 (의존성 명확화)
 
-  // 이벤트 핸들러는 단일 useEffect로 통합했으므로 삭제
+  // --- currentRoomId 변경에 따른 동적 리스너 설정 useEffect ---
+  useEffect(() => {
+    const target = eventTargetRef.current;
+    if (!chatState.currentRoomId || !communityDBManager || !target) {
+      // 이전 리스너가 있다면 정리
+      if (messageListenerUnsubscribeRef.current) {
+        messageListenerUnsubscribeRef.current();
+        messageListenerUnsubscribeRef.current = null;
+      }
+      if (typingListenerUnsubscribeRef.current) {
+        typingListenerUnsubscribeRef.current();
+        typingListenerUnsubscribeRef.current = null;
+      }
+      return;
+    }
+
+    let isMounted = true;
+
+    const setupListenersForRoom = async () => {
+      // 이전 리스너 정리
+      if (messageListenerUnsubscribeRef.current) {
+        console.log(`[TravelCommunity] 이전 메시지 리스너 정리: ${chatState.currentRoomId}`);
+        messageListenerUnsubscribeRef.current();
+      }
+      if (typingListenerUnsubscribeRef.current) {
+        console.log(`[TravelCommunity] 이전 타이핑 리스너 정리: ${chatState.currentRoomId}`);
+        typingListenerUnsubscribeRef.current();
+      }
+
+      try {
+        console.log(`[TravelCommunity] 새 메시지 리스너 설정: ${chatState.currentRoomId}`);
+        const unsubscribeMessages = await communityDBManager.setupChatListener(chatState.currentRoomId, { target });
+        if (isMounted) messageListenerUnsubscribeRef.current = unsubscribeMessages;
+        else unsubscribeMessages(); // 이미 언마운트된 경우 즉시 해제
+
+        console.log(`[TravelCommunity] 새 타이핑 리스너 설정: ${chatState.currentRoomId}`);
+        const unsubscribeTyping = await communityDBManager.setupTypingListener(chatState.currentRoomId, { target });
+        if (isMounted) typingListenerUnsubscribeRef.current = unsubscribeTyping;
+        else unsubscribeTyping(); // 이미 언마운트된 경우 즉시 해제
+      } catch (error) {
+        console.error(`[TravelCommunity] 동적 리스너 설정 중 오류 (${chatState.currentRoomId}):`, error);
+        // 오류 발생 시에도 이전 리스너는 이미 정리되었을 수 있으므로, ref를 null로 설정
+        if (isMounted) {
+            messageListenerUnsubscribeRef.current = null;
+            typingListenerUnsubscribeRef.current = null;
+        }
+      }
+    };
+
+    setupListenersForRoom();
+
+    return () => {
+      isMounted = false;
+      console.log(`[TravelCommunity] 동적 리스너 정리 (cleanup): ${chatState.currentRoomId}`);
+      if (messageListenerUnsubscribeRef.current) {
+        messageListenerUnsubscribeRef.current();
+        messageListenerUnsubscribeRef.current = null;
+      }
+      if (typingListenerUnsubscribeRef.current) {
+        typingListenerUnsubscribeRef.current();
+        typingListenerUnsubscribeRef.current = null;
+      }
+    };
+  }, [chatState.currentRoomId, communityDBManager, eventTargetRef]);
+
+  // --- 정적 이벤트 리스너 설정 useEffect (CHAT_ROOMS_LOADED, ERROR) ---
+  useEffect(() => {
+    // eventTargetRef.current가 설정된 후에 리스너 등록
+    const targetElement = eventTargetRef.current; 
+    if (!targetElement || !communityDBManager) {
+        console.log('[TravelCommunity] useEffect: targetElement 또는 communityDBManager 없음, 리스너 설정 건너뜀');
+        return;
+    }
+    console.log('[TravelCommunity] useEffect: 이벤트 리스너 설정/재설정');
+
+    targetElement.addEventListener(CommunityEventTypes.CHAT_ROOMS_LOADED, handleChatRoomsLoaded);
+    // MESSAGES_UPDATED 및 TYPING_STATUS 리스너는 currentRoomId 기반 useEffect에서 동적으로 관리됩니다.
+    targetElement.addEventListener(CommunityEventTypes.ERROR, handleErrorEvent);
+    document.body.addEventListener(CommunityEventTypes.ERROR, handleErrorEvent); // Catch globally dispatched errors
+
+    return () => {
+      console.log('[TravelCommunity] useEffect cleanup: 정적 이벤트 리스너 제거');
+      targetElement.removeEventListener(CommunityEventTypes.CHAT_ROOMS_LOADED, handleChatRoomsLoaded);
+      // MESSAGES_UPDATED 및 TYPING_STATUS 리스너는 currentRoomId 기반 useEffect에서 동적으로 관리됩니다.
+      targetElement.removeEventListener(CommunityEventTypes.ERROR, handleErrorEvent);
+      document.body.removeEventListener(CommunityEventTypes.ERROR, handleErrorEvent);
+    };
+  }, [communityDBManager, eventTargetRef, handleChatRoomsLoaded, handleErrorEvent]);
   
   // 채팅방 목록 로드 함수 (중앙화된 비동기 작업 사용)
   const loadChatRooms = async (manager, options = {}) => {
@@ -306,78 +422,65 @@ const TravelCommunity = () => {
     }
   };
   
-  // 채팅방 메시지 로드 함수 - 이벤트 기반 아키텍처로 변경
-  const loadChatMessages = async (manager, roomId, target) => {
-    try {
-      // 로딩 상태는 manager.loadChatMessages에서 이벤트로 처리하도록 변경
-      // 이중 상태 관리 방지를 위해 여기서는 상태 설정하지 않음
-      console.log(`[TravelCommunity] 채팅방 메시지 로드 시작: ${roomId}`);
-      
-      // 이벤트 기반 메시지 로드
-      // 이제 manager에서 이벤트를 발생시키고 상태 업데이트는 이벤트 핸들러에서 처리
-      await manager.loadChatMessages(roomId, target);
-      
-      console.log(`[TravelCommunity] 채팅방 메시지 로드 요청 완료: ${roomId}`);
-    } catch (error) {
-      console.error('[TravelCommunity] 메시지 로드 오류:', error);
-      // 오류 시 이벤트 발생을 통해 상태 처리
-      throw error; // 상위 함수에서 처리하도록 오류 전파
-    }
-  };
-  
-  // 채팅방 선택 함수 - 이벤트 기반 아키텍처로 변경
-  const selectChatRoom = async (roomId) => {
-    if (roomId === chatState.currentRoomId) return;
-    
-    try {
-      // 로딩 상태 설정
-      updateChatState({ isLoadingRoom: true });
-      
-      // 채팅방 선택 상태 업데이트
-      const updatedRooms = chatState.chatRooms.map(room => ({
+  // 채팅방 선택 함수
+  const selectChatRoom = async (newRoomId) => {
+    if (newRoomId === chatState.currentRoomId || chatState.isLoadingRoom) return;
+
+    const previousRoomId = chatState.currentRoomId;
+    updateChatState({
+      isLoadingRoom: true,
+      currentRoomId: newRoomId,
+      messages: { ...chatState.messages, [chatState.chatType]: [] }, // 새 방 선택 시 메시지 초기화
+      typingUsers: {},
+      chatRooms: chatState.chatRooms.map(room => ({
         ...room,
-        isSelected: room.id === roomId,
-        notification: room.id === roomId ? false : room.notification
-      }));
-      
-      // 이전 채팅방 타이핑 상태 초기화
-      if (communityDBManager && chatState.currentRoomId && userInfo.userId && chatState.isTyping) {
-        try {
+        isSelected: room.id === newRoomId,
+        notification: room.id === newRoomId ? false : room.notification
+      }))
+    });
+
+    try {
+      const target = eventTargetRef.current; // initManager에서 이미 검증되었으므로, 여기서는 null 체크만 필요할 수 있으나 일단 유지.
+      // validateEventTarget 호출은 제거 (initManager에서 검증 가정)
+      if (!target) {
+        console.error('[TravelCommunity/selectChatRoom] eventTargetRef.current가 null입니다. 초기화 로직을 확인하세요.');
+        updateChatState({ isLoadingRoom: false }); // 로딩 상태 해제
+        return;
+      }
+
+      if (communityDBManager) {
+        // 이전 방 타이핑 상태 정리
+        if (previousRoomId && userInfo.userId && chatState.isTyping) {
           updateChatState({ isTyping: false });
-          
           if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = null;
           }
-          
-          await communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, false);
-        } catch (error) {
-          console.warn('[TravelCommunity] 타이핑 상태 초기화 오류:', error);
+          await communityDBManager.updateTypingStatus(previousRoomId, userInfo.userId, false, { target });
         }
-      }
-      
-      // 상태 업데이트
-      updateChatState({
-        chatRooms: updatedRooms,
-        currentRoomId: roomId,
-        typingUsers: {}
-      });
-      
-      // 선택한 채팅방 메시지 로드 - target 전달 추가
-      if (communityDBManager) {
-        try {
-          await loadChatMessages(communityDBManager, roomId, containerRef.current);
-        } catch (error) {
-          console.error('[TravelCommunity] 메시지 로드 오류:', error);
-          // 오류 UI 업데이트는 이벤트 핸들러에서 처리
+
+        // 이전 방 리스너 정리
+        if (chatListenerUnsubscribeRef.current) {
+          chatListenerUnsubscribeRef.current();
+          chatListenerUnsubscribeRef.current = null;
         }
+
+        // 새 방 메시지 가져오기 (MESSAGES_UPDATED 이벤트 유발)
+        await communityDBManager.getChatMessages(newRoomId, { target });
+
+        // 새 방 리스너 설정
+        const unsubscribe = await communityDBManager.setupChatListener(newRoomId, { target });
+        chatListenerUnsubscribeRef.current = unsubscribe;
       } else {
-        console.warn('[TravelCommunity] communityDBManager가 없어 메시지를 로드할 수 없음');
+        console.warn('[TravelCommunity] communityDBManager가 없어 메시지/리스너를 처리할 수 없음');
+        updateChatState({ isLoadingRoom: false });
       }
     } catch (error) {
-      console.error('[TravelCommunity] 채팅방 선택 오류:', error);
+      console.error(`[TravelCommunity] 채팅방 ${newRoomId} 선택 오류:`, error);
       updateChatState({ isLoadingRoom: false });
+      // 오류 이벤트는 CommunityDBManager에서 발생시키고 여기서 처리될 것임
     }
+    // isLoadingRoom: false 는 MESSAGES_UPDATED 핸들러에서 처리
   };
   
   // 탭 전환 함수
@@ -387,9 +490,10 @@ const TravelCommunity = () => {
     console.log(`[TravelCommunity] 채팅 타입 변경: ${chatState.chatType} -> ${type}`);
     updateChatState({ chatType: type });
     
-    // 타입 변경 시 메시지 로드 - target 전달 추가
+    // 타입 변경 시 메시지 로드
     if (communityDBManager && chatState.currentRoomId) {
-      loadChatMessages(communityDBManager, chatState.currentRoomId, containerRef.current);
+      // loadChatMessages 함수는 이벤트 기반 아키텍처로 변경
+      // communityDBManager.getChatMessages(chatState.currentRoomId);
     }
   };
   
@@ -402,7 +506,7 @@ const TravelCommunity = () => {
       // 이미 타이핑 중이 아닌 경우에만 상태 업데이트
       if (!chatState.isTyping) {
         updateChatState({ isTyping: true });
-        communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, true);
+        communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, true, { target: eventTargetRef.current });
       }
       
       // 타이핑 타임아웃 설정 (사용자가 타이핑을 멈추면 상태 업데이트)
@@ -413,7 +517,7 @@ const TravelCommunity = () => {
       typingTimeoutRef.current = setTimeout(() => {
         updateChatState({ isTyping: false });
         if (communityDBManager && chatState.currentRoomId) {
-          communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, false);
+          communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, false, { target: eventTargetRef.current });
         }
       }, 2000); // 2초 동안 타이핑이 없으면 타이핑 중지로 간주
     }
@@ -466,6 +570,14 @@ const TravelCommunity = () => {
       console.log('[TravelCommunity] 이미 업로드 중입니다.');
       return;
     }
+
+    const target = eventTargetRef.current; // initManager에서 이미 검증되었으므로, 여기서는 null 체크만 필요할 수 있으나 일단 유지.
+    // validateEventTarget 호출은 제거 (initManager에서 검증 가정)
+    if (!target) {
+      console.error('[TravelCommunity/handleSendMessage] eventTargetRef.current가 null입니다. 초기화 로직을 확인하세요.');
+      // 필요시 사용자에게 오류 메시지 표시
+      return;
+    }
     
     console.log(`[TravelCommunity] 메시지 전송 시도: ${chatState.inputMessage} (${chatState.chatType} 채팅방)`);
     
@@ -474,7 +586,7 @@ const TravelCommunity = () => {
       if (chatState.isTyping) {
         updateChatState({ isTyping: false });
         try {
-          await communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, false);
+          await communityDBManager.updateTypingStatus(chatState.currentRoomId, userInfo.userId, false, { target });
         } catch (typingError) {
           console.warn('[TravelCommunity] 타이핑 상태 업데이트 오류:', typingError);
           // 타이핑 오류는 메시지 전송을 중단하지 않음
@@ -539,7 +651,7 @@ const TravelCommunity = () => {
             chatState.currentRoomId, 
             messageData, 
             chatState.selectedFile,
-            { useCache: true }
+            { target, useCache: true }
           );
           
           console.log(`[TravelCommunity] 파일 업로드 및 메시지 전송 성공: ${messageId}`);
@@ -559,7 +671,7 @@ const TravelCommunity = () => {
           messageId = await communityDBManager.sendMessage(
             chatState.currentRoomId, 
             messageData, 
-            { useCache: true }
+            { target, useCache: true }
           );
           console.log(`[TravelCommunity] 메시지 전송 성공: ${messageId}`);
         } catch (sendError) {
@@ -765,7 +877,7 @@ const TravelCommunity = () => {
   };
 
   return (
-    <div className={styles['travelCommunity-container']} ref={containerRef}>
+    <div ref={eventTargetRef} className={`${styles['travelCommunity-container']} ${styles[chatState.theme]}`}>
       {/* 채팅방 생성 모달 */}
       {isCreatingRoom && (
         <div className={styles['travelCommunity-modal-overlay']}>

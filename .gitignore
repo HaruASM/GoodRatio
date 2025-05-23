@@ -48,7 +48,7 @@ next-env.d.ts
 .cursor
 
 # memo
-/memo
+/memo/
 memo.txt
 memo.md
 code_summary.md
@@ -77,4 +77,8 @@ tasks/
 # Development tools
 .roo/
 .roomodes
-.taskmasterconfig
+.taskmasterconfig 
+
+
+/logforAI/refactor_log.md
+# .codeiumignore

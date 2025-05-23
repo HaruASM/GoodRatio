@@ -1,6 +1,13 @@
 {
+    "recommendations": [
+        "exodiusstudios.comment-anchors"
+    ],
     "commentAnchors.tagHighlights.enabled": true,
     "commentAnchors.epic.provideAutoCompletion": false,
     "commentAnchors.showCursor": true,
-    "commentAnchors.tags.displayLineNumber": false
+    "commentAnchors.tags.displayLineNumber": false,
+    "search.useIgnoreFiles": false,
+    "explorer.excludeGitIgnore": false,
+    "codeium.includeIgnoredFiles": false,
+    "codeium.logLevel": "debug"
 }

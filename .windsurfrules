@@ -11,15 +11,23 @@ globs: **/*
 filesToApplyRule: **/*
 alwaysApply: true
 ---
+
 ---
-description: Allow AI to access refactor_log.md while keeping memo directory excluded from git
-globs: **/memo/refactor_log.md
-filesToApplyRule: **/memo/refactor_log.md
+REFACTOR_LOGS
+---
+description: Rules for refactoring logs and documentation
+globs: logforAI/refactor_log.md
+filesToApplyRule: logforAI/refactor_log.md
 alwaysApply: true
 ---
 
-# 이 규칙은 memo/refactor_log.md 파일에 AI가 접근할 수 있도록 허용합니다
-# Git에서는 여전히 제외되지만 AI 도구는 읽고 쓸 수 있습니다
+- **Refactoring Log Format**
+  - Use markdown headings for organization
+  - Include date of refactoring
+  - Document file paths with code blocks
+  - Show before/after code snippets
+  - Explain rationale for changes
+  - Note performance or maintainability improvements
 
 
 ---

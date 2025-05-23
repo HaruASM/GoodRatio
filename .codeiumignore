@@ -5,4 +5,6 @@
 /.git/
 
 # logforAI 디렉토리는 기본적으로 허용
-
+# logforAI/refactor_log.md 명시적 허용
+!/logforAI/
+!/logforAI/refactor_log.md

@@ -8,6 +8,4 @@
     "commentAnchors.tags.displayLineNumber": false,
     "search.useIgnoreFiles": false,
     "explorer.excludeGitIgnore": false,
-    "codeium.includeIgnoredFiles": false,
-    "codeium.logLevel": "debug"
 }

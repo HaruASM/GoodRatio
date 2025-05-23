@@ -47,12 +47,6 @@ next-env.d.ts
 .env.production
 .cursor
 
-# memo
-/memo/
-memo.txt
-memo.md
-code_summary.md
-
 # Added by Claude Task Master
 # Logs
 logs
@@ -82,3 +76,15 @@ tasks/
 
 /logforAI/refactor_log.md
 # .codeiumignore
+
+
+# memo 개발중 기록용 
+/memo/
+
+#.codeiumignore을 통한 방법이 작동하지 않아 .gitignore에서 아래와 같이 사용 
+# AI가 참조할 log를 git이 추적하지 않도록 함. 
+/memoForAI/
+/memoForAI/*
+!/memoForAI/
+!/memoForAI/refactor_log.md
+

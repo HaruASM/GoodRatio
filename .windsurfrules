@@ -11,7 +11,6 @@ globs: **/*
 filesToApplyRule: **/*
 alwaysApply: true
 ---
-
 ---
 REFACTOR_LOGS
 ---
@@ -29,6 +28,42 @@ alwaysApply: true
   - Explain rationale for changes
   - Note performance or maintainability improvements
 
+- **Incremental Documentation**
+  - Document each sub-refactoring as it completes, even before the entire refactoring is finished
+  - Log each partial refactoring as a separate entry to maintain context
+  - Add a comprehensive summary after the complete refactoring is done
+
+- **Documentation Timing**
+  - After completing refactoring of a single file or related file group
+  - After completing refactoring of a specific feature or module
+  - After completing the entire refactoring process (final summary)
+
+- **Avoiding Duplicate Reporting**
+  - Content recorded in refactor_log.md should not be separately reported in the Cascade window
+  - After refactoring completion, only provide a reference to the refactor_log.md file in Cascade
+
+- **Log Template**
+  ```markdown
+  ## [Refactoring Title] - YYYY-MM-DD
+  
+  ### Modified Files
+  - [File Path]
+  
+  ### Changes
+  - [Description of changes]
+  
+  ### Rationale
+  - [Reasoning for changes]
+  
+  ### Performance Impact
+  - [Impact on performance]
+  
+  ### Maintainability Impact
+  - [Impact on maintainability]
+  
+  ### Future Improvements
+  - [Future improvements]
+  ```
 
 ---
 WINDSURF_RULES
